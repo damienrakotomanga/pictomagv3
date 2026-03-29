@@ -1,13 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   attachAuthCookies,
+  normalizeAuthDisplayName,
+  normalizeAuthUsername,
   normalizeAuthRole,
+  resolveAuthenticatedAppUser,
   resolveAuthRole,
-  resolveAuthUserId,
+  resolveAvailableProfileUsername,
+  serializePublicAuthUser,
+  serializePublicProfile,
   type AuthRole,
 } from "@/lib/server/auth-user";
-import { attachPreferenceUserCookie, resolvePreferenceUser } from "@/lib/server/preference-user";
+import {
+  attachPreferenceUserCookie,
+  bindPreferenceUserToUserId,
+  resolvePreferenceUser,
+} from "@/lib/server/preference-user";
 import { normalizePreferenceUserId } from "@/lib/server/preferences-store";
+import {
+  ensureCompatibilityUserWithProfile,
+  getProfileByUserId,
+  getUserById,
+} from "@/lib/server/sqlite-store";
 
 export const runtime = "nodejs";
 const PRIVILEGED_ROLES = new Set<AuthRole>(["admin", "moderator", "finance_admin"]);
@@ -36,23 +50,33 @@ function canElevateToRole({
 
 export async function GET(request: NextRequest) {
   const resolvedPreferenceUser = resolvePreferenceUser(request);
-  const authUserId = resolveAuthUserId(request);
-  const role = resolveAuthRole(request);
+  const authenticatedUser = resolveAuthenticatedAppUser(request);
 
+  if (authenticatedUser) {
+    const boundPreferenceUser = bindPreferenceUserToUserId(request, authenticatedUser.user.id, "auth-token");
+    const response = NextResponse.json({
+      authenticated: true,
+      compatibilityMode: authenticatedUser.compatibilityMode,
+      sessionId: boundPreferenceUser.sessionId,
+      role: authenticatedUser.role,
+      user: serializePublicAuthUser(authenticatedUser.user),
+      profile: serializePublicProfile(authenticatedUser.profile),
+    });
+
+    attachPreferenceUserCookie(response, boundPreferenceUser);
+    return response;
+  }
+
+  const role = resolveAuthRole(request);
   const response = NextResponse.json({
-    userId: authUserId ?? resolvedPreferenceUser.userId,
+    authenticated: false,
+    compatibilityMode: true,
+    userId: resolvedPreferenceUser.userId,
     role,
     sessionId: resolvedPreferenceUser.sessionId,
   });
 
   attachPreferenceUserCookie(response, resolvedPreferenceUser);
-  if (!authUserId) {
-    attachAuthCookies(response, {
-      userId: resolvedPreferenceUser.userId,
-      role,
-    });
-  }
-
   return response;
 }
 
@@ -66,11 +90,12 @@ export async function POST(request: NextRequest) {
   }
 
   const resolvedPreferenceUser = resolvePreferenceUser(request);
+  const currentAuthenticatedUser = resolveAuthenticatedAppUser(request);
   const currentRole = resolveAuthRole(request);
   const userId =
     typeof payload?.userId === "string" && payload.userId.trim().length > 0
       ? normalizePreferenceUserId(payload.userId)
-      : resolvedPreferenceUser.userId;
+      : currentAuthenticatedUser?.user.id ?? resolvedPreferenceUser.userId;
   const role = normalizeAuthRole(payload?.role) as AuthRole;
 
   if (!canElevateToRole({ desiredRole: role, currentRole })) {
@@ -86,18 +111,52 @@ export async function POST(request: NextRequest) {
     return denied;
   }
 
-  const response = NextResponse.json({
+  const existingUser = getUserById(userId);
+  if (existingUser?.auth_mode === "local") {
+    const denied = NextResponse.json(
+      {
+        message: "Le mode de compatibilite ne peut pas prendre le controle d un compte local.",
+        userId,
+      },
+      { status: 409 },
+    );
+    attachPreferenceUserCookie(denied, resolvedPreferenceUser);
+    return denied;
+  }
+
+  const existingProfile = getProfileByUserId(userId);
+  const username =
+    existingProfile?.username ??
+    resolveAvailableProfileUsername(
+      normalizeAuthUsername(userId) ?? userId,
+      normalizeAuthUsername(userId) ?? userId,
+    );
+  const displayName = existingProfile?.display_name ?? normalizeAuthDisplayName(userId, userId);
+  ensureCompatibilityUserWithProfile({
     userId,
     role,
-    sessionId: resolvedPreferenceUser.sessionId,
+    username,
+    displayName,
   });
 
-  attachAuthCookies(response, { userId, role });
-  attachPreferenceUserCookie(response, {
-    ...resolvedPreferenceUser,
-    userId,
-    shouldSetPreferenceCookie: true,
+  const refreshedUser = getUserById(userId);
+  const refreshedProfile = getProfileByUserId(userId);
+  if (!refreshedUser || !refreshedProfile) {
+    return NextResponse.json({ message: "Impossible d initialiser la session de compatibilite." }, { status: 500 });
+  }
+
+  const boundPreferenceUser = bindPreferenceUserToUserId(request, refreshedUser.id, "auth-token");
+  const response = NextResponse.json({
+    authenticated: true,
+    compatibilityMode: true,
+    role: normalizeAuthRole(refreshedUser.role),
+    sessionId: boundPreferenceUser.sessionId,
+    user: serializePublicAuthUser(refreshedUser),
+    profile: serializePublicProfile(refreshedProfile),
   });
+
+  attachAuthCookies(response, { userId: refreshedUser.id, role: normalizeAuthRole(refreshedUser.role) });
+  attachPreferenceUserCookie(response, boundPreferenceUser);
 
   return response;
 }

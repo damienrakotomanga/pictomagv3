@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isRoleAllowed, resolveAuthRole } from "@/lib/server/auth-user";
+import { isRoleAllowed, resolveAuthenticatedAppUser } from "@/lib/server/auth-user";
 import { attachPreferenceUserCookie, resolvePreferenceUser } from "@/lib/server/preference-user";
 import { listAuditLogs } from "@/lib/server/sqlite-store";
 import { normalizePreferenceUserId } from "@/lib/server/preferences-store";
@@ -29,13 +29,24 @@ function parseMetadata(rawValue: string) {
 
 export async function GET(request: NextRequest) {
   const resolvedUser = resolvePreferenceUser(request);
-  const role = resolveAuthRole(request);
+  const authenticatedUser = resolveAuthenticatedAppUser(request);
 
-  if (!isRoleAllowed(role, ["admin", "moderator", "finance_admin"])) {
+  if (!authenticatedUser) {
+    const denied = NextResponse.json(
+      {
+        message: "Authentification requise pour acceder aux logs d audit.",
+      },
+      { status: 401 },
+    );
+    attachPreferenceUserCookie(denied, resolvedUser);
+    return denied;
+  }
+
+  if (!isRoleAllowed(authenticatedUser.role, ["admin", "moderator", "finance_admin"])) {
     const denied = NextResponse.json(
       {
         message: "Acces reserve aux roles admin/moderation/finance.",
-        role,
+        role: authenticatedUser.role,
       },
       { status: 403 },
     );
@@ -57,10 +68,9 @@ export async function GET(request: NextRequest) {
   const response = NextResponse.json({
     logs,
     count: logs.length,
-    role,
+    role: authenticatedUser.role,
     scope: targetUserId ?? "all",
   });
   attachPreferenceUserCookie(response, resolvedUser);
   return response;
 }
-

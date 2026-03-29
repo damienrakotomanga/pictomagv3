@@ -9,6 +9,30 @@ type PreferencesRow = {
   updated_at: number;
 };
 
+export type StoredUserAuthMode = "local" | "compat";
+
+export type StoredUserRow = {
+  id: string;
+  email: string | null;
+  password_hash: string | null;
+  role: string;
+  auth_mode: StoredUserAuthMode;
+  created_at: number;
+  updated_at: number;
+  last_login_at: number | null;
+};
+
+export type StoredProfileRow = {
+  user_id: string;
+  username: string;
+  display_name: string;
+  bio: string;
+  avatar_url: string | null;
+  website_url: string | null;
+  created_at: number;
+  updated_at: number;
+};
+
 type RuntimeStateRow = {
   user_id: string;
   marketplace_orders: string;
@@ -106,6 +130,28 @@ function ensureDatabase() {
       updated_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE,
+      password_hash TEXT,
+      role TEXT NOT NULL,
+      auth_mode TEXT NOT NULL DEFAULT 'compat',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      last_login_at INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS profiles (
+      user_id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL,
+      bio TEXT NOT NULL DEFAULT '',
+      avatar_url TEXT,
+      website_url TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS user_sessions (
       session_id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -143,12 +189,30 @@ function ensureDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs (user_id);
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+    CREATE INDEX IF NOT EXISTS idx_profiles_username ON profiles (username);
   `);
 
   ensureRuntimeStateSchema(db);
 
   database = db;
   return db;
+}
+
+function asNullableString(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
+function asNullableNumber(value: unknown) {
+  return typeof value === "number" ? value : null;
+}
+
+function asStoredUserAuthMode(value: unknown): StoredUserAuthMode | null {
+  if (value === "local" || value === "compat") {
+    return value;
+  }
+
+  return null;
 }
 
 function asPreferencesRow(value: unknown): PreferencesRow | null {
@@ -197,6 +261,64 @@ function asRuntimeStateRow(value: unknown): RuntimeStateRow | null {
     live_shopping_orders: row.live_shopping_orders,
     live_shopping_inventory: row.live_shopping_inventory,
     live_shopping_schedule: row.live_shopping_schedule,
+    updated_at: row.updated_at,
+  };
+}
+
+function asStoredUserRow(value: unknown): StoredUserRow | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  const authMode = asStoredUserAuthMode(row.auth_mode);
+  if (
+    typeof row.id !== "string" ||
+    typeof row.role !== "string" ||
+    typeof row.created_at !== "number" ||
+    typeof row.updated_at !== "number" ||
+    authMode === null
+  ) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    email: asNullableString(row.email),
+    password_hash: asNullableString(row.password_hash),
+    role: row.role,
+    auth_mode: authMode,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    last_login_at: asNullableNumber(row.last_login_at),
+  };
+}
+
+function asStoredProfileRow(value: unknown): StoredProfileRow | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.user_id !== "string" ||
+    typeof row.username !== "string" ||
+    typeof row.display_name !== "string" ||
+    typeof row.bio !== "string" ||
+    typeof row.created_at !== "number" ||
+    typeof row.updated_at !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    user_id: row.user_id,
+    username: row.username,
+    display_name: row.display_name,
+    bio: row.bio,
+    avatar_url: asNullableString(row.avatar_url),
+    website_url: asNullableString(row.website_url),
+    created_at: row.created_at,
     updated_at: row.updated_at,
   };
 }
@@ -344,6 +466,86 @@ export function getUserRuntimeStateRow(userId: string) {
   return asRuntimeStateRow(row);
 }
 
+export function getUserById(userId: string) {
+  const db = ensureDatabase();
+  const row = db
+    .prepare(`
+      SELECT
+        id,
+        email,
+        password_hash,
+        role,
+        auth_mode,
+        created_at,
+        updated_at,
+        last_login_at
+      FROM users
+      WHERE id = ?
+    `)
+    .get(userId);
+  return asStoredUserRow(row);
+}
+
+export function getUserByEmail(email: string) {
+  const db = ensureDatabase();
+  const row = db
+    .prepare(`
+      SELECT
+        id,
+        email,
+        password_hash,
+        role,
+        auth_mode,
+        created_at,
+        updated_at,
+        last_login_at
+      FROM users
+      WHERE email = ?
+    `)
+    .get(email);
+  return asStoredUserRow(row);
+}
+
+export function getProfileByUserId(userId: string) {
+  const db = ensureDatabase();
+  const row = db
+    .prepare(`
+      SELECT
+        user_id,
+        username,
+        display_name,
+        bio,
+        avatar_url,
+        website_url,
+        created_at,
+        updated_at
+      FROM profiles
+      WHERE user_id = ?
+    `)
+    .get(userId);
+  return asStoredProfileRow(row);
+}
+
+export function getProfileByUsername(username: string) {
+  const db = ensureDatabase();
+  const row = db
+    .prepare(`
+      SELECT
+        user_id,
+        username,
+        display_name,
+        bio,
+        avatar_url,
+        website_url,
+        created_at,
+        updated_at
+      FROM profiles
+      WHERE username = ?
+    `)
+    .get(username);
+  return asStoredProfileRow(row);
+}
+
 export function upsertUserRuntimeStateRow({
   userId,
   marketplaceOrdersJson,
@@ -437,11 +639,202 @@ export function createSession({
   `).run(sessionId, userId, now, now);
 }
 
+export function createUserWithProfile({
+  id,
+  email,
+  passwordHash,
+  role,
+  authMode,
+  username,
+  displayName,
+  bio,
+  avatarUrl,
+  websiteUrl,
+}: {
+  id: string;
+  email: string | null;
+  passwordHash: string | null;
+  role: string;
+  authMode: StoredUserAuthMode;
+  username: string;
+  displayName: string;
+  bio?: string;
+  avatarUrl?: string | null;
+  websiteUrl?: string | null;
+}) {
+  const db = ensureDatabase();
+  const now = Date.now();
+
+  db.exec("BEGIN IMMEDIATE");
+
+  try {
+    db.prepare(`
+      INSERT INTO users (
+        id,
+        email,
+        password_hash,
+        role,
+        auth_mode,
+        created_at,
+        updated_at,
+        last_login_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, email, passwordHash, role, authMode, now, now, null);
+
+    db.prepare(`
+      INSERT INTO profiles (
+        user_id,
+        username,
+        display_name,
+        bio,
+        avatar_url,
+        website_url,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      username,
+      displayName,
+      bio ?? "",
+      avatarUrl ?? null,
+      websiteUrl ?? null,
+      now,
+      now,
+    );
+
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+
+  return {
+    user: getUserById(id),
+    profile: getProfileByUserId(id),
+  };
+}
+
+export function ensureCompatibilityUserWithProfile({
+  userId,
+  role,
+  username,
+  displayName,
+  bio,
+  avatarUrl,
+  websiteUrl,
+}: {
+  userId: string;
+  role: string;
+  username: string;
+  displayName: string;
+  bio?: string;
+  avatarUrl?: string | null;
+  websiteUrl?: string | null;
+}) {
+  const db = ensureDatabase();
+  const now = Date.now();
+  const existingUser = getUserById(userId);
+  const existingProfile = getProfileByUserId(userId);
+
+  db.exec("BEGIN IMMEDIATE");
+
+  try {
+    if (!existingUser) {
+      db.prepare(`
+        INSERT INTO users (
+          id,
+          email,
+          password_hash,
+          role,
+          auth_mode,
+          created_at,
+          updated_at,
+          last_login_at
+        )
+        VALUES (?, NULL, NULL, ?, 'compat', ?, ?, NULL)
+      `).run(userId, role, now, now);
+    } else if (existingUser.auth_mode === "compat") {
+      db.prepare(`
+        UPDATE users
+        SET role = ?, updated_at = ?
+        WHERE id = ?
+      `).run(role, now, userId);
+    }
+
+    if (!existingProfile) {
+      db.prepare(`
+        INSERT INTO profiles (
+          user_id,
+          username,
+          display_name,
+          bio,
+          avatar_url,
+          website_url,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        userId,
+        username,
+        displayName,
+        bio ?? "",
+        avatarUrl ?? null,
+        websiteUrl ?? null,
+        now,
+        now,
+      );
+    } else {
+      db.prepare(`
+        UPDATE profiles
+        SET
+          display_name = ?,
+          bio = ?,
+          avatar_url = ?,
+          website_url = ?,
+          updated_at = ?
+        WHERE user_id = ?
+      `).run(
+        displayName,
+        bio ?? existingProfile.bio,
+        avatarUrl ?? existingProfile.avatar_url,
+        websiteUrl ?? existingProfile.website_url,
+        now,
+        userId,
+      );
+    }
+
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+
+  return {
+    user: getUserById(userId),
+    profile: getProfileByUserId(userId),
+  };
+}
+
 export function touchSession(sessionId: string) {
   const db = ensureDatabase();
   const now = Date.now();
 
   db.prepare("UPDATE user_sessions SET last_seen_at = ? WHERE session_id = ?").run(now, sessionId);
+}
+
+export function touchUserLogin(userId: string) {
+  const db = ensureDatabase();
+  const now = Date.now();
+
+  db.prepare(`
+    UPDATE users
+    SET last_login_at = ?, updated_at = ?
+    WHERE id = ?
+  `).run(now, now, userId);
 }
 
 export function getActionIdempotencyRecord({

@@ -116,6 +116,38 @@ function ensureSessionForUser(userId: string, currentSessionId: string | null) {
   };
 }
 
+export function bindPreferenceUserToUserId(
+  request: NextRequest,
+  userId: string,
+  source: PreferenceUserResolutionSource = "auth-token",
+): ResolvedPreferenceUser {
+  const normalizedUserId = normalizePreferenceUserId(userId);
+  const currentSessionId = getSessionCookieId(request);
+  const session = ensureSessionForUser(normalizedUserId, currentSessionId);
+
+  return {
+    userId: normalizedUserId,
+    source,
+    sessionId: session.sessionId,
+    shouldSetPreferenceCookie: shouldSyncPreferenceCookie(request, normalizedUserId),
+    shouldSetSessionCookie: session.shouldSetSessionCookie,
+  };
+}
+
+export function createGuestPreferenceUser(request: NextRequest): ResolvedPreferenceUser {
+  const currentSessionId = getSessionCookieId(request);
+  const userId = normalizePreferenceUserId(createPreferenceGuestUserId());
+  const session = ensureSessionForUser(userId, currentSessionId);
+
+  return {
+    userId,
+    source: "generated",
+    sessionId: session.sessionId,
+    shouldSetPreferenceCookie: true,
+    shouldSetSessionCookie: session.shouldSetSessionCookie,
+  };
+}
+
 export function resolvePreferenceUser(request: NextRequest): ResolvedPreferenceUser {
   const currentSessionId = getSessionCookieId(request);
 
@@ -172,15 +204,10 @@ export function resolvePreferenceUser(request: NextRequest): ResolvedPreferenceU
     };
   }
 
-  const userId = normalizePreferenceUserId(createPreferenceGuestUserId());
-  const session = ensureSessionForUser(userId, currentSessionId);
-
+  const guestUser = createGuestPreferenceUser(request);
   return {
-    userId,
-    source: "generated",
-    sessionId: session.sessionId,
-    shouldSetPreferenceCookie: true,
-    shouldSetSessionCookie: true,
+    ...guestUser,
+    shouldSetSessionCookie: guestUser.shouldSetSessionCookie || !currentSessionId,
   };
 }
 
