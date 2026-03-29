@@ -10,6 +10,7 @@
     "lint": "eslint",
     "redis:up": "docker compose up -d redis",
     "redis:down": "docker compose stop redis",
+    "test:auth": "node scripts/test-auth-phase1.mjs",
     "test:critical": "node scripts/test-critical-flows.mjs",
     "test:e2e": "playwright test"
   },

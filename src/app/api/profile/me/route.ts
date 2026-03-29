@@ -7,13 +7,15 @@ import {
 import {
   attachPreferenceUserCookie,
   bindPreferenceUserToUserId,
-  resolvePreferenceUser,
+  resolveExistingPreferenceUser,
 } from "@/lib/server/preference-user";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  const resolvedPreferenceUser = resolvePreferenceUser(request);
+  const resolvedPreferenceUser = resolveExistingPreferenceUser(request, {
+    allowQueryUserId: false,
+  });
   const authenticatedUser = resolveAuthenticatedAppUser(request);
 
   if (!authenticatedUser) {

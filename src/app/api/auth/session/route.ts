@@ -14,7 +14,8 @@ import {
 import {
   attachPreferenceUserCookie,
   bindPreferenceUserToUserId,
-  resolvePreferenceUser,
+  createGuestPreferenceUser,
+  resolveExistingPreferenceUser,
 } from "@/lib/server/preference-user";
 import { normalizePreferenceUserId } from "@/lib/server/preferences-store";
 import {
@@ -49,7 +50,6 @@ function canElevateToRole({
 }
 
 export async function GET(request: NextRequest) {
-  const resolvedPreferenceUser = resolvePreferenceUser(request);
   const authenticatedUser = resolveAuthenticatedAppUser(request);
 
   if (authenticatedUser) {
@@ -67,13 +67,16 @@ export async function GET(request: NextRequest) {
     return response;
   }
 
+  const resolvedPreferenceUser = resolveExistingPreferenceUser(request, {
+    allowQueryUserId: false,
+  });
   const role = resolveAuthRole(request);
   const response = NextResponse.json({
     authenticated: false,
     compatibilityMode: true,
-    userId: resolvedPreferenceUser.userId,
+    userId: resolvedPreferenceUser?.userId ?? null,
     role,
-    sessionId: resolvedPreferenceUser.sessionId,
+    sessionId: resolvedPreferenceUser?.sessionId ?? null,
   });
 
   attachPreferenceUserCookie(response, resolvedPreferenceUser);
@@ -89,13 +92,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "JSON body invalide." }, { status: 400 });
   }
 
-  const resolvedPreferenceUser = resolvePreferenceUser(request);
+  const resolvedPreferenceUser = resolveExistingPreferenceUser(request, {
+    allowQueryUserId: false,
+  });
   const currentAuthenticatedUser = resolveAuthenticatedAppUser(request);
   const currentRole = resolveAuthRole(request);
+  const fallbackPreferenceUser = resolvedPreferenceUser ?? createGuestPreferenceUser(request);
   const userId =
     typeof payload?.userId === "string" && payload.userId.trim().length > 0
       ? normalizePreferenceUserId(payload.userId)
-      : currentAuthenticatedUser?.user.id ?? resolvedPreferenceUser.userId;
+      : currentAuthenticatedUser?.user.id ?? fallbackPreferenceUser.userId;
   const role = normalizeAuthRole(payload?.role) as AuthRole;
 
   if (!canElevateToRole({ desiredRole: role, currentRole })) {
@@ -107,7 +113,7 @@ export async function POST(request: NextRequest) {
       },
       { status: 403 },
     );
-    attachPreferenceUserCookie(denied, resolvedPreferenceUser);
+    attachPreferenceUserCookie(denied, resolvedPreferenceUser ?? fallbackPreferenceUser);
     return denied;
   }
 
@@ -120,7 +126,7 @@ export async function POST(request: NextRequest) {
       },
       { status: 409 },
     );
-    attachPreferenceUserCookie(denied, resolvedPreferenceUser);
+    attachPreferenceUserCookie(denied, resolvedPreferenceUser ?? fallbackPreferenceUser);
     return denied;
   }
 

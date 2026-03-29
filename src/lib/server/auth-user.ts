@@ -324,11 +324,6 @@ export function resolveAuthUserId(request: NextRequest): string | null {
     return tokenPayload.sub;
   }
 
-  const cookieUserId = request.cookies.get(AUTH_USER_COOKIE_NAME)?.value;
-  if (cookieUserId) {
-    return normalizePreferenceUserId(cookieUserId);
-  }
-
   return null;
 }
 

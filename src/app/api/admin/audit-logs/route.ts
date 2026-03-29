@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isRoleAllowed, resolveAuthenticatedAppUser } from "@/lib/server/auth-user";
-import { attachPreferenceUserCookie, resolvePreferenceUser } from "@/lib/server/preference-user";
+import { attachPreferenceUserCookie, resolveExistingPreferenceUser } from "@/lib/server/preference-user";
 import { listAuditLogs } from "@/lib/server/sqlite-store";
 import { normalizePreferenceUserId } from "@/lib/server/preferences-store";
 
@@ -28,7 +28,9 @@ function parseMetadata(rawValue: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const resolvedUser = resolvePreferenceUser(request);
+  const resolvedUser = resolveExistingPreferenceUser(request, {
+    allowQueryUserId: false,
+  });
   const authenticatedUser = resolveAuthenticatedAppUser(request);
 
   if (!authenticatedUser) {

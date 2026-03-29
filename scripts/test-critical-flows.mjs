@@ -346,7 +346,8 @@ async function testAuthSessionFlow() {
   });
 
   assert.equal(profile.response.status, 200, "GET auth/session doit retourner 200");
-  assert.equal(profile.payload?.userId, TEST_USER_ID, "GET auth/session doit retourner le userId demande");
+  assert.equal(profile.payload?.authenticated, true, "GET auth/session doit confirmer la session authentifiee");
+  assert.equal(profile.payload?.user?.id, TEST_USER_ID, "GET auth/session doit retourner le vrai user applicatif");
   assert.equal(profile.payload?.role, "seller", "GET auth/session doit retourner le role actif");
 }
 

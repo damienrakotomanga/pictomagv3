@@ -27,11 +27,24 @@ export type ResolvedPreferenceUser = {
   shouldSetSessionCookie: boolean;
 };
 
-function getCandidateUserIds(request: NextRequest): Array<{ source: PreferenceUserResolutionSource; value: string | null }> {
+type ResolvePreferenceUserOptions = {
+  allowQueryUserId?: boolean;
+};
+
+function shouldAllowQueryUserId(options?: ResolvePreferenceUserOptions) {
+  if (typeof options?.allowQueryUserId === "boolean") {
+    return options.allowQueryUserId;
+  }
+
+  return process.env.NODE_ENV !== "production" || process.env.PICTOMAG_ALLOW_QUERY_USER_ID === "1";
+}
+
+function getCandidateUserIds(
+  request: NextRequest,
+  options?: ResolvePreferenceUserOptions,
+): Array<{ source: PreferenceUserResolutionSource; value: string | null }> {
   const authUserId = resolveAuthUserId(request);
-  const allowQueryUserId =
-    process.env.NODE_ENV !== "production" ||
-    process.env.PICTOMAG_ALLOW_QUERY_USER_ID === "1";
+  const allowQueryUserId = shouldAllowQueryUserId(options);
   const queryUserId = allowQueryUserId
     ? request.nextUrl.searchParams.get("userId")?.trim() ?? null
     : null;
@@ -148,10 +161,13 @@ export function createGuestPreferenceUser(request: NextRequest): ResolvedPrefere
   };
 }
 
-export function resolvePreferenceUser(request: NextRequest): ResolvedPreferenceUser {
+export function resolveExistingPreferenceUser(
+  request: NextRequest,
+  options?: ResolvePreferenceUserOptions,
+): ResolvedPreferenceUser | null {
   const currentSessionId = getSessionCookieId(request);
 
-  const explicitCandidates = getCandidateUserIds(request).filter(
+  const explicitCandidates = getCandidateUserIds(request, options).filter(
     (candidate) => candidate.source === "auth-token" || candidate.source === "query",
   );
 
@@ -183,7 +199,7 @@ export function resolvePreferenceUser(request: NextRequest): ResolvedPreferenceU
     };
   }
 
-  const fallbackCandidates = getCandidateUserIds(request).filter(
+  const fallbackCandidates = getCandidateUserIds(request, options).filter(
     (candidate) => candidate.source === "preference-cookie" || candidate.source === "legacy-header",
   );
 
@@ -204,14 +220,27 @@ export function resolvePreferenceUser(request: NextRequest): ResolvedPreferenceU
     };
   }
 
+  return null;
+}
+
+export function resolvePreferenceUser(request: NextRequest, options?: ResolvePreferenceUserOptions): ResolvedPreferenceUser {
+  const existingUser = resolveExistingPreferenceUser(request, options);
+  if (existingUser) {
+    return existingUser;
+  }
+
   const guestUser = createGuestPreferenceUser(request);
   return {
     ...guestUser,
-    shouldSetSessionCookie: guestUser.shouldSetSessionCookie || !currentSessionId,
+    shouldSetSessionCookie: true,
   };
 }
 
-export function attachPreferenceUserCookie(response: NextResponse, resolvedUser: ResolvedPreferenceUser) {
+export function attachPreferenceUserCookie(response: NextResponse, resolvedUser: ResolvedPreferenceUser | null) {
+  if (!resolvedUser) {
+    return;
+  }
+
   if (resolvedUser.shouldSetPreferenceCookie) {
     response.cookies.set({
       name: PREFERENCE_USER_COOKIE_NAME,
