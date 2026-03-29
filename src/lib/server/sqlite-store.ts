@@ -33,6 +33,38 @@ export type StoredProfileRow = {
   updated_at: number;
 };
 
+export type StoredPostSurface = "reel" | "classic";
+export type StoredPostKind = "video" | "photo" | "letter" | "gallery" | "note";
+export type StoredPostMediaType = "image" | "video";
+
+export type StoredPostRow = {
+  id: number;
+  user_id: string;
+  surface: StoredPostSurface;
+  kind: StoredPostKind;
+  title: string;
+  body: string;
+  track_name: string;
+  duration_label: string;
+  timelike_count: number;
+  comment_count: number;
+  share_count: number;
+  created_at: number;
+  updated_at: number;
+  published_at: number;
+};
+
+export type StoredPostMediaRow = {
+  id: number;
+  post_id: number;
+  media_type: StoredPostMediaType;
+  src: string;
+  poster_src: string | null;
+  alt_text: string;
+  position: number;
+  created_at: number;
+};
+
 type RuntimeStateRow = {
   user_id: string;
   marketplace_orders: string;
@@ -152,6 +184,34 @@ function ensureDatabase() {
       updated_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      surface TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      track_name TEXT NOT NULL DEFAULT '',
+      duration_label TEXT NOT NULL DEFAULT '0:00',
+      timelike_count INTEGER NOT NULL DEFAULT 0,
+      comment_count INTEGER NOT NULL DEFAULT 0,
+      share_count INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      published_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS post_media (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      post_id INTEGER NOT NULL,
+      media_type TEXT NOT NULL,
+      src TEXT NOT NULL,
+      poster_src TEXT,
+      alt_text TEXT NOT NULL DEFAULT '',
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS user_sessions (
       session_id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -191,11 +251,15 @@ function ensureDatabase() {
     CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs (user_id);
     CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
     CREATE INDEX IF NOT EXISTS idx_profiles_username ON profiles (username);
+    CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts (user_id, published_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_posts_surface ON posts (surface, published_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_post_media_post_id ON post_media (post_id, position ASC);
   `);
 
   ensureRuntimeStateSchema(db);
 
   database = db;
+  ensureSeedPosts();
   return db;
 }
 
@@ -323,6 +387,107 @@ function asStoredProfileRow(value: unknown): StoredProfileRow | null {
   };
 }
 
+function asStoredPostSurface(value: unknown): StoredPostSurface | null {
+  if (value === "reel" || value === "classic") {
+    return value;
+  }
+
+  return null;
+}
+
+function asStoredPostKind(value: unknown): StoredPostKind | null {
+  if (value === "video" || value === "photo" || value === "letter" || value === "gallery" || value === "note") {
+    return value;
+  }
+
+  return null;
+}
+
+function asStoredPostMediaType(value: unknown): StoredPostMediaType | null {
+  if (value === "image" || value === "video") {
+    return value;
+  }
+
+  return null;
+}
+
+function asStoredPostRow(value: unknown): StoredPostRow | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  const surface = asStoredPostSurface(row.surface);
+  const kind = asStoredPostKind(row.kind);
+
+  if (
+    typeof row.id !== "number" ||
+    typeof row.user_id !== "string" ||
+    surface === null ||
+    kind === null ||
+    typeof row.title !== "string" ||
+    typeof row.body !== "string" ||
+    typeof row.track_name !== "string" ||
+    typeof row.duration_label !== "string" ||
+    typeof row.timelike_count !== "number" ||
+    typeof row.comment_count !== "number" ||
+    typeof row.share_count !== "number" ||
+    typeof row.created_at !== "number" ||
+    typeof row.updated_at !== "number" ||
+    typeof row.published_at !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    surface,
+    kind,
+    title: row.title,
+    body: row.body,
+    track_name: row.track_name,
+    duration_label: row.duration_label,
+    timelike_count: row.timelike_count,
+    comment_count: row.comment_count,
+    share_count: row.share_count,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    published_at: row.published_at,
+  };
+}
+
+function asStoredPostMediaRow(value: unknown): StoredPostMediaRow | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  const mediaType = asStoredPostMediaType(row.media_type);
+  if (
+    typeof row.id !== "number" ||
+    typeof row.post_id !== "number" ||
+    mediaType === null ||
+    typeof row.src !== "string" ||
+    typeof row.alt_text !== "string" ||
+    typeof row.position !== "number" ||
+    typeof row.created_at !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    post_id: row.post_id,
+    media_type: mediaType,
+    src: row.src,
+    poster_src: asNullableString(row.poster_src),
+    alt_text: row.alt_text,
+    position: row.position,
+    created_at: row.created_at,
+  };
+}
+
 function asSessionRow(value: unknown): SessionRow | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -425,6 +590,432 @@ function asAuditLogRow(value: unknown): AuditLogRow | null {
     metadata: row.metadata,
     created_at: row.created_at,
   };
+}
+
+function ensureSeedPosts() {
+  const db = ensureDatabase();
+  const existingCountRow = db.prepare("SELECT COUNT(*) as count FROM posts").get() as { count?: unknown } | undefined;
+  const existingCount = typeof existingCountRow?.count === "number" ? existingCountRow.count : 0;
+
+  if (existingCount > 0) {
+    return;
+  }
+
+  const seedProfiles = [
+    {
+      userId: "axelbelujon",
+      role: "seller",
+      username: "axelbelujon",
+      displayName: "Axel Belujon",
+      bio: "FR French / us international creative director and maker. Building visuals, editorial systems, live concepts and premium product stories across Pictomag.",
+      avatarUrl: "/figma-assets/avatar-user.png",
+      websiteUrl: "https://www.axelbelujon.com",
+    },
+    {
+      userId: "pictomag.news",
+      role: "seller",
+      username: "pictomag.news",
+      displayName: "Pictomag News",
+      bio: "Editorial desk, curation and visual reports for the Pictomag network.",
+      avatarUrl: "/figma-assets/avatar-user.png",
+      websiteUrl: "https://www.pictomag.app",
+    },
+    {
+      userId: "world.of.tcgp",
+      role: "seller",
+      username: "world.of.tcgp",
+      displayName: "World of TCGP",
+      bio: "Trading card culture, motion tests and premium product edits.",
+      avatarUrl: "/figma-assets/avatar-post.png",
+      websiteUrl: "https://www.pictomag.app",
+    },
+    {
+      userId: "studio.heat",
+      role: "seller",
+      username: "studio.heat",
+      displayName: "Studio Heat",
+      bio: "Signals, design notes and editorial experiments around attention.",
+      avatarUrl: "/figma-assets/avatar-story.png",
+      websiteUrl: "https://www.pictomag.app",
+    },
+  ] as const;
+
+  for (const profile of seedProfiles) {
+    ensureCompatibilityUserWithProfile(profile);
+  }
+
+  const now = Date.now();
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+
+  const seedPosts = [
+    {
+      id: 1,
+      userId: "axelbelujon",
+      surface: "reel",
+      kind: "video",
+      title: "Live blaze stage vibes from the crowd and guitar solo...",
+      body: "Cut vertical propre avec scene, energie et sensation de live direct.",
+      trackName: "Neon Driver - Stage Echo",
+      durationLabel: "2:03",
+      timelikeCount: 894,
+      commentCount: 894,
+      shareCount: 894,
+      publishedAt: now - 9 * minute,
+      media: [
+        {
+          mediaType: "video",
+          src: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+          posterSrc: "/figma-assets/photo-feed/photo-grid-2.jpg",
+          altText: "Live blaze stage vibes",
+        },
+      ],
+    },
+    {
+      id: 2,
+      userId: "axelbelujon",
+      surface: "reel",
+      kind: "video",
+      title: "Night city ride in cinematic blue tones, smooth motion...",
+      body: "Version courte orientee feed pour retenir l attention des le premier plan.",
+      trackName: "Riverline - City Pulse",
+      durationLabel: "1:41",
+      timelikeCount: 942,
+      commentCount: 894,
+      shareCount: 894,
+      publishedAt: now - 16 * minute,
+      media: [
+        {
+          mediaType: "video",
+          src: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+          posterSrc: "/figma-assets/photo-feed/photo-grid-3.jpg",
+          altText: "Night city ride",
+        },
+      ],
+    },
+    {
+      id: 3,
+      userId: "axelbelujon",
+      surface: "reel",
+      kind: "photo",
+      title: "Road trip visuals with dynamic perspective and warm lights...",
+      body: "Une photo forte avec vraie lecture immediate pour le feed principal.",
+      trackName: "Rondicch - Open Route",
+      durationLabel: "0:12",
+      timelikeCount: 918,
+      commentCount: 746,
+      shareCount: 318,
+      publishedAt: now - 24 * minute,
+      media: [
+        {
+          mediaType: "image",
+          src: "/figma-assets/photo-feed/photo-grid-7.jpg",
+          posterSrc: null,
+          altText: "Road trip visual",
+        },
+      ],
+    },
+    {
+      id: 4,
+      userId: "world.of.tcgp",
+      surface: "reel",
+      kind: "video",
+      title: "Chromecast motion shot with clean product framing and bright type...",
+      body: "Montage produit au rythme plus editorial, pense pour le reel mode.",
+      trackName: "Pictomag Session - Chrome Flow",
+      durationLabel: "1:54",
+      timelikeCount: 981,
+      commentCount: 512,
+      shareCount: 204,
+      publishedAt: now - 31 * minute,
+      media: [
+        {
+          mediaType: "video",
+          src: "https://pictomag-news-1.vercel.app/video/video-3.mp4",
+          posterSrc: "/figma-assets/photo-feed/photo-grid-4.jpg",
+          altText: "Chromecast motion shot",
+        },
+      ],
+    },
+    {
+      id: 5,
+      userId: "pictomag.news",
+      surface: "reel",
+      kind: "video",
+      title: "Editorial cut with dark gradients, depth and subtle motion rhythm...",
+      body: "Cut premium destine au flux principal, sans casser la lecture verticale.",
+      trackName: "Pictomag Session - Feed Pulse",
+      durationLabel: "2:07",
+      timelikeCount: 904,
+      commentCount: 402,
+      shareCount: 199,
+      publishedAt: now - 39 * minute,
+      media: [
+        {
+          mediaType: "video",
+          src: "https://pictomag-news-1.vercel.app/video/feed-video-2.mp4",
+          posterSrc: "/figma-assets/photo-feed/photo-grid-6.jpg",
+          altText: "Editorial dark gradient cut",
+        },
+      ],
+    },
+    {
+      id: 6,
+      userId: "world.of.tcgp",
+      surface: "reel",
+      kind: "video",
+      title: "High-contrast promo sequence with premium pacing and glossy transitions...",
+      body: "Une mise en scene contrastee et propre pour tester la lecture longue.",
+      trackName: "Pictomag Session - Studio Heat",
+      durationLabel: "1:48",
+      timelikeCount: 1026,
+      commentCount: 587,
+      shareCount: 244,
+      publishedAt: now - 48 * minute,
+      media: [
+        {
+          mediaType: "video",
+          src: "https://pictomag-news-1.vercel.app/video/feed-video-3.mp4",
+          posterSrc: "/figma-assets/photo-feed/photo-grid-8.jpg",
+          altText: "High contrast promo sequence",
+        },
+      ],
+    },
+    {
+      id: 101,
+      userId: "axelbelujon",
+      surface: "classic",
+      kind: "letter",
+      title: "Un feed classique qui donne envie de rester, pas juste de scroller.",
+      body: "On veut un espace plus calme pour raconter des idees, poster une lettre, montrer un projet en photos, glisser une video et laisser le TimeLike lire l attention reelle au lieu de compter les reflexes.",
+      trackName: "Letter Mode - Quiet Format",
+      durationLabel: "0:12",
+      timelikeCount: 1284,
+      commentCount: 126,
+      shareCount: 48,
+      publishedAt: now - 18 * minute,
+      media: [],
+    },
+    {
+      id: 102,
+      userId: "pictomag.news",
+      surface: "classic",
+      kind: "gallery",
+      title: "Moodboard editorial du jour",
+      body: "Un carrousel plus premium qu une simple mosaique: grand visuel, details rapproches et caption concise.",
+      trackName: "Gallery Notes - Soft Light",
+      durationLabel: "0:12",
+      timelikeCount: 962,
+      commentCount: 84,
+      shareCount: 31,
+      publishedAt: now - 42 * minute,
+      media: [
+        { mediaType: "image", src: "/figma-assets/photo-feed/photo-grid-1.jpg", posterSrc: null, altText: "Pola photo collage" },
+        { mediaType: "image", src: "/figma-assets/photo-feed/photo-grid-2.jpg", posterSrc: null, altText: "Fashion portrait duo" },
+        { mediaType: "image", src: "/figma-assets/photo-feed/photo-grid-3.jpg", posterSrc: null, altText: "Beauty product still life" },
+      ],
+    },
+    {
+      id: 103,
+      userId: "world.of.tcgp",
+      surface: "classic",
+      kind: "video",
+      title: "Chromecast motion cut",
+      body: "Le format classique permet de contextualiser une video avec une intro, une note et un vrai espace de discussion juste dessous.",
+      trackName: "Classic Feed - Motion Context",
+      durationLabel: "1:18",
+      timelikeCount: 2105,
+      commentCount: 214,
+      shareCount: 76,
+      publishedAt: now - hour,
+      media: [
+        {
+          mediaType: "video",
+          src: "https://pictomag-news-1.vercel.app/video/feed-video-3.mp4",
+          posterSrc: "/figma-assets/photo-feed/photo-grid-4.jpg",
+          altText: "Chromecast motion cut",
+        },
+      ],
+    },
+    {
+      id: 104,
+      userId: "studio.heat",
+      surface: "classic",
+      kind: "note",
+      title: "Le TimeLike devient le vrai signal social.",
+      body: "Un post peut vivre par le texte, une image seule, une galerie ou une video. Le classement vient du temps d attention offerte, pas d un concours de taps.",
+      trackName: "Signal Notes - Studio Heat",
+      durationLabel: "0:10",
+      timelikeCount: 845,
+      commentCount: 59,
+      shareCount: 19,
+      publishedAt: now - 2 * hour,
+      media: [
+        {
+          mediaType: "image",
+          src: "/figma-assets/photo-feed/photo-grid-7.jpg",
+          posterSrc: null,
+          altText: "Signal notes portrait",
+        },
+      ],
+    },
+    {
+      id: 105,
+      userId: "axelbelujon",
+      surface: "classic",
+      kind: "gallery",
+      title: "Archives photo studio",
+      body: "Selection photo du profil. Curation plus calme, orientation mode album.",
+      trackName: "Archive Mood - Studio Soft",
+      durationLabel: "0:12",
+      timelikeCount: 738,
+      commentCount: 44,
+      shareCount: 18,
+      publishedAt: now - 3 * hour,
+      media: [
+        { mediaType: "image", src: "/figma-assets/photo-feed/photo-grid-1.jpg", posterSrc: null, altText: "Archive collage" },
+        { mediaType: "image", src: "/figma-assets/photo-feed/photo-grid-2.jpg", posterSrc: null, altText: "Archive duo" },
+        { mediaType: "image", src: "/figma-assets/photo-feed/photo-grid-3.jpg", posterSrc: null, altText: "Archive beauty" },
+        { mediaType: "image", src: "/figma-assets/photo-feed/photo-grid-4.jpg", posterSrc: null, altText: "Archive cookies" },
+      ],
+    },
+    {
+      id: 106,
+      userId: "axelbelujon",
+      surface: "classic",
+      kind: "gallery",
+      title: "Selection editoriale couleurs",
+      body: "Une grille plus complete pour l onglet album du profil.",
+      trackName: "Editorial Grid - Soft Focus",
+      durationLabel: "0:12",
+      timelikeCount: 802,
+      commentCount: 51,
+      shareCount: 22,
+      publishedAt: now - 5 * hour,
+      media: [
+        { mediaType: "image", src: "/figma-assets/photo-feed/photo-grid-5.jpg", posterSrc: null, altText: "Editorial monochrome" },
+        { mediaType: "image", src: "/figma-assets/photo-feed/photo-grid-6.jpg", posterSrc: null, altText: "Editorial cover" },
+        { mediaType: "image", src: "/figma-assets/photo-feed/photo-grid-7.jpg", posterSrc: null, altText: "Editorial portrait" },
+        { mediaType: "image", src: "/figma-assets/photo-feed/photo-grid-8.jpg", posterSrc: null, altText: "Editorial balloons" },
+      ],
+    },
+    {
+      id: 107,
+      userId: "axelbelujon",
+      surface: "classic",
+      kind: "video",
+      title: "Road trip perspective",
+      body: "Version courte pour reach organique, maintenant lue depuis le vrai store.",
+      trackName: "Roadtrip Flow - Axel",
+      durationLabel: "0:42",
+      timelikeCount: 624,
+      commentCount: 37,
+      shareCount: 14,
+      publishedAt: now - 7 * hour,
+      media: [
+        {
+          mediaType: "video",
+          src: "https://pictomag-news-1.vercel.app/video/feed-video-1.mp4",
+          posterSrc: "/figma-assets/photo-feed/photo-grid-1.jpg",
+          altText: "Road trip perspective video",
+        },
+      ],
+    },
+    {
+      id: 108,
+      userId: "axelbelujon",
+      surface: "classic",
+      kind: "note",
+      title: "Signal propre, mise en page stable.",
+      body: "Le profil doit lire les vrais posts et non plus un bloc statique fige dans le composant.",
+      trackName: "Signal Notes - Axel",
+      durationLabel: "0:10",
+      timelikeCount: 511,
+      commentCount: 22,
+      shareCount: 11,
+      publishedAt: now - 9 * hour,
+      media: [
+        {
+          mediaType: "image",
+          src: "/figma-assets/photo-feed/photo-grid-6.jpg",
+          posterSrc: null,
+          altText: "Signal propre portrait",
+        },
+      ],
+    },
+  ] as const;
+
+  db.exec("BEGIN IMMEDIATE");
+
+  try {
+    const insertPostStatement = db.prepare(`
+      INSERT INTO posts (
+        id,
+        user_id,
+        surface,
+        kind,
+        title,
+        body,
+        track_name,
+        duration_label,
+        timelike_count,
+        comment_count,
+        share_count,
+        created_at,
+        updated_at,
+        published_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const insertMediaStatement = db.prepare(`
+      INSERT INTO post_media (
+        post_id,
+        media_type,
+        src,
+        poster_src,
+        alt_text,
+        position,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const post of seedPosts) {
+      insertPostStatement.run(
+        post.id,
+        post.userId,
+        post.surface,
+        post.kind,
+        post.title,
+        post.body,
+        post.trackName,
+        post.durationLabel,
+        post.timelikeCount,
+        post.commentCount,
+        post.shareCount,
+        post.publishedAt,
+        post.publishedAt,
+        post.publishedAt,
+      );
+
+      post.media.forEach((media, index) => {
+        insertMediaStatement.run(
+          post.id,
+          media.mediaType,
+          media.src,
+          media.posterSrc ?? null,
+          media.altText,
+          index,
+          post.publishedAt,
+        );
+      });
+    }
+
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 export function getUserPreferencesRow(userId: string) {
@@ -544,6 +1135,234 @@ export function getProfileByUsername(username: string) {
     `)
     .get(username);
   return asStoredProfileRow(row);
+}
+
+export function getPostById(postId: number) {
+  const db = ensureDatabase();
+  const row = db
+    .prepare(`
+      SELECT
+        id,
+        user_id,
+        surface,
+        kind,
+        title,
+        body,
+        track_name,
+        duration_label,
+        timelike_count,
+        comment_count,
+        share_count,
+        created_at,
+        updated_at,
+        published_at
+      FROM posts
+      WHERE id = ?
+    `)
+    .get(postId);
+  return asStoredPostRow(row);
+}
+
+export function listPostsRows({
+  userId,
+  surface,
+  kinds,
+  limit = 50,
+}: {
+  userId?: string;
+  surface?: StoredPostSurface;
+  kinds?: StoredPostKind[];
+  limit?: number;
+}) {
+  const db = ensureDatabase();
+  const normalizedLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
+  const clauses: string[] = [];
+  const params: Array<string | number> = [];
+
+  if (userId) {
+    clauses.push("user_id = ?");
+    params.push(userId);
+  }
+
+  if (surface) {
+    clauses.push("surface = ?");
+    params.push(surface);
+  }
+
+  if (kinds && kinds.length > 0) {
+    clauses.push(`kind IN (${kinds.map(() => "?").join(", ")})`);
+    params.push(...kinds);
+  }
+
+  const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
+  const rows = db
+    .prepare(`
+      SELECT
+        id,
+        user_id,
+        surface,
+        kind,
+        title,
+        body,
+        track_name,
+        duration_label,
+        timelike_count,
+        comment_count,
+        share_count,
+        created_at,
+        updated_at,
+        published_at
+      FROM posts
+      ${whereClause}
+      ORDER BY published_at DESC, id DESC
+      LIMIT ?
+    `)
+    .all(...params, normalizedLimit);
+
+  return rows.map((row) => asStoredPostRow(row)).filter((row): row is StoredPostRow => row !== null);
+}
+
+export function listPostMediaRowsByPostIds(postIds: number[]) {
+  if (postIds.length === 0) {
+    return [];
+  }
+
+  const db = ensureDatabase();
+  const placeholders = postIds.map(() => "?").join(", ");
+  const rows = db
+    .prepare(`
+      SELECT
+        id,
+        post_id,
+        media_type,
+        src,
+        poster_src,
+        alt_text,
+        position,
+        created_at
+      FROM post_media
+      WHERE post_id IN (${placeholders})
+      ORDER BY post_id ASC, position ASC, id ASC
+    `)
+    .all(...postIds);
+
+  return rows.map((row) => asStoredPostMediaRow(row)).filter((row): row is StoredPostMediaRow => row !== null);
+}
+
+export function countPostsByUserId(userId: string) {
+  const db = ensureDatabase();
+  const row = db
+    .prepare("SELECT COUNT(*) as count FROM posts WHERE user_id = ?")
+    .get(userId) as { count?: unknown } | undefined;
+  return typeof row?.count === "number" ? row.count : 0;
+}
+
+export function createPostWithMedia({
+  userId,
+  surface,
+  kind,
+  title,
+  body,
+  trackName,
+  durationLabel,
+  timelikeCount = 0,
+  commentCount = 0,
+  shareCount = 0,
+  publishedAt,
+  media,
+}: {
+  userId: string;
+  surface: StoredPostSurface;
+  kind: StoredPostKind;
+  title: string;
+  body?: string;
+  trackName?: string;
+  durationLabel?: string;
+  timelikeCount?: number;
+  commentCount?: number;
+  shareCount?: number;
+  publishedAt?: number;
+  media: Array<{
+    mediaType: StoredPostMediaType;
+    src: string;
+    posterSrc?: string | null;
+    altText?: string;
+    position?: number;
+  }>;
+}) {
+  const db = ensureDatabase();
+  const now = publishedAt ?? Date.now();
+
+  db.exec("BEGIN IMMEDIATE");
+
+  try {
+    const result = db
+      .prepare(`
+        INSERT INTO posts (
+          user_id,
+          surface,
+          kind,
+          title,
+          body,
+          track_name,
+          duration_label,
+          timelike_count,
+          comment_count,
+          share_count,
+          created_at,
+          updated_at,
+          published_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        userId,
+        surface,
+        kind,
+        title,
+        body ?? "",
+        trackName ?? "",
+        durationLabel ?? "0:00",
+        timelikeCount,
+        commentCount,
+        shareCount,
+        now,
+        now,
+        now,
+      ) as { lastInsertRowid?: number | bigint };
+
+    const postId = Number(result.lastInsertRowid ?? 0);
+    const insertMediaStatement = db.prepare(`
+      INSERT INTO post_media (
+        post_id,
+        media_type,
+        src,
+        poster_src,
+        alt_text,
+        position,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    media.forEach((entry, index) => {
+      insertMediaStatement.run(
+        postId,
+        entry.mediaType,
+        entry.src,
+        entry.posterSrc ?? null,
+        entry.altText ?? "",
+        typeof entry.position === "number" ? entry.position : index,
+        now,
+      );
+    });
+
+    db.exec("COMMIT");
+    return postId;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 export function upsertUserRuntimeStateRow({

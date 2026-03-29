@@ -4,6 +4,7 @@ import {
   type ComponentType,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -46,6 +47,13 @@ import shareAnimationData from "../../public/feed-rail-animations/feed-share-ico
 import timeAnimationData from "../../public/feed-rail-animations/feed-time-icon.json";
 import { AnimatedHeaderNav, type HeaderNavItemId } from "@/components/animated-header-nav";
 import { ClassicFeedView } from "@/components/classic-feed-view";
+import {
+  type ClassicFeedCardItem,
+  type FeedMediaItem,
+  type PublicPost,
+  toClassicFeedCardItem,
+  toFeedMediaItem,
+} from "@/lib/posts";
 import { getSoundSlugForTrack } from "@/lib/sound-library";
 
 type Story = {
@@ -83,7 +91,7 @@ type ActionItem = {
   };
 };
 
-type MockVideo = {
+export type MockVideo = {
   id: number;
   kind: "video" | "photo";
   src: string;
@@ -101,7 +109,7 @@ type TimeLikeRule = {
   segment: "photo" | "short" | "medium" | "long";
 };
 
-type TimeLikeSnapshot = {
+export type TimeLikeSnapshot = {
   videoId: number;
   kind: MockVideo["kind"];
   author: string;
@@ -824,7 +832,7 @@ function shouldTriggerTimeLike(rule: TimeLikeRule, activeMs: number, progress: n
   return activeMs >= rule.minActiveMs && progress >= rule.minProgress;
 }
 
-function createSeedTimeLikeSnapshot(
+export function createSeedTimeLikeSnapshot(
   video: MockVideo,
   overrides?: Partial<Pick<TimeLikeSnapshot, "count" | "activeMs" | "maxProgress" | "triggered">>,
 ): TimeLikeSnapshot {
@@ -860,6 +868,42 @@ const seededTimeLikeSnapshots: Record<number, TimeLikeSnapshot> = Object.fromEnt
     .filter((video): video is MockVideo => Boolean(video))
     .map((video) => [video.id, createSeedTimeLikeSnapshot(video)]),
 );
+
+function parseCompactCount(value: string) {
+  const normalized = value.replace(/\s+/g, "").replace(/,/g, "");
+  const numericValue = Number(normalized);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function toClassicDrawerVideo(item: ClassicFeedCardItem): MockVideo | null {
+  const media = item.media;
+
+  if (!media) {
+    return null;
+  }
+
+  const src =
+    media.kind === "gallery"
+      ? media.gallery?.[0] ?? ""
+      : media.kind === "video"
+        ? media.src ?? media.poster ?? ""
+        : media.src ?? "";
+
+  if (!src) {
+    return null;
+  }
+
+  return {
+    id: item.videoId,
+    kind: media.kind === "video" ? "video" : "photo",
+    src,
+    author: item.handle.replace(/^@/, "") || item.author,
+    title: item.title,
+    music: item.eyebrow,
+    duration: item.duration,
+    timeLikeCount: parseCompactCount(item.timelikeCount),
+  };
+}
 
 function getTimeLikeAudience(videoId: number, snapshot: TimeLikeSnapshot) {
   const seededAudience: TimeLikeAudienceEntry[] = timeLikeAudienceSeeds.map((person, index) => ({
@@ -1533,6 +1577,7 @@ function PostAction({
 
 function PostCluster({
   layout,
+  media,
   expanded,
   trackingEnabled,
   moreOpen,
@@ -1544,6 +1589,7 @@ function PostCluster({
   onTimeLikeStateChange,
 }: {
   layout: PostLayout;
+  media: MockVideo;
   expanded: boolean;
   trackingEnabled: boolean;
   moreOpen: boolean;
@@ -1555,7 +1601,6 @@ function PostCluster({
   onTimeLikeStateChange: (videoId: number, snapshot: TimeLikeSnapshot) => void;
 }) {
   const router = useRouter();
-  const media = mockVideos[(layout.id - 1) % mockVideos.length];
   const soundSlug = getSoundSlugForTrack(media.music);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [followBurstVisible, setFollowBurstVisible] = useState(false);
@@ -1950,7 +1995,7 @@ function PostCluster({
   );
 }
 
-function CommentsDrawer({
+export function CommentsDrawer({
   video,
   open,
   onClose,
@@ -2067,7 +2112,7 @@ function CommentsDrawer({
   );
 }
 
-function ShareDrawer({
+export function ShareDrawer({
   video,
   open,
   onClose,
@@ -2237,7 +2282,7 @@ function ShareDrawer({
   );
 }
 
-function MoreActionsDrawer({
+export function MoreActionsDrawer({
   video,
   open,
   onClose,
@@ -2626,7 +2671,7 @@ function TimeLikeDrawer({
   );
 }
 
-function TimeLikeLeaderboardDrawer({
+export function TimeLikeLeaderboardDrawer({
   video,
   snapshot,
   open,
@@ -2919,6 +2964,8 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
   const snapAlignTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const snapLockRef = useRef(false);
   const [contentMode, setContentMode] = useState<ContentMode>(initialMode);
+  const [feedVideos, setFeedVideos] = useState<FeedMediaItem[]>(mockVideos.filter((video) => video.id < 100));
+  const [classicFeedItems, setClassicFeedItems] = useState<ClassicFeedCardItem[]>([]);
   const [focusedPostId, setFocusedPostId] = useState<number>(1);
   const [expandedPostHeight, setExpandedPostHeight] = useState<number>(BASE_POST_HEIGHT);
   const [commentsVideoId, setCommentsVideoId] = useState<number | null>(null);
@@ -2930,9 +2977,101 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  const resolvedFeedVideos = useMemo(
+    () => (feedVideos.length > 0 ? feedVideos : mockVideos.filter((video) => video.id < 100)),
+    [feedVideos],
+  );
+  const resolvedClassicDrawerVideos = useMemo(
+    () =>
+      classicFeedItems.flatMap((item) => {
+        const video = toClassicDrawerVideo(item);
+        return video ? [video] : [];
+      }),
+    [classicFeedItems],
+  );
+  const drawerVideos = useMemo(
+    () => [...resolvedFeedVideos, ...resolvedClassicDrawerVideos],
+    [resolvedClassicDrawerVideos, resolvedFeedVideos],
+  );
+  const findDrawerVideo = (videoId: number | null) =>
+    videoId !== null ? drawerVideos.find((video) => video.id === videoId) ?? mockVideos.find((video) => video.id === videoId) ?? null : null;
+
   useEffect(() => {
     setContentMode(initialMode);
   }, [initialMode]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPosts = async () => {
+      const loadScope = async (scope: "feed" | "classic") => {
+        const response = await fetch(`/api/posts?scope=${scope}&limit=12`, {
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Impossible de charger ${scope}.`);
+        }
+
+        const payload = (await response.json()) as { posts?: PublicPost[] };
+        return Array.isArray(payload.posts) ? payload.posts : [];
+      };
+
+      try {
+        const [feedPosts, classicPosts] = await Promise.all([loadScope("feed"), loadScope("classic")]);
+
+        if (cancelled) {
+          return;
+        }
+
+        const nextFeedVideos = feedPosts
+          .map((post) => toFeedMediaItem(post))
+          .filter((post): post is FeedMediaItem => Boolean(post));
+        const nextClassicFeedItems = classicPosts
+          .map((post) => toClassicFeedCardItem(post))
+          .filter((post): post is ClassicFeedCardItem => Boolean(post));
+
+        if (nextFeedVideos.length > 0) {
+          setFeedVideos(nextFeedVideos);
+        }
+
+        if (nextClassicFeedItems.length > 0) {
+          setClassicFeedItems(nextClassicFeedItems);
+        }
+      } catch {
+        // Silent fallback: keep the current visual feed using the existing local seed.
+      }
+    };
+
+    void loadPosts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (drawerVideos.length === 0) {
+      return;
+    }
+
+    setTimeLikeSnapshots((current) => {
+      let changed = false;
+      const nextSnapshots = { ...current };
+
+      for (const video of drawerVideos) {
+        if (nextSnapshots[video.id]) {
+          continue;
+        }
+
+        nextSnapshots[video.id] = createSeedTimeLikeSnapshot(video);
+        changed = true;
+      }
+
+      return changed ? nextSnapshots : current;
+    });
+  }, [drawerVideos]);
 
   useEffect(() => {
     return () => {
@@ -3529,30 +3668,36 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
                 !isSearchOpen
               }
               onTimeLikeStateChange={handleTimeLikeStateChange}
+              items={classicFeedItems.length > 0 ? classicFeedItems : undefined}
             />
           ) : isVideoMode ? (
             <>
-              {dynamicPostLayouts.map((layout) => (
-                <PostCluster
-                  key={layout.id}
-                  layout={layout}
-                  expanded={focusedPostId === layout.id}
-                  trackingEnabled={
-                    commentsVideoId === null &&
-                    shareVideoId === null &&
-                    timeLikeVideoId === null &&
-                    moreVideoId === null &&
-                    !isSearchOpen
-                  }
-                  moreOpen={moreVideoId === layout.id}
-                  onSectionRef={handleSectionRef}
-                  onOpenComments={handleOpenComments}
-                  onOpenShare={handleOpenShare}
-                  onOpenTimeLike={handleOpenTimeLike}
-                  onOpenMore={handleOpenMore}
-                  onTimeLikeStateChange={handleTimeLikeStateChange}
-                />
-              ))}
+              {dynamicPostLayouts.map((layout, index) => {
+                const media = resolvedFeedVideos[index % resolvedFeedVideos.length] ?? mockVideos[index % mockVideos.length]!;
+
+                return (
+                  <PostCluster
+                    key={`cluster-${layout.id}-${media.id}`}
+                    layout={layout}
+                    media={media}
+                    expanded={focusedPostId === layout.id}
+                    trackingEnabled={
+                      commentsVideoId === null &&
+                      shareVideoId === null &&
+                      timeLikeVideoId === null &&
+                      moreVideoId === null &&
+                      !isSearchOpen
+                    }
+                    moreOpen={moreVideoId === media.id}
+                    onSectionRef={handleSectionRef}
+                    onOpenComments={handleOpenComments}
+                    onOpenShare={handleOpenShare}
+                    onOpenTimeLike={handleOpenTimeLike}
+                    onOpenMore={handleOpenMore}
+                    onTimeLikeStateChange={handleTimeLikeStateChange}
+                  />
+                );
+              })}
 
               <div className="shorts-nav fixed right-[42px] top-1/2 z-[140] flex -translate-y-1/2 flex-col gap-4">
                 <button
@@ -3599,25 +3744,25 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
           )}
 
           <CommentsDrawer
-            video={commentsVideoId ? mockVideos.find((video) => video.id === commentsVideoId) ?? null : null}
+            video={findDrawerVideo(commentsVideoId)}
             open={commentsVideoId !== null}
             onClose={handleCloseComments}
           />
           <ShareDrawer
             key={shareVideoId !== null ? `share-${shareVideoId}` : "share-closed"}
-            video={shareVideoId ? mockVideos.find((video) => video.id === shareVideoId) ?? null : null}
+            video={findDrawerVideo(shareVideoId)}
             open={shareVideoId !== null}
             onClose={handleCloseShare}
           />
           <MoreActionsDrawer
             key={moreVideoId !== null ? `more-${moreVideoId}` : "more-closed"}
-            video={moreVideoId ? mockVideos.find((video) => video.id === moreVideoId) ?? null : null}
+            video={findDrawerVideo(moreVideoId)}
             open={moreVideoId !== null}
             onClose={handleCloseMore}
           />
           <TimeLikeLeaderboardDrawer
             key={timeLikeVideoId !== null ? `timelike-${timeLikeVideoId}` : "timelike-closed"}
-            video={timeLikeVideoId ? mockVideos.find((video) => video.id === timeLikeVideoId) ?? null : null}
+            video={findDrawerVideo(timeLikeVideoId)}
             snapshot={timeLikeVideoId !== null ? timeLikeSnapshots[timeLikeVideoId] ?? null : null}
             open={timeLikeVideoId !== null}
             onClose={handleCloseTimeLike}

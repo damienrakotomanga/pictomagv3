@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type S
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, MessageCircleMore, Play, Send, X } from "lucide-react";
 import timeAnimationData from "../../public/feed-rail-animations/feed-time-icon.json";
+import type { ClassicFeedCardItem } from "@/lib/posts";
 
 type ClassicFeedViewProps = {
   onOpenComments: (videoId: number) => void;
@@ -15,29 +16,7 @@ type ClassicFeedViewProps = {
   trackingEnabled: boolean;
   onTimeLikeStateChange: (videoId: number, snapshot: ClassicTimeLikeSnapshot) => void;
   flatCards?: boolean;
-};
-
-type ClassicFeedItem = {
-  id: number;
-  videoId: number;
-  variant: "letter" | "gallery" | "video" | "note";
-  author: string;
-  handle: string;
-  avatar: string;
-  timestamp: string;
-  eyebrow: string;
-  title: string;
-  body: string;
-  duration: string;
-  timelikeCount: string;
-  commentCount: string;
-  shareCount: string;
-  media?: {
-    kind: "image" | "video" | "gallery";
-    src?: string;
-    poster?: string;
-    gallery?: string[];
-  };
+  items?: ClassicFeedCardItem[];
 };
 
 type ClassicMediaKind = "photo" | "video";
@@ -82,7 +61,7 @@ type ClassicLightboxState = {
   title: string;
 };
 
-const classicFeedItems: ClassicFeedItem[] = [
+const legacyFallbackClassicFeedItems: ClassicFeedCardItem[] = [
   {
     id: 1,
     videoId: 101,
@@ -590,7 +569,7 @@ function ClassicMediaBlock({
   videoRef,
   onOpenImage,
 }: {
-  item: ClassicFeedItem;
+  item: ClassicFeedCardItem;
   videoRef?: { current: HTMLVideoElement | null };
   onOpenImage?: (images: string[], index: number, title: string) => void;
 }) {
@@ -671,7 +650,7 @@ function ClassicFeedCard({
   onTimeLikeStateChange,
   flatCards = false,
 }: {
-  item: ClassicFeedItem;
+  item: ClassicFeedCardItem;
   onOpenComments: (videoId: number) => void;
   onOpenShare: (videoId: number) => void;
   onOpenTimeLike: (videoId: number) => void;
@@ -1095,6 +1074,7 @@ export function ClassicFeedView({
   trackingEnabled,
   onTimeLikeStateChange,
   flatCards = false,
+  items,
 }: ClassicFeedViewProps) {
   return (
     <section className="absolute left-1/2 top-[265px] w-[760px] -translate-x-1/2">
@@ -1106,6 +1086,7 @@ export function ClassicFeedView({
         trackingEnabled={trackingEnabled}
         onTimeLikeStateChange={onTimeLikeStateChange}
         flatCards={flatCards}
+        items={items}
         className="space-y-3"
       />
     </section>
@@ -1120,9 +1101,11 @@ export function ClassicFeedStream({
   trackingEnabled,
   onTimeLikeStateChange,
   flatCards = false,
+  items,
   className = "space-y-3",
 }: ClassicFeedViewProps & { className?: string }) {
   const [lightboxState, setLightboxState] = useState<ClassicLightboxState | null>(null);
+  const resolvedItems = items ?? legacyFallbackClassicFeedItems;
 
   const handleOpenImage = (images: string[], index: number, title: string) => {
     setLightboxState({ images, index, title });
@@ -1161,7 +1144,7 @@ export function ClassicFeedStream({
   return (
     <>
       <div className={className}>
-        {classicFeedItems.map((item) => (
+        {resolvedItems.map((item) => (
           <ClassicFeedCard
             key={item.id}
             item={item}

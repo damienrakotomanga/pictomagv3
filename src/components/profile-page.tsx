@@ -16,25 +16,31 @@ import {
 } from "lucide-react";
 import { AnimatedHeaderNav, type HeaderNavItemId } from "@/components/animated-header-nav";
 import { ClassicFeedStream } from "@/components/classic-feed-view";
+import {
+  CommentsDrawer,
+  createSeedTimeLikeSnapshot,
+  type MockVideo,
+  MoreActionsDrawer,
+  ShareDrawer,
+  TimeLikeLeaderboardDrawer,
+  type TimeLikeSnapshot,
+} from "@/components/feed-page";
 import { serviceGigs } from "@/lib/marketplace-data";
+import {
+  type ClassicFeedCardItem,
+  type ProfileAlbumItem,
+  type ProfileVideoItem,
+  type PublicProfileBundle,
+  toClassicFeedCardItem,
+  toProfileAlbumItems,
+  toProfileVideoItems,
+} from "@/lib/posts";
 
 type HeaderPanelId = "create" | "notifications" | "messages" | "menu" | null;
 type ProfileView = "feed" | "videos" | "albums" | "shop";
 
-type ProfileAlbumTile = {
-  id: number;
-  src: string;
-  alt: string;
-};
-
-type ProfileVideoTile = {
-  id: number;
-  title: string;
-  caption: string;
-  poster: string;
-  src: string;
-  duration: string;
-};
+type ProfileAlbumTile = ProfileAlbumItem;
+type ProfileVideoTile = ProfileVideoItem;
 
 type ProfileImageLightboxState = {
   images: string[];
@@ -137,13 +143,72 @@ const profileVideoShowcase: ProfileVideoTile[] = [...profileVideoTiles, ...profi
   id: index + 1,
 }));
 
+const fallbackProfile = {
+  userId: "axelbelujon",
+  username: "axelbelujon",
+  displayName: "Axel Belujon",
+  bio: "FR French / us international creative director and maker. Building visuals, editorial systems, live concepts and premium product stories across Pictomag.",
+  avatarUrl: "/figma-assets/avatar-user.png",
+  websiteUrl: "https://www.axelbelujon.com",
+};
+
+const fallbackProfileMetrics = {
+  posts: "972",
+  followers: "1.26M",
+  following: "97",
+};
+
+function parseCompactCount(value: string) {
+  const normalized = value.replace(/\s+/g, "").replace(/,/g, "");
+  const numericValue = Number(normalized);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function toProfileDrawerVideo(item: ClassicFeedCardItem): MockVideo | null {
+  const media = item.media;
+
+  if (!media) {
+    return null;
+  }
+
+  const src =
+    media.kind === "gallery"
+      ? media.gallery?.[0] ?? ""
+      : media.kind === "video"
+        ? media.src ?? media.poster ?? ""
+        : media.src ?? "";
+
+  if (!src) {
+    return null;
+  }
+
+  return {
+    id: item.videoId,
+    kind: media.kind === "video" ? "video" : "photo",
+    src,
+    author: item.handle.replace(/^@/, "") || item.author,
+    title: item.title,
+    music: item.eyebrow,
+    duration: item.duration,
+    timeLikeCount: parseCompactCount(item.timelikeCount),
+  };
+}
+
 function ProfileSectionHeader({
+  profile,
+  followersLabel,
   description,
   onPrimaryAction,
   primaryLabel,
   onSecondaryAction,
   secondaryLabel,
 }: {
+  profile: {
+    displayName: string;
+    username: string;
+    avatarUrl: string | null;
+  };
+  followersLabel: string;
   description: string;
   onPrimaryAction: () => void;
   primaryLabel: string;
@@ -154,14 +219,20 @@ function ProfileSectionHeader({
     <div className="flex items-start justify-between gap-6">
       <div className="flex items-start gap-4">
         <div className="relative h-11 w-11 overflow-hidden rounded-full ring-1 ring-black/10">
-          <Image src="/figma-assets/avatar-user.png" alt="Axel Belujon" fill sizes="44px" className="object-cover" />
+          <Image
+            src={profile.avatarUrl ?? "/figma-assets/avatar-user.png"}
+            alt={profile.displayName}
+            fill
+            sizes="44px"
+            className="object-cover"
+          />
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <p className="text-[20px] font-semibold tracking-[-0.04em] text-[#101522]">Axel Belujon</p>
+            <p className="text-[20px] font-semibold tracking-[-0.04em] text-[#101522]">{profile.displayName}</p>
             <BadgeCheck className="h-4 w-4 fill-[#2b6fff] text-white" />
-            <p className="text-[14px] text-[#7d8798]">@axelbelujon</p>
-            <span className="text-[14px] text-[#a0a9b7]">1.26M followers</span>
+            <p className="text-[14px] text-[#7d8798]">@{profile.username}</p>
+            <span className="text-[14px] text-[#a0a9b7]">{followersLabel} followers</span>
           </div>
           <p className="mt-1 text-[15px] text-[#101522]">{description}</p>
         </div>
@@ -225,6 +296,12 @@ export function ProfilePage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [profileView, setProfileView] = useState<ProfileView>("feed");
   const [lightboxState, setLightboxState] = useState<ProfileImageLightboxState | null>(null);
+  const [profileBundle, setProfileBundle] = useState<PublicProfileBundle | null>(null);
+  const [commentsVideoId, setCommentsVideoId] = useState<number | null>(null);
+  const [shareVideoId, setShareVideoId] = useState<number | null>(null);
+  const [moreVideoId, setMoreVideoId] = useState<number | null>(null);
+  const [timeLikeVideoId, setTimeLikeVideoId] = useState<number | null>(null);
+  const [timeLikeSnapshots, setTimeLikeSnapshots] = useState<Record<number, TimeLikeSnapshot>>({});
 
   const searchItems = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -235,13 +312,116 @@ export function ProfilePage() {
     return searchSeedItems.filter((item) => `${item.title} ${item.copy}`.toLowerCase().includes(query));
   }, [searchQuery]);
 
+  const profileData = profileBundle?.profile ?? fallbackProfile;
+  const profilePosts = profileBundle?.posts ?? [];
+  const profileFeedItems = profileBundle
+    ? profilePosts.map((post) => toClassicFeedCardItem(post)).filter((post): post is ClassicFeedCardItem => Boolean(post))
+    : [];
+  const resolvedProfileAlbumTiles = profileBundle ? toProfileAlbumItems(profilePosts) : profileAlbumTiles;
+  const resolvedProfileVideoShowcase = profileBundle ? toProfileVideoItems(profilePosts) : profileVideoShowcase;
+  const profileHighlightsTiles =
+    resolvedProfileAlbumTiles.length > 0
+      ? resolvedProfileAlbumTiles.slice(0, 3).map((tile, index) => ({
+          id: index + 1,
+          label: profileHighlights[index]?.label ?? `album ${index + 1}`,
+          src: tile.src,
+        }))
+      : profileHighlights;
+  const profileDrawerVideos = profileFeedItems.flatMap((item) => {
+    const video = toProfileDrawerVideo(item);
+    return video ? [video] : [];
+  });
+  const findProfileDrawerVideo = (videoId: number | null) =>
+    videoId !== null ? profileDrawerVideos.find((video) => video.id === videoId) ?? null : null;
+  const metrics = {
+    posts: new Intl.NumberFormat("fr-FR").format(profileBundle?.stats.posts ?? Number(fallbackProfileMetrics.posts)),
+    followers: fallbackProfileMetrics.followers,
+    following: fallbackProfileMetrics.following,
+  };
+
   useEffect(() => {
-    document.body.style.overflow = searchOpen || Boolean(lightboxState) ? "hidden" : "";
+    let cancelled = false;
+
+    const loadProfile = async () => {
+      try {
+        const meResponse = await fetch("/api/profile/me", {
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+
+        let identifier = fallbackProfile.username;
+
+        if (meResponse.ok) {
+          const mePayload = (await meResponse.json()) as { user?: { id?: string } };
+          if (typeof mePayload.user?.id === "string" && mePayload.user.id.trim()) {
+            identifier = mePayload.user.id.trim();
+          }
+        }
+
+        const profileResponse = await fetch(`/api/profile/${encodeURIComponent(identifier)}`, {
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+
+        if (!profileResponse.ok) {
+          throw new Error("Impossible de charger le profil.");
+        }
+
+        const bundle = (await profileResponse.json()) as PublicProfileBundle;
+        if (!cancelled) {
+          setProfileBundle(bundle);
+        }
+      } catch {
+        if (!cancelled) {
+          setProfileBundle(null);
+        }
+      }
+    };
+
+    void loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (profileDrawerVideos.length === 0) {
+      return;
+    }
+
+    setTimeLikeSnapshots((current) => {
+      let changed = false;
+      const nextSnapshots = { ...current };
+
+      for (const video of profileDrawerVideos) {
+        if (nextSnapshots[video.id]) {
+          continue;
+        }
+
+        nextSnapshots[video.id] = createSeedTimeLikeSnapshot(video);
+        changed = true;
+      }
+
+      return changed ? nextSnapshots : current;
+    });
+  }, [profileDrawerVideos]);
+
+  useEffect(() => {
+    document.body.style.overflow =
+      searchOpen ||
+      Boolean(lightboxState) ||
+      commentsVideoId !== null ||
+      shareVideoId !== null ||
+      moreVideoId !== null ||
+      timeLikeVideoId !== null
+        ? "hidden"
+        : "";
 
     return () => {
       document.body.style.overflow = "";
     };
-  }, [lightboxState, searchOpen]);
+  }, [commentsVideoId, lightboxState, moreVideoId, searchOpen, shareVideoId, timeLikeVideoId]);
 
   useEffect(() => {
     if (!toastMessage) {
@@ -334,21 +514,69 @@ export function ProfilePage() {
     }
   };
 
-  const handleFeedShare = async (videoId: number) => {
-    try {
-      await navigator.clipboard.writeText(`${window.location.origin}/profile#feed-${videoId}`);
-      setToastMessage("Lien du post copie.");
-    } catch {
-      setToastMessage("Impossible de copier le lien.");
-    }
+  const handleOpenComments = (videoId: number) => {
+    setShareVideoId(null);
+    setTimeLikeVideoId(null);
+    setMoreVideoId(null);
+    setSearchOpen(false);
+    setCommentsVideoId(videoId);
+  };
+
+  const handleCloseComments = () => {
+    setCommentsVideoId(null);
+  };
+
+  const handleOpenShare = (videoId: number) => {
+    setCommentsVideoId(null);
+    setTimeLikeVideoId(null);
+    setMoreVideoId(null);
+    setSearchOpen(false);
+    setShareVideoId(videoId);
+  };
+
+  const handleCloseShare = () => {
+    setShareVideoId(null);
+  };
+
+  const handleOpenTimeLike = (videoId: number) => {
+    setCommentsVideoId(null);
+    setShareVideoId(null);
+    setMoreVideoId(null);
+    setSearchOpen(false);
+    setTimeLikeVideoId(videoId);
+  };
+
+  const handleCloseTimeLike = () => {
+    setTimeLikeVideoId(null);
+  };
+
+  const handleOpenMore = (videoId: number) => {
+    setCommentsVideoId(null);
+    setShareVideoId(null);
+    setTimeLikeVideoId(null);
+    setSearchOpen(false);
+    setMoreVideoId(videoId);
+  };
+
+  const handleCloseMore = () => {
+    setMoreVideoId(null);
   };
 
   const handleOpenAlbumImage = (index: number) => {
     setLightboxState({
-      images: profileAlbumTiles.map((tile) => tile.src),
+      images: resolvedProfileAlbumTiles.map((tile) => tile.src),
       index,
       title: "Albums photo",
     });
+  };
+
+  const handleOpenProfileWebsite = () => {
+    if (!profileData.websiteUrl) {
+      setToastMessage("Aucun site renseigne pour ce profil.");
+      return;
+    }
+
+    window.open(profileData.websiteUrl, "_blank", "noopener,noreferrer");
   };
 
   const handlePreviousImage = () => {
@@ -595,21 +823,27 @@ export function ProfilePage() {
                 <div className="relative h-[110px] w-[110px] rounded-full bg-[conic-gradient(from_210deg_at_50%_50%,#ffb36a_0deg,#ff5f8f_120deg,#8a7dff_220deg,#4dbaff_300deg,#ffb36a_360deg)] p-[2px]">
                   <div className="absolute inset-[2px] rounded-full bg-white" />
                   <div className="absolute inset-[6px] overflow-hidden rounded-full bg-[#f3f6fa]">
-                    <Image src="/figma-assets/avatar-post.png" alt="Axel Belujon portrait" fill sizes="98px" className="object-cover" />
+                    <Image
+                      src={profileData.avatarUrl ?? "/figma-assets/avatar-post.png"}
+                      alt={`${profileData.displayName} portrait`}
+                      fill
+                      sizes="98px"
+                      className="object-cover"
+                    />
                   </div>
                 </div>
 
                 <div className="mt-8 grid w-full grid-cols-3 gap-3 text-center">
                   <div>
-                    <p className="text-[15px] font-semibold tracking-[-0.03em] text-[#101522]">972</p>
+                    <p className="text-[15px] font-semibold tracking-[-0.03em] text-[#101522]">{metrics.posts}</p>
                     <p className="mt-1 text-[12px] text-[#8a94a6]">posts</p>
                   </div>
                   <div>
-                    <p className="text-[15px] font-semibold tracking-[-0.03em] text-[#101522]">1.26M</p>
+                    <p className="text-[15px] font-semibold tracking-[-0.03em] text-[#101522]">{metrics.followers}</p>
                     <p className="mt-1 text-[12px] text-[#8a94a6]">followers</p>
                   </div>
                   <div>
-                    <p className="text-[15px] font-semibold tracking-[-0.03em] text-[#101522]">97</p>
+                    <p className="text-[15px] font-semibold tracking-[-0.03em] text-[#101522]">{metrics.following}</p>
                     <p className="mt-1 text-[12px] text-[#8a94a6]">following</p>
                   </div>
                 </div>
@@ -623,23 +857,22 @@ export function ProfilePage() {
                 </button>
 
                 <div className="mt-9 w-full text-left">
-                  <h1 className="text-[28px] font-semibold tracking-[-0.06em] text-[#101522]">Axel Belujon</h1>
-                  <p className="mt-2 text-[14px] text-[#6b7688]">@axelbelujon</p>
+                  <h1 className="text-[28px] font-semibold tracking-[-0.06em] text-[#101522]">{profileData.displayName}</h1>
+                  <p className="mt-2 text-[14px] text-[#6b7688]">@{profileData.username}</p>
                   <p className="mt-5 text-[15px] leading-7 text-[#101522]">
-                    🇫🇷 French / 🇺🇸 international creative director and maker. Building visuals, editorial systems,
-                    live concepts and premium product stories across Pictomag.
+                    {profileData.bio}
                   </p>
                   <button
                     type="button"
-                    onClick={() => setToastMessage("Le site portfolio arrive ensuite.")}
+                    onClick={handleOpenProfileWebsite}
                     className="mt-4 text-[15px] font-medium text-[#2b6fff]"
                   >
-                    www.axelbelujon.com
+                    {profileData.websiteUrl ? profileData.websiteUrl.replace(/^https?:\/\//, "") : "Aucun site"}
                   </button>
                 </div>
 
                 <div className="mt-10 flex w-full items-start justify-between gap-3">
-                  {profileHighlights.map((highlight, index) => (
+                  {profileHighlightsTiles.map((highlight, index) => (
                     <button
                       key={highlight.id}
                       type="button"
@@ -672,11 +905,17 @@ export function ProfilePage() {
                 className="space-y-3"
                 trackingEnabled
                 flatCards
-                onOpenComments={() => setToastMessage("Le panneau commentaires arrive ensuite.")}
-                onOpenShare={handleFeedShare}
-                onOpenTimeLike={() => setToastMessage("Le detail TimeLike arrive ensuite.")}
-                onOpenMore={() => setToastMessage("Le menu du post arrive ensuite.")}
-                onTimeLikeStateChange={() => {}}
+                items={profileBundle ? profileFeedItems : undefined}
+                onOpenComments={handleOpenComments}
+                onOpenShare={handleOpenShare}
+                onOpenTimeLike={handleOpenTimeLike}
+                onOpenMore={handleOpenMore}
+                onTimeLikeStateChange={(videoId, snapshot) => {
+                  setTimeLikeSnapshots((current) => ({
+                    ...current,
+                    [videoId]: snapshot,
+                  }));
+                }}
               />
             </div>
           </section>
@@ -685,6 +924,8 @@ export function ProfilePage() {
         {profileView === "albums" ? (
           <section className="mt-4">
             <ProfileSectionHeader
+              profile={profileData}
+              followersLabel={metrics.followers}
               description="Albums photo du profil. Selection editoriale, moodboards et archives visuelles."
               onPrimaryAction={() => setToastMessage("Edition complete a brancher ensuite.")}
               primaryLabel="Edit profile"
@@ -693,7 +934,7 @@ export function ProfilePage() {
             />
 
             <div className="mt-6 grid grid-cols-4 gap-[5px]">
-              {profileAlbumTiles.map((tile, index) => (
+              {resolvedProfileAlbumTiles.map((tile, index) => (
                 <button
                   key={tile.id}
                   type="button"
@@ -716,15 +957,17 @@ export function ProfilePage() {
         {profileView === "videos" ? (
           <section className="mt-4">
             <ProfileSectionHeader
+              profile={profileData}
+              followersLabel={metrics.followers}
               description="Selection courte et formats verticaux publies sur le profil."
-              onPrimaryAction={() => setToastMessage("Le player video detaille arrive ensuite.")}
+              onPrimaryAction={() => router.push("/")}
               primaryLabel="Open reel mode"
               onSecondaryAction={handleCopyProfile}
               secondaryLabel="Share profile"
             />
 
             <div className="mt-6 grid grid-cols-4 gap-[5px]">
-              {profileVideoShowcase.map((tile) => (
+              {resolvedProfileVideoShowcase.map((tile) => (
                 <button
                   key={tile.id}
                   type="button"
@@ -756,6 +999,8 @@ export function ProfilePage() {
         {profileView === "shop" ? (
           <section className="mt-4">
             <ProfileSectionHeader
+              profile={profileData}
+              followersLabel={metrics.followers}
               description="Services, gigs et offres actives pour collaborer directement avec le profil."
               onPrimaryAction={() => router.push("/marketplace?view=seller")}
               primaryLabel="Open seller"
@@ -795,8 +1040,8 @@ export function ProfilePage() {
         ) : null}
       </main>
 
-      {lightboxState ? (
-        <div className="fixed inset-0 z-[230] bg-[rgba(0,0,0,0.92)]" onClick={() => setLightboxState(null)}>
+        {lightboxState ? (
+          <div className="fixed inset-0 z-[230] bg-[rgba(0,0,0,0.92)]" onClick={() => setLightboxState(null)}>
           <div className="absolute left-8 top-8 z-10 flex items-center gap-3 text-white">
             <span className="rounded-full bg-white/10 px-3 py-1 text-[13px] font-medium">{lightboxState.title}</span>
             <span className="rounded-full bg-white/10 px-3 py-1 text-[13px] font-medium">
@@ -848,8 +1093,33 @@ export function ProfilePage() {
               />
             </div>
           </div>
-        </div>
-      ) : null}
+          </div>
+        ) : null}
+
+      <CommentsDrawer
+        video={findProfileDrawerVideo(commentsVideoId)}
+        open={commentsVideoId !== null}
+        onClose={handleCloseComments}
+      />
+      <ShareDrawer
+        key={shareVideoId !== null ? `profile-share-${shareVideoId}` : "profile-share-closed"}
+        video={findProfileDrawerVideo(shareVideoId)}
+        open={shareVideoId !== null}
+        onClose={handleCloseShare}
+      />
+      <MoreActionsDrawer
+        key={moreVideoId !== null ? `profile-more-${moreVideoId}` : "profile-more-closed"}
+        video={findProfileDrawerVideo(moreVideoId)}
+        open={moreVideoId !== null}
+        onClose={handleCloseMore}
+      />
+      <TimeLikeLeaderboardDrawer
+        key={timeLikeVideoId !== null ? `profile-timelike-${timeLikeVideoId}` : "profile-timelike-closed"}
+        video={findProfileDrawerVideo(timeLikeVideoId)}
+        snapshot={timeLikeVideoId !== null ? timeLikeSnapshots[timeLikeVideoId] ?? null : null}
+        open={timeLikeVideoId !== null}
+        onClose={handleCloseTimeLike}
+      />
 
       {toastMessage ? (
         <div className="fixed bottom-8 left-1/2 z-[220] -translate-x-1/2 rounded-[10px] bg-[#101522] px-4 py-2 text-[13px] font-medium text-white shadow-[0_16px_40px_rgba(15,23,42,0.24)]">
