@@ -1,0 +1,28 @@
+
+> pictomagv3@0.1.0 dev
+> next dev --port 3005
+
+▲ Next.js 16.2.1 (Turbopack)
+- Local:         http://localhost:3005
+- Network:       http://192.168.1.41:3005
+✓ Ready in 487ms
+
+ GET / 200 in 743ms (next.js: 582ms, application-code: 161ms)
+ GET / 200 in 71ms (next.js: 5ms, application-code: 66ms)
+ GET / 200 in 62ms (next.js: 2ms, application-code: 60ms)
+ GET / 200 in 63ms (next.js: 3ms, application-code: 61ms)
+ GET / 200 in 68ms (next.js: 3ms, application-code: 66ms)
+ GET / 200 in 69ms (next.js: 3ms, application-code: 66ms)
+ GET /live-shopping 200 in 148ms (next.js: 41ms, application-code: 107ms)
+ GET / 200 in 75ms (next.js: 3ms, application-code: 71ms)
+ GET / 200 in 76ms (next.js: 4ms, application-code: 72ms)
+ GET / 200 in 79ms (next.js: 3ms, application-code: 76ms)
+ GET / 200 in 62ms (next.js: 3ms, application-code: 59ms)
+ GET / 200 in 53ms (next.js: 2ms, application-code: 51ms)
+ GET / 200 in 57ms (next.js: 1982µs, application-code: 55ms)
+▲ Next.js 16.2.1 (Turbopack)
+- Local:         http://localhost:3005
+- Network:       http://192.168.1.41:3005
+✓ Ready in 348ms
+
+[?25h
