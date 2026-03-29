@@ -264,7 +264,6 @@ const postLayouts: PostLayout[] = [
 ];
 
 const BASE_POST_HEIGHT = 875;
-const BASE_PAGE_HEIGHT = postLayouts[postLayouts.length - 1]!.top + BASE_POST_HEIGHT + 240;
 const CLASSIC_PAGE_HEIGHT = 3050;
 const PHOTO_GRID_TOP = postLayouts[0]!.top;
 const PHOTO_GRID_TILE_HEIGHT = 447;
@@ -654,109 +653,6 @@ const timeLikeAudienceSeeds: TimeLikeAudienceSeed[] = [
   },
 ];
 
-const mockVideos: MockVideo[] = [
-  {
-    id: 1,
-    kind: "video",
-    src: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-    author: "axelbelujon",
-    title: "Live blaze stage vibes from the crowd and guitar solo...",
-    music: "Neon Driver - Stage Echo",
-    duration: "2:03",
-    timeLikeCount: 894,
-  },
-  {
-    id: 2,
-    kind: "video",
-    src: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-    author: "axelbelujon",
-    title: "Night city ride in cinematic blue tones, smooth motion...",
-    music: "Riverline - City Pulse",
-    duration: "1:41",
-    timeLikeCount: 942,
-  },
-  {
-    id: 3,
-    kind: "video",
-    src: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
-    author: "axelbelujon",
-    title: "Road trip visuals with dynamic perspective and warm lights...",
-    music: "Rondicch - Open Route",
-    duration: "2:18",
-    timeLikeCount: 918,
-  },
-  {
-    id: 4,
-    kind: "video",
-    src: "https://pictomag-news-1.vercel.app/video/video-3.mp4",
-    author: "world.of.tcgp",
-    title: "Chromecast motion shot with clean product framing and bright type...",
-    music: "Pictomag Session - Chrome Flow",
-    duration: "1:54",
-    timeLikeCount: 981,
-  },
-  {
-    id: 5,
-    kind: "video",
-    src: "https://pictomag-news-1.vercel.app/video/feed-video-2.mp4",
-    author: "pictomag.news",
-    title: "Editorial cut with dark gradients, depth and subtle motion rhythm...",
-    music: "Pictomag Session - Feed Pulse",
-    duration: "2:07",
-    timeLikeCount: 904,
-  },
-  {
-    id: 6,
-    kind: "video",
-    src: "https://pictomag-news-1.vercel.app/video/feed-video-3.mp4",
-    author: "world.of.tcgp",
-    title: "High-contrast promo sequence with premium pacing and glossy transitions...",
-    music: "Pictomag Session - Studio Heat",
-    duration: "1:48",
-    timeLikeCount: 1026,
-  },
-  {
-    id: 101,
-    kind: "photo",
-    src: "/figma-assets/photo-feed/photo-grid-6.jpg",
-    author: "axelbelujon",
-    title: "Un feed classique qui donne envie de rester, pas juste de scroller.",
-    music: "Letter Mode - Quiet Format",
-    duration: "0:12",
-    timeLikeCount: 1284,
-  },
-  {
-    id: 102,
-    kind: "photo",
-    src: "/figma-assets/photo-feed/photo-grid-2.jpg",
-    author: "pictomag.news",
-    title: "Moodboard editorial du jour",
-    music: "Gallery Notes - Soft Light",
-    duration: "0:12",
-    timeLikeCount: 962,
-  },
-  {
-    id: 103,
-    kind: "video",
-    src: "https://pictomag-news-1.vercel.app/video/feed-video-3.mp4",
-    author: "world.of.tcgp",
-    title: "Chromecast motion cut",
-    music: "Classic Feed - Motion Context",
-    duration: "1:18",
-    timeLikeCount: 2105,
-  },
-  {
-    id: 104,
-    kind: "photo",
-    src: "/figma-assets/photo-feed/photo-grid-7.jpg",
-    author: "studio.heat",
-    title: "Le TimeLike devient le vrai signal social.",
-    music: "Signal Notes - Studio Heat",
-    duration: "0:10",
-    timeLikeCount: 845,
-  },
-];
-
 function parseDurationLabel(durationLabel: string) {
   const [minutesText, secondsText] = durationLabel.split(":");
   const minutes = Number(minutesText ?? 0);
@@ -860,14 +756,6 @@ export function createSeedTimeLikeSnapshot(
     durationSeconds,
   };
 }
-
-const seedSnapshotVideoIds = [101, 102, 103, 104];
-const seededTimeLikeSnapshots: Record<number, TimeLikeSnapshot> = Object.fromEntries(
-  seedSnapshotVideoIds
-    .map((videoId) => mockVideos.find((video) => video.id === videoId))
-    .filter((video): video is MockVideo => Boolean(video))
-    .map((video) => [video.id, createSeedTimeLikeSnapshot(video)]),
-);
 
 function parseCompactCount(value: string) {
   const normalized = value.replace(/\s+/g, "").replace(/,/g, "");
@@ -2964,7 +2852,7 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
   const snapAlignTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const snapLockRef = useRef(false);
   const [contentMode, setContentMode] = useState<ContentMode>(initialMode);
-  const [feedVideos, setFeedVideos] = useState<FeedMediaItem[]>(mockVideos.filter((video) => video.id < 100));
+  const [feedVideos, setFeedVideos] = useState<FeedMediaItem[]>([]);
   const [classicFeedItems, setClassicFeedItems] = useState<ClassicFeedCardItem[]>([]);
   const [focusedPostId, setFocusedPostId] = useState<number>(1);
   const [expandedPostHeight, setExpandedPostHeight] = useState<number>(BASE_POST_HEIGHT);
@@ -2972,15 +2860,11 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
   const [shareVideoId, setShareVideoId] = useState<number | null>(null);
   const [timeLikeVideoId, setTimeLikeVideoId] = useState<number | null>(null);
   const [moreVideoId, setMoreVideoId] = useState<number | null>(null);
-  const [timeLikeSnapshots, setTimeLikeSnapshots] =
-    useState<Record<number, TimeLikeSnapshot>>(seededTimeLikeSnapshots);
+  const [timeLikeSnapshots, setTimeLikeSnapshots] = useState<Record<number, TimeLikeSnapshot>>({});
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const resolvedFeedVideos = useMemo(
-    () => (feedVideos.length > 0 ? feedVideos : mockVideos.filter((video) => video.id < 100)),
-    [feedVideos],
-  );
+  const resolvedFeedVideos = useMemo(() => feedVideos.slice(0, postLayouts.length), [feedVideos]);
   const resolvedClassicDrawerVideos = useMemo(
     () =>
       classicFeedItems.flatMap((item) => {
@@ -2994,7 +2878,7 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
     [resolvedClassicDrawerVideos, resolvedFeedVideos],
   );
   const findDrawerVideo = (videoId: number | null) =>
-    videoId !== null ? drawerVideos.find((video) => video.id === videoId) ?? mockVideos.find((video) => video.id === videoId) ?? null : null;
+    videoId !== null ? drawerVideos.find((video) => video.id === videoId) ?? null : null;
 
   useEffect(() => {
     setContentMode(initialMode);
@@ -3032,15 +2916,10 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
           .map((post) => toClassicFeedCardItem(post))
           .filter((post): post is ClassicFeedCardItem => Boolean(post));
 
-        if (nextFeedVideos.length > 0) {
-          setFeedVideos(nextFeedVideos);
-        }
-
-        if (nextClassicFeedItems.length > 0) {
-          setClassicFeedItems(nextClassicFeedItems);
-        }
+        setFeedVideos(nextFeedVideos);
+        setClassicFeedItems(nextClassicFeedItems);
       } catch {
-        // Silent fallback: keep the current visual feed using the existing local seed.
+        // Keep the current state untouched. The real feed no longer falls back to local mock posts.
       }
     };
 
@@ -3072,6 +2951,16 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
       return changed ? nextSnapshots : current;
     });
   }, [drawerVideos]);
+
+  useEffect(() => {
+    setFocusedPostId((current) => {
+      if (resolvedFeedVideos.length === 0) {
+        return 1;
+      }
+
+      return current <= resolvedFeedVideos.length ? current : 1;
+    });
+  }, [resolvedFeedVideos.length]);
 
   useEffect(() => {
     return () => {
@@ -3152,13 +3041,18 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
     return headerSafeArea + usableHeight * 0.5;
   }, []);
 
+  const activeVideoLayoutIds = useMemo(
+    () => resolvedFeedVideos.map((_, index) => postLayouts[index]!.id),
+    [resolvedFeedVideos],
+  );
+
   const getClosestPostId = useCallback(() => {
     const anchor = getViewportAnchorY();
     let closestId: number | null = null;
     let closestDistance = Number.POSITIVE_INFINITY;
 
-    for (const layout of postLayouts) {
-      const section = postSectionRefs.current[layout.id];
+    for (const layoutId of activeVideoLayoutIds) {
+      const section = postSectionRefs.current[layoutId];
 
       if (!section) {
         continue;
@@ -3170,12 +3064,12 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
 
       if (distance < closestDistance) {
         closestDistance = distance;
-        closestId = layout.id;
+        closestId = layoutId;
       }
     }
 
     return closestId;
-  }, [getViewportAnchorY]);
+  }, [activeVideoLayoutIds, getViewportAnchorY]);
 
   const alignPostToViewport = useCallback(
     (postId: number, behavior: ScrollBehavior) => {
@@ -3432,7 +3326,12 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
   );
 
   const handleSnapStep = useCallback((direction: -1 | 1) => {
-    const orderedIds = postLayouts.map((layout) => layout.id);
+    const orderedIds = activeVideoLayoutIds;
+
+    if (orderedIds.length === 0) {
+      return;
+    }
+
     const fallbackId = getClosestPostId() ?? orderedIds[0];
     const currentId =
       pendingPostIdRef.current && orderedIds.includes(pendingPostIdRef.current)
@@ -3452,7 +3351,7 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
     }
 
     scrollToPost(nextId);
-  }, [getClosestPostId, scrollToPost]);
+  }, [activeVideoLayoutIds, getClosestPostId, scrollToPost]);
 
   useEffect(() => {
     if (contentMode !== "video") {
@@ -3504,12 +3403,19 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
     ...layout,
     top: focusedIndex !== -1 && index > focusedIndex ? layout.top + expandedExtraHeight : layout.top,
   }));
+  const activeVideoLayouts = dynamicPostLayouts.slice(0, resolvedFeedVideos.length);
+  const activeVideoPageHeight =
+    activeVideoLayouts.length > 0
+      ? activeVideoLayouts[activeVideoLayouts.length - 1]!.top +
+        (focusedPostId === activeVideoLayouts[activeVideoLayouts.length - 1]!.id ? expandedPostHeight : BASE_POST_HEIGHT) +
+        240
+      : PHOTO_GRID_TOP + 220;
   const pageHeight =
     contentMode === "classic"
       ? CLASSIC_PAGE_HEIGHT
       : contentMode === "photo"
         ? PHOTO_PAGE_HEIGHT
-        : BASE_PAGE_HEIGHT + expandedExtraHeight;
+        : activeVideoPageHeight;
   const isClassicMode = contentMode === "classic";
   const isVideoMode = contentMode === "video";
   const toolButtonClass = (active: boolean) =>
@@ -3668,12 +3574,16 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
                 !isSearchOpen
               }
               onTimeLikeStateChange={handleTimeLikeStateChange}
-              items={classicFeedItems.length > 0 ? classicFeedItems : undefined}
+              items={classicFeedItems}
             />
           ) : isVideoMode ? (
             <>
-              {dynamicPostLayouts.map((layout, index) => {
-                const media = resolvedFeedVideos[index % resolvedFeedVideos.length] ?? mockVideos[index % mockVideos.length]!;
+              {activeVideoLayouts.map((layout, index) => {
+                const media = resolvedFeedVideos[index];
+
+                if (!media) {
+                  return null;
+                }
 
                 return (
                   <PostCluster
