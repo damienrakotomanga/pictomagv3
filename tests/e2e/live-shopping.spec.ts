@@ -29,11 +29,18 @@ test.describe("live shopping realtime flow", () => {
     await expect(firstBidChoice).toBeVisible();
     await firstBidChoice.click();
 
+    const bidResponsePromise = page.waitForResponse((response) => response.url().includes("/api/live-shopping/actions"));
     const confirmBidButton = bidModal.getByTestId("live-bid-confirm");
     await expect(confirmBidButton).toBeVisible();
     await confirmBidButton.click();
-    await expect(page.getByTestId("live-toast")).toBeVisible();
-    await expect(bidModal).toHaveCount(0);
+    const toast = page.getByTestId("live-toast");
+    await expect(toast).toBeVisible();
+    const toastText = await toast.textContent();
+    const bidResponse = await bidResponsePromise;
+    const bidPayload = await bidResponse.json();
+    expect(bidResponse.ok(), `Bid request failed with toast: ${toastText ?? ""} payload: ${JSON.stringify(bidPayload)}`).toBeTruthy();
+    await expect(toast).toContainText(/Offre enregistree|Enchere deja prise en compte/i);
+    await expect(bidModal).toBeHidden();
 
     const chatInput = page.getByTestId("live-chat-input");
     await expect(chatInput).toBeVisible();
@@ -50,10 +57,28 @@ test.describe("live shopping realtime flow", () => {
     await page.getByTestId("live-selected-lot-custom-action").click();
     const customBidModal = page.getByTestId("live-bid-modal-custom");
     await expect(customBidModal).toBeVisible();
-    await customBidModal.getByTestId("live-bid-input-custom").fill("42");
-    await customBidModal.getByTestId("live-bid-confirm-custom").click();
-    await expect(page.getByTestId("live-toast")).toBeVisible();
-    await expect(customBidModal).toHaveCount(0);
+    const customBidConfirmButton = customBidModal.getByTestId("live-bid-confirm-custom");
+    const customBidConfirmLabel = (await customBidConfirmButton.textContent()) ?? "";
+    const minimumBidMatch = customBidConfirmLabel.match(/(\d[\d\s\u00A0]*)\s*€/);
+    const minimumBid = minimumBidMatch
+      ? Number.parseInt(minimumBidMatch[1].replace(/[^\d]/g, ""), 10)
+      : NaN;
+    expect(Number.isFinite(minimumBid)).toBeTruthy();
+    await customBidModal.getByTestId("live-bid-input-custom").fill(String(minimumBid));
+    await expect(customBidConfirmButton).toBeEnabled();
+    const customBidResponsePromise = page.waitForResponse((response) => response.url().includes("/api/live-shopping/actions"));
+    await customBidConfirmButton.click();
+    const customBidToast = page.getByTestId("live-toast");
+    await expect(customBidToast).toBeVisible();
+    const customBidToastText = await customBidToast.textContent();
+    const customBidResponse = await customBidResponsePromise;
+    const customBidPayload = await customBidResponse.json();
+    expect(
+      customBidResponse.ok(),
+      `Custom bid request failed with toast: ${customBidToastText ?? ""} payload: ${JSON.stringify(customBidPayload)}`,
+    ).toBeTruthy();
+    await expect(customBidToast).toContainText(/Offre enregistree|Enchere deja prise en compte/i);
+    await expect(customBidModal).toBeHidden();
 
     await page.getByTestId("live-wallet-open").click();
     const walletModal = page.getByTestId("live-wallet-modal");
@@ -62,15 +87,25 @@ test.describe("live shopping realtime flow", () => {
     await walletModal.getByTestId("live-wallet-payment-wallet").click();
     await expect(walletModal).toContainText("Wallet Pictomag");
     await page.keyboard.press("Escape");
-    await expect(walletModal).toHaveCount(0);
+    await expect(walletModal).toBeHidden();
 
     await page.getByTestId("live-lot-action-japan-pack").click();
     const checkoutModal = page.getByTestId("live-checkout-modal");
     await expect(checkoutModal).toBeVisible();
     await checkoutModal.getByTestId("live-checkout-payment-wallet").click();
     await checkoutModal.getByTestId("live-checkout-note").fill("playwright checkout note");
+    const checkoutResponsePromise = page.waitForResponse((response) => response.url().includes("/api/live-shopping/actions"));
     await checkoutModal.getByTestId("live-checkout-confirm").click();
-    await expect(page.getByTestId("live-toast")).toBeVisible();
-    await expect(checkoutModal).toHaveCount(0);
+    const checkoutToast = page.getByTestId("live-toast");
+    await expect(checkoutToast).toBeVisible();
+    const checkoutToastText = await checkoutToast.textContent();
+    const checkoutResponse = await checkoutResponsePromise;
+    const checkoutPayload = await checkoutResponse.json();
+    expect(
+      checkoutResponse.ok(),
+      `Checkout request failed with toast: ${checkoutToastText ?? ""} payload: ${JSON.stringify(checkoutPayload)}`,
+    ).toBeTruthy();
+    await expect(checkoutToast).toContainText(/Paiement simule valide|Commande deja confirmee/i);
+    await expect(checkoutModal).toBeHidden();
   });
 });

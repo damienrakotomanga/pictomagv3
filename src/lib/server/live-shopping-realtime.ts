@@ -60,7 +60,6 @@ let wsServerInitAttempted = false;
 let wsServerDisabledReason: string | null = null;
 let wsHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let redisPublisher: LiveShoppingRedisClient | null = null;
-let redisInitStarted = false;
 let redisInitPromise: Promise<void> | null = null;
 let redisReady = false;
 let redisDisabledReason: string | null = null;
@@ -365,7 +364,6 @@ function ensureRedisBridge() {
     return;
   }
 
-  redisInitStarted = true;
   redisInitPromise = initializeRedisBridge();
 }
 

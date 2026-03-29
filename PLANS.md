@@ -1,124 +1,179 @@
-<!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
+# PLANS.md
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-<!-- END:nextjs-agent-rules -->
-
-# AGENTS.md
-
-## Objectif du projet
-Transformer ce repo en une application web dynamique de type réseau social avec :
-- authentification utilisateur
-- profils utilisateur
-- publication de posts texte + image
-- messagerie privée entre utilisateurs
-- marketplace de gigs
-- live shopping
-
-Le design visuel existant doit être conservé autant que possible.
-Priorité absolue à la logique fonctionnelle, à la persistance des données et à la stabilité.
+## Objectif
+Stabiliser Pictomag v3 sans repartir de zéro, en gardant l’UI et l’infrastructure realtime déjà utiles, puis en remplaçant les couches prototype par de vrais flux métier.
 
 ---
 
-## Règles de travail
-- Toujours commencer par analyser l’existant avant de coder.
-- Toujours proposer un mini-plan avant une implémentation complexe.
-- Travailler sur une seule fonctionnalité à la fois.
-- Ne jamais mélanger plusieurs domaines métier dans une même tâche :
-  - auth
-  - posts
-  - messaging
-  - gigs marketplace
-  - live shopping
-- Ne pas refactoriser massivement sans nécessité.
-- Ne pas casser le design existant sans raison claire.
-- Préférer des changements petits, lisibles et testables.
-- Garder les composants UI séparés de la logique métier.
-- Centraliser les appels API/services.
-- Toute logique de permission doit être validée côté serveur.
-- Toute donnée critique doit être persistée en base.
-- Toute fonctionnalité doit gérer les erreurs minimales.
+## Phase 1 - Auth réelle + Users + Profiles
+
+### Objectif
+Remplacer l’auth prototype par une vraie authentification applicative minimale.
+
+### À garder
+- `src/lib/server/auth-user.ts`
+- `src/lib/server/preference-user.ts`
+- `src/lib/server/sqlite-store.ts`
+- l’UI existante
+
+### À créer ou étendre
+- table `users`
+- table `profiles`
+- endpoints:
+  - `/api/auth/register`
+  - `/api/auth/login`
+  - `/api/auth/logout`
+  - `/api/profile/me`
+
+### À migrer
+- `api/auth/session` ne doit plus être le flux principal de connexion
+- les identités `guest-*` et `userId` en query deviennent des compatibilités temporaires seulement
+
+### Critères de validation
+- un utilisateur peut créer un compte
+- un utilisateur peut se connecter
+- un utilisateur peut se déconnecter
+- la session persiste au refresh
+- une route privée refuse un visiteur non connecté
+- le profil “me” est lu depuis la vraie base
+
+### Livrables
+- tables et helpers côté serveur
+- endpoints auth
+- protection des routes privées
+- tests manuels documentés
 
 ---
 
-## Ce qu’il faut éviter
-- Ne pas simuler une fonctionnalité avec des données mockées si l’objectif est de la rendre réelle.
-- Ne pas laisser une page “fonctionnelle en apparence” sans backend réel.
-- Ne pas créer de fonctionnalités partielles sans le signaler clairement.
-- Ne pas implémenter le live shopping tant que les fondations auth + données + posts ne sont pas stables.
-- Ne pas inventer une architecture compliquée si une solution simple suffit.
+## Phase 2 - Feed réel + Posts + Profile branché
+
+### Objectif
+Transformer le feed et le profil en surfaces réellement alimentées par les données.
+
+### À garder
+- `feed-page.tsx`
+- `profile-page.tsx`
+- la structure visuelle actuelle
+
+### À créer ou étendre
+- table `posts`
+- table `post_media`
+- endpoints:
+  - `/api/posts`
+  - `/api/posts/[postId]`
+  - `/api/profile/[userId]`
+
+### À retirer progressivement
+- `mockVideos` comme source métier principale
+- placeholders critiques du profil pour les actions de cette phase
+
+### Critères de validation
+- un utilisateur connecté peut créer un post
+- le feed liste les vrais posts
+- le profil affiche les vrais posts du user
+- les médias de post sont reliés aux posts
+- les données du feed principal ne viennent plus des mocks
+
+### Livrables
+- tables posts/media
+- endpoints posts/profile
+- feed branché
+- profil branché
 
 ---
 
-## Définition de “terminé”
-Une fonctionnalité est considérée comme terminée seulement si :
-- le code compile
-- les routes/API répondent correctement
-- les données sont enregistrées en base
-- les erreurs principales sont gérées
-- le frontend est branché à la vraie donnée
-- les écrans ne reposent plus sur des mocks pour cette fonctionnalité
-- un test manuel est possible et documenté
+## Phase 3 - Marketplace réelle + Messagerie minimale
+
+### Objectif
+Remplacer les données marketplace seedées par de vraies données et ajouter une messagerie privée minimale.
+
+### À garder
+- l’UI marketplace
+- les vues existantes
+- les composants de navigation
+
+### À créer ou étendre
+- table `gigs`
+- table `orders`
+- table `conversations`
+- table `messages`
+- endpoints:
+  - `/api/gigs`
+  - `/api/gigs/[gigId]`
+  - `/api/orders`
+  - `/api/conversations`
+  - `/api/messages`
+
+### À retirer progressivement
+- `serviceGigs`
+- `seedOrders`
+- `topNotifications`
+- `topMessages`
+comme source métier principale
+
+### Critères de validation
+- un utilisateur peut créer un gig
+- la marketplace liste les vrais gigs
+- une commande peut être créée et relue
+- deux utilisateurs peuvent échanger des messages
+- les messages sont persistés
+
+### Livrables
+- tables gigs/orders/conversations/messages
+- endpoints marketplace et messaging
+- marketplace branchée
+- messagerie minimale branchée
 
 ---
 
-## Format de réponse attendu pour chaque tâche
-Avant de coder :
-1. Résumer l’état actuel
-2. Expliquer ce qui manque
-3. Donner un plan court
-4. Lister les fichiers à créer/modifier
+## Phase 4 - Live shopping relié au vrai produit + durcissement
 
-Après avoir codé :
-1. Résumer ce qui a été implémenté
-2. Lister les fichiers modifiés
-3. Lister les commandes à lancer
-4. Donner les tests manuels à faire
-5. Signaler explicitement ce qui reste statique ou non terminé
+### Objectif
+Conserver l’infrastructure live existante et la brancher aux vrais users, gigs, orders et permissions.
 
----
+### À garder
+- les endpoints live shopping existants
+- Redis / WebSocket / SSE
+- les tests E2E live existants
+- les audit logs existants
 
-## Architecture cible minimale
-L’application doit à terme contenir au minimum les entités suivantes :
-- User
-- Profile
-- Post
-- PostImage
-- Conversation
-- Message
-- Gig
-- LiveSession
+### À créer ou étendre
+- table `live_sessions`
+- tables ou structures nécessaires pour bids / cart / checkout si absentes
+- liens réels entre live, users, gigs, orders
 
-Relations minimales :
-- un User peut créer plusieurs Post
-- un User peut créer plusieurs Gig
-- une Conversation contient plusieurs Message
-- un LiveSession appartient à un User
+### À retirer progressivement
+- les chemins de compatibilité qui reposent sur des identités provisoires
+- les données live isolées qui ne sont pas reliées aux vraies entités métier
 
----
+### Critères de validation
+- un utilisateur authentifié peut entrer dans un live
+- les actions live sont reliées au vrai user
+- les flux d’enchère / panier / checkout ne reposent plus sur une identité fictive
+- les permissions serveur sont cohérentes
+- les tests E2E critiques passent
 
-## Priorité MVP
-Ordre d’implémentation recommandé :
-1. Authentification + utilisateurs
-2. Posts + upload photo + feed
-3. Messagerie privée
-4. Marketplace / gigs
-5. Live shopping
-
-Le live shopping est une fonctionnalité avancée.
-Ne pas commencer cette partie avant la stabilité des 4 blocs précédents.
+### Livrables
+- live relié aux vraies entités métier
+- permissions renforcées
+- tests E2E mis à jour
+- nettoyage des compatibilités obsolètes
 
 ---
 
-## Contraintes UX
-- Conserver au maximum les écrans existants
-- Remplacer les données statiques par de vraies données progressivement
-- Ne pas dégrader le rendu visuel actuel
-- Préserver les composants existants quand ils sont réutilisables
+## Règles d’exécution
+- Une seule phase active à la fois
+- Ne pas démarrer la phase suivante si la précédente n’est pas validée
+- Toujours fournir un plan avant le code
+- Toujours lister les fichiers modifiés
+- Toujours signaler ce qui reste mocké ou provisoire
 
 ---
 
-## En cas d’ambiguïté
-- Faire l’hypothèse la plus simple et la plus réaliste
-- L’expliquer brièvement
-- Ne pas bloquer toute l’implémentation pour un détail secondaire
+## Journal de validation
+À la fin de chaque phase, ajouter :
+- date
+- statut
+- fichiers principaux touchés
+- régressions éventuelles
+- éléments encore provisoires

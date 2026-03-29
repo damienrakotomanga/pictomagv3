@@ -346,12 +346,21 @@ function CategoryAnimatedCover({
   );
 }
 
-function lotPrice(lot: LiveShoppingLot) {
-  return euros(lot.mode === "auction" ? lot.currentBid ?? lot.price : lot.price);
+function lotCurrentBid(lot: LiveShoppingLot, roomState?: LiveShoppingRoomState | null) {
+  if (lot.mode !== "auction") {
+    return lot.price;
+  }
+
+  const runtimeCurrentBid = roomState?.lotStates[lot.id]?.currentBid;
+  return Math.max(lot.currentBid ?? lot.price, runtimeCurrentBid ?? lot.currentBid ?? lot.price);
 }
 
-function nextBid(lot: LiveShoppingLot) {
-  return (lot.currentBid ?? lot.price) + (lot.bidIncrement ?? 5);
+function lotPrice(lot: LiveShoppingLot, roomState?: LiveShoppingRoomState | null) {
+  return euros(lot.mode === "auction" ? lotCurrentBid(lot, roomState) : lot.price);
+}
+
+function nextBid(lot: LiveShoppingLot, roomState?: LiveShoppingRoomState | null) {
+  return lotCurrentBid(lot, roomState) + (lot.bidIncrement ?? 5);
 }
 
 function bidChoices(lot: LiveShoppingLot) {
@@ -660,6 +669,38 @@ type LiveShoppingChatApiResult = {
   roomState?: LiveShoppingRoomState;
   chatMessage?: LiveShoppingChatMessage;
 };
+
+type LiveShoppingRoomStateApiResult = {
+  eventId?: number;
+  message?: string;
+  roomState?: LiveShoppingRoomState;
+  userId?: string;
+};
+
+async function readLiveShoppingRoomStateFromApi(eventId: number) {
+  try {
+    const response = await fetch(`/api/live-shopping/chat?eventId=${eventId}`, {
+      method: "GET",
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+
+    const payload = (await response.json()) as LiveShoppingRoomStateApiResult;
+    return {
+      ok: response.ok,
+      status: response.status,
+      body: payload,
+    };
+  } catch {
+    return {
+      ok: false,
+      status: 0,
+      body: {
+        message: "Impossible de charger l etat live pour le moment.",
+      } satisfies LiveShoppingRoomStateApiResult,
+    };
+  }
+}
 
 async function submitLiveShoppingChatMessage({
   eventId,
@@ -1805,6 +1846,56 @@ export function LiveShoppingPage({
   const activeRoomRealtimeState = activeRoomId ? roomStateByEventId[activeRoomId] ?? null : null;
   const activeRoomPresence = activeRoomId ? presenceByEventId[activeRoomId] ?? null : null;
 
+  const mergeRoomStateSnapshot = useCallback((candidate: LiveShoppingRoomState | null | undefined) => {
+    if (!candidate || typeof candidate.eventId !== "number" || candidate.eventId <= 0) {
+      return;
+    }
+
+    setRoomStateByEventId((current) => {
+      const previous = current[candidate.eventId];
+      if (previous && previous.updatedAt > candidate.updatedAt) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [candidate.eventId]: candidate,
+      };
+    });
+  }, []);
+
+  const syncRoomStateForEvent = useCallback(
+    async (eventId: number) => {
+      const result = await readLiveShoppingRoomStateFromApi(eventId);
+      if (!result.ok || !result.body.roomState) {
+        return null;
+      }
+
+      mergeRoomStateSnapshot(result.body.roomState);
+      return result.body.roomState;
+    },
+    [mergeRoomStateSnapshot],
+  );
+
+  useEffect(() => {
+    if (!activeRoomId || typeof window === "undefined") {
+      return;
+    }
+
+    let active = true;
+
+    void (async () => {
+      const roomState = await syncRoomStateForEvent(activeRoomId);
+      if (!active || !roomState) {
+        return;
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [activeRoomId, mergeRoomStateSnapshot, syncRoomStateForEvent]);
+
   useEffect(() => {
     if (!activeRoomId || typeof window === "undefined") {
       return;
@@ -1852,12 +1943,7 @@ export function LiveShoppingPage({
 
       if (payload.roomState && typeof payload.roomState === "object") {
         const candidate = payload.roomState as LiveShoppingRoomState;
-        if (typeof candidate.eventId === "number" && candidate.eventId > 0) {
-          setRoomStateByEventId((current) => ({
-            ...current,
-            [candidate.eventId]: candidate,
-          }));
-        }
+        mergeRoomStateSnapshot(candidate);
       }
 
       if (payload.presence && typeof payload.presence === "object") {
@@ -2044,7 +2130,7 @@ export function LiveShoppingPage({
         // ignore close failures
       }
     };
-  }, [activeRoomId]);
+  }, [activeRoomId, mergeRoomStateSnapshot]);
 
   const categories = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -2169,10 +2255,7 @@ export function LiveShoppingPage({
 
       if (result.body.roomState) {
         const roomState = result.body.roomState;
-        setRoomStateByEventId((current) => ({
-          ...current,
-          [roomState.eventId]: roomState,
-        }));
+        mergeRoomStateSnapshot(roomState);
       } else if (result.body.chatMessage) {
         const chatMessage = result.body.chatMessage;
         setRoomStateByEventId((current) => {
@@ -2228,7 +2311,7 @@ export function LiveShoppingPage({
       return;
     }
 
-    const minimumBid = nextBid(selectedLot);
+    const minimumBid = nextBid(selectedLot, activeRoomRealtimeState);
     setBidValue((current) => {
       const parsedCurrent = Number.parseInt(current, 10);
       if (Number.isFinite(parsedCurrent) && parsedCurrent >= minimumBid) {
@@ -2237,7 +2320,7 @@ export function LiveShoppingPage({
 
       return String(minimumBid);
     });
-  }, [bidOpen, customBidOpen, selectedLot]);
+  }, [activeRoomRealtimeState, bidOpen, customBidOpen, selectedLot]);
 
   const handleNav = (item: HeaderNavItemId) => {
     if (item === "home") return router.push("/");
@@ -2342,24 +2425,27 @@ export function LiveShoppingPage({
     if (!selectedLot) return;
     setCheckoutOpen(true);
   };
-  const handleBid = () => {
-    if (!selectedLot) return;
-    setBidValue(String(nextBid(selectedLot)));
+  const handleBid = async () => {
+    if (!selectedLot || !activeRoom) return;
+    const roomState = await syncRoomStateForEvent(activeRoom.id);
+    setBidValue(String(nextBid(selectedLot, roomState)));
     setBidOpen(true);
   };
-  const handleLotPrimaryAction = (lot: LiveShoppingLot) => {
+  const handleLotPrimaryAction = async (lot: LiveShoppingLot) => {
     setSelectedLotId(lot.id);
     if (lot.mode === "auction") {
-      setBidValue(String(nextBid(lot)));
+      const roomState = activeRoom ? await syncRoomStateForEvent(activeRoom.id) : null;
+      setBidValue(String(nextBid(lot, roomState)));
       setBidOpen(true);
       return;
     }
     setCheckoutOpen(true);
   };
-  const handleLotCustomAction = (lot: LiveShoppingLot) => {
+  const handleLotCustomAction = async (lot: LiveShoppingLot) => {
     setSelectedLotId(lot.id);
     if (lot.mode === "auction") {
-      setBidValue(String(nextBid(lot)));
+      const roomState = activeRoom ? await syncRoomStateForEvent(activeRoom.id) : null;
+      setBidValue(String(nextBid(lot, roomState)));
       setCustomBidOpen(true);
       return;
     }
@@ -2423,10 +2509,7 @@ export function LiveShoppingPage({
       }
       if (result.body.roomState) {
         const roomState = result.body.roomState;
-        setRoomStateByEventId((current) => ({
-          ...current,
-          [roomState.eventId]: roomState,
-        }));
+        mergeRoomStateSnapshot(roomState);
       }
       setCheckoutOpen(false);
       setToast(result.replayed ? "Commande deja confirmee. Reponse rejouee." : "Paiement simule valide. Reservation confirmee.");
@@ -2438,8 +2521,9 @@ export function LiveShoppingPage({
   const confirmBid = async () => {
     if (!activeRoom || !selectedLot || bidSubmitting) return;
     const offer = Number.parseInt(bidValue, 10);
-    if (Number.isNaN(offer) || offer < nextBid(selectedLot)) {
-      setToast(`Offre minimale: ${euros(nextBid(selectedLot))}.`);
+    const minimumBid = nextBid(selectedLot, activeRoomRealtimeState);
+    if (Number.isNaN(offer) || offer < minimumBid) {
+      setToast(`Offre minimale: ${euros(minimumBid)}.`);
       return;
     }
     setBidSubmitting(true);
@@ -2463,10 +2547,11 @@ export function LiveShoppingPage({
 
       if (result.body.roomState) {
         const roomState = result.body.roomState;
-        setRoomStateByEventId((current) => ({
-          ...current,
-          [roomState.eventId]: roomState,
-        }));
+        mergeRoomStateSnapshot(roomState);
+      }
+
+      if (typeof result.body.minimumBid === "number") {
+        setBidValue(String(result.body.minimumBid));
       }
 
       if (result.body.inventory) {
