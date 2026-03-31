@@ -568,10 +568,12 @@ function ClassicMediaBlock({
   item,
   videoRef,
   onOpenImage,
+  eagerMedia = false,
 }: {
   item: ClassicFeedCardItem;
   videoRef?: { current: HTMLVideoElement | null };
   onOpenImage?: (images: string[], index: number, title: string) => void;
+  eagerMedia?: boolean;
 }) {
   if (item.variant === "letter") {
     return null;
@@ -587,7 +589,14 @@ function ClassicMediaBlock({
             onClick={() => onOpenImage?.(item.media!.gallery!, index, item.title)}
             className="relative h-[468px] overflow-hidden rounded-[5px] bg-white text-left transition hover:opacity-95"
           >
-            <Image src={src} alt={`${item.title} ${index + 1}`} fill sizes="230px" className="object-cover" />
+            <Image
+              src={src}
+              alt={`${item.title} ${index + 1}`}
+              fill
+              sizes="230px"
+              className="object-cover"
+              loading={eagerMedia ? "eager" : undefined}
+            />
           </button>
         ))}
       </div>
@@ -630,7 +639,14 @@ function ClassicMediaBlock({
         className="block w-full overflow-hidden rounded-[5px] bg-black text-left transition hover:opacity-95"
       >
         <div className="relative aspect-[16/9] bg-black">
-          <Image src={item.media.src} alt={item.title} fill sizes="760px" className="object-contain" />
+          <Image
+            src={item.media.src}
+            alt={item.title}
+            fill
+            sizes="760px"
+            className="object-contain"
+            loading={eagerMedia ? "eager" : undefined}
+          />
         </div>
       </button>
     );
@@ -649,6 +665,7 @@ function ClassicFeedCard({
   trackingEnabled,
   onTimeLikeStateChange,
   flatCards = false,
+  eagerMedia = false,
 }: {
   item: ClassicFeedCardItem;
   onOpenComments: (videoId: number) => void;
@@ -659,6 +676,7 @@ function ClassicFeedCard({
   trackingEnabled: boolean;
   onTimeLikeStateChange: (videoId: number, snapshot: ClassicTimeLikeSnapshot) => void;
   flatCards?: boolean;
+  eagerMedia?: boolean;
 }) {
   const cardRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -913,7 +931,7 @@ function ClassicFeedCard({
         </div>
       </div>
 
-      {item.media ? <ClassicMediaBlock item={item} videoRef={videoRef} onOpenImage={onOpenImage} /> : null}
+      {item.media ? <ClassicMediaBlock item={item} videoRef={videoRef} onOpenImage={onOpenImage} eagerMedia={eagerMedia} /> : null}
 
       <div className="px-5 pb-4 pt-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -1106,6 +1124,7 @@ export function ClassicFeedStream({
 }: ClassicFeedViewProps & { className?: string }) {
   const [lightboxState, setLightboxState] = useState<ClassicLightboxState | null>(null);
   const resolvedItems = items ?? legacyFallbackClassicFeedItems;
+  const firstMediaIndex = resolvedItems.findIndex((item) => Boolean(item.media));
 
   const handleOpenImage = (images: string[], index: number, title: string) => {
     setLightboxState({ images, index, title });
@@ -1144,7 +1163,7 @@ export function ClassicFeedStream({
   return (
     <>
       <div className={className}>
-        {resolvedItems.map((item) => (
+        {resolvedItems.map((item, index) => (
           <ClassicFeedCard
             key={item.id}
             item={item}
@@ -1156,6 +1175,7 @@ export function ClassicFeedStream({
             trackingEnabled={trackingEnabled}
             onTimeLikeStateChange={onTimeLikeStateChange}
             flatCards={flatCards}
+            eagerMedia={index === firstMediaIndex}
           />
         ))}
       </div>

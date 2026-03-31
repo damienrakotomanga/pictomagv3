@@ -1151,6 +1151,8 @@ function Asset({
   width,
   height,
   style,
+  loading,
+  priority,
 }: {
   src: string;
   alt: string;
@@ -1158,6 +1160,8 @@ function Asset({
   width: number;
   height: number;
   style?: CSSProperties;
+  loading?: "eager" | "lazy";
+  priority?: boolean;
 }) {
   return (
     <Image
@@ -1168,6 +1172,8 @@ function Asset({
       unoptimized
       className={className}
       style={style}
+      loading={loading}
+      priority={priority}
     />
   );
 }
@@ -1201,6 +1207,7 @@ function StoryItem({ story, index }: { story: Story; index: number }) {
             width={64}
             height={64}
             className="h-[86px] w-[86px]"
+            loading="eager"
           />
         </div>
         <p className="absolute left-0 top-[99px] w-[86px] text-center text-[12px] leading-[15px] text-black transition-colors duration-300 group-hover:text-[#0077ff]">

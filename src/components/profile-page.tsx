@@ -25,7 +25,8 @@ import {
   TimeLikeLeaderboardDrawer,
   type TimeLikeSnapshot,
 } from "@/components/feed-page";
-import { serviceGigs } from "@/lib/marketplace-data";
+import { readMarketplaceGigs } from "@/lib/marketplace-api";
+import { getMarketplaceGigHref, type ServiceGig } from "@/lib/marketplace-data";
 import {
   type ClassicFeedCardItem,
   type ProfileAlbumItem,
@@ -297,6 +298,7 @@ export function ProfilePage() {
   const [profileView, setProfileView] = useState<ProfileView>("feed");
   const [lightboxState, setLightboxState] = useState<ProfileImageLightboxState | null>(null);
   const [profileBundle, setProfileBundle] = useState<PublicProfileBundle | null>(null);
+  const [profileShopGigs, setProfileShopGigs] = useState<ServiceGig[]>([]);
   const [commentsVideoId, setCommentsVideoId] = useState<number | null>(null);
   const [shareVideoId, setShareVideoId] = useState<number | null>(null);
   const [moreVideoId, setMoreVideoId] = useState<number | null>(null);
@@ -344,17 +346,20 @@ export function ProfilePage() {
 
     const loadProfile = async () => {
       try {
-        const meResponse = await fetch("/api/profile/me", {
+        const sessionResponse = await fetch("/api/auth/session", {
           credentials: "same-origin",
           cache: "no-store",
         });
 
         let identifier = fallbackProfile.username;
 
-        if (meResponse.ok) {
-          const mePayload = (await meResponse.json()) as { user?: { id?: string } };
-          if (typeof mePayload.user?.id === "string" && mePayload.user.id.trim()) {
-            identifier = mePayload.user.id.trim();
+        if (sessionResponse.ok) {
+          const sessionPayload = (await sessionResponse.json()) as {
+            authenticated?: boolean;
+            user?: { id?: string };
+          };
+          if (sessionPayload.authenticated && typeof sessionPayload.user?.id === "string" && sessionPayload.user.id.trim()) {
+            identifier = sessionPayload.user.id.trim();
           }
         }
 
@@ -384,6 +389,29 @@ export function ProfilePage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadProfileShopGigs = async () => {
+      const result = await readMarketplaceGigs({
+        seller: profileData.username,
+        limit: 12,
+      });
+
+      if (cancelled) {
+        return;
+      }
+
+      setProfileShopGigs(result.ok ? result.data.gigs : []);
+    };
+
+    void loadProfileShopGigs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profileData.username]);
 
   useEffect(() => {
     if (profileDrawerVideos.length === 0) {
@@ -1009,11 +1037,11 @@ export function ProfilePage() {
             />
 
             <div className="mt-6 grid grid-cols-4 gap-4">
-              {serviceGigs.slice(0, 4).map((gig) => (
+              {profileShopGigs.slice(0, 4).map((gig) => (
                 <button
                   key={gig.id}
                   type="button"
-                  onClick={() => router.push(`/marketplace/${gig.id}-${gig.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}?package=${gig.packages[0]?.id ?? "starter"}`)}
+                  onClick={() => router.push(`${getMarketplaceGigHref(gig)}?package=${gig.packages[0]?.id ?? "starter"}`)}
                   className="group overflow-hidden rounded-[10px] border border-black/8 bg-white text-left transition hover:border-black/12"
                 >
                   <div className="relative h-[250px] overflow-hidden bg-[#f6f8fb]">
@@ -1036,6 +1064,12 @@ export function ProfilePage() {
                 </button>
               ))}
             </div>
+
+            {profileShopGigs.length === 0 ? (
+              <div className="mt-6 rounded-[10px] border border-black/8 bg-white px-5 py-5 text-[14px] leading-6 text-[#607085]">
+                Aucun gig actif publie pour ce profil pour le moment.
+              </div>
+            ) : null}
           </section>
         ) : null}
       </main>

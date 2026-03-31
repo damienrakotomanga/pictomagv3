@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { getMarketplaceGigSlug, seedOrders, serviceGigs } from "@/lib/marketplace-data";
 
 type PreferencesRow = {
   user_id: string;
@@ -62,6 +63,66 @@ export type StoredPostMediaRow = {
   poster_src: string | null;
   alt_text: string;
   position: number;
+  created_at: number;
+};
+
+export type StoredGigStatus = "active" | "pending" | "modification" | "draft" | "denied" | "paused";
+
+export type StoredGigRow = {
+  id: number;
+  seller_user_id: string;
+  slug: string;
+  title: string;
+  subtitle: string;
+  category: string;
+  cover: string;
+  price_from: number;
+  delivery_label: string;
+  response_label: string;
+  timelike_trust: number;
+  completed_orders: number;
+  queue_size: number;
+  status: StoredGigStatus;
+  packages_json: string;
+  deliverables_json: string;
+  tags_json: string;
+  created_at: number;
+  updated_at: number;
+  published_at: number;
+};
+
+export type StoredOrderRow = {
+  id: number;
+  gig_id: number;
+  buyer_user_id: string;
+  seller_user_id: string;
+  package_id: string;
+  title: string;
+  budget: number;
+  due_date: string;
+  stage_index: number;
+  last_update: string;
+  payment_released: number;
+  timelike_trust: number;
+  brief: string;
+  notes_json: string;
+  created_at: number;
+  updated_at: number;
+};
+
+export type StoredConversationRow = {
+  id: number;
+  participant_a_user_id: string;
+  participant_b_user_id: string;
+  created_at: number;
+  updated_at: number;
+};
+
+export type StoredMessageRow = {
+  id: number;
+  conversation_id: number;
+  sender_user_id: string;
+  body: string;
   created_at: number;
 };
 
@@ -212,6 +273,65 @@ function ensureDatabase() {
       created_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS gigs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      seller_user_id TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      subtitle TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL,
+      cover TEXT NOT NULL,
+      price_from INTEGER NOT NULL DEFAULT 0,
+      delivery_label TEXT NOT NULL DEFAULT '',
+      response_label TEXT NOT NULL DEFAULT '',
+      timelike_trust INTEGER NOT NULL DEFAULT 0,
+      completed_orders INTEGER NOT NULL DEFAULT 0,
+      queue_size INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'active',
+      packages_json TEXT NOT NULL,
+      deliverables_json TEXT NOT NULL DEFAULT '[]',
+      tags_json TEXT NOT NULL DEFAULT '[]',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      published_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      gig_id INTEGER NOT NULL,
+      buyer_user_id TEXT NOT NULL,
+      seller_user_id TEXT NOT NULL,
+      package_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      budget INTEGER NOT NULL DEFAULT 0,
+      due_date TEXT NOT NULL,
+      stage_index INTEGER NOT NULL DEFAULT 0,
+      last_update TEXT NOT NULL DEFAULT '',
+      payment_released INTEGER NOT NULL DEFAULT 0,
+      timelike_trust INTEGER NOT NULL DEFAULT 0,
+      brief TEXT NOT NULL DEFAULT '',
+      notes_json TEXT NOT NULL DEFAULT '[]',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      participant_a_user_id TEXT NOT NULL,
+      participant_b_user_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE (participant_a_user_id, participant_b_user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL,
+      sender_user_id TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS user_sessions (
       session_id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -254,12 +374,22 @@ function ensureDatabase() {
     CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts (user_id, published_at DESC);
     CREATE INDEX IF NOT EXISTS idx_posts_surface ON posts (surface, published_at DESC);
     CREATE INDEX IF NOT EXISTS idx_post_media_post_id ON post_media (post_id, position ASC);
+    CREATE INDEX IF NOT EXISTS idx_gigs_seller_user_id ON gigs (seller_user_id, published_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_gigs_category ON gigs (category, published_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_gigs_status ON gigs (status, published_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_orders_buyer_user_id ON orders (buyer_user_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_orders_seller_user_id ON orders (seller_user_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_orders_gig_id ON orders (gig_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_conversations_participant_a ON conversations (participant_a_user_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_conversations_participant_b ON conversations (participant_b_user_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages (conversation_id, created_at ASC);
   `);
 
   ensureRuntimeStateSchema(db);
 
   database = db;
   ensureSeedPosts();
+  ensureSeedMarketplace();
   return db;
 }
 
@@ -484,6 +614,174 @@ function asStoredPostMediaRow(value: unknown): StoredPostMediaRow | null {
     poster_src: asNullableString(row.poster_src),
     alt_text: row.alt_text,
     position: row.position,
+    created_at: row.created_at,
+  };
+}
+
+function asStoredGigStatus(value: unknown): StoredGigStatus | null {
+  if (
+    value === "active" ||
+    value === "pending" ||
+    value === "modification" ||
+    value === "draft" ||
+    value === "denied" ||
+    value === "paused"
+  ) {
+    return value;
+  }
+
+  return null;
+}
+
+function asStoredGigRow(value: unknown): StoredGigRow | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  const status = asStoredGigStatus(row.status);
+  if (
+    typeof row.id !== "number" ||
+    typeof row.seller_user_id !== "string" ||
+    typeof row.slug !== "string" ||
+    typeof row.title !== "string" ||
+    typeof row.subtitle !== "string" ||
+    typeof row.category !== "string" ||
+    typeof row.cover !== "string" ||
+    typeof row.price_from !== "number" ||
+    typeof row.delivery_label !== "string" ||
+    typeof row.response_label !== "string" ||
+    typeof row.timelike_trust !== "number" ||
+    typeof row.completed_orders !== "number" ||
+    typeof row.queue_size !== "number" ||
+    status === null ||
+    typeof row.packages_json !== "string" ||
+    typeof row.deliverables_json !== "string" ||
+    typeof row.tags_json !== "string" ||
+    typeof row.created_at !== "number" ||
+    typeof row.updated_at !== "number" ||
+    typeof row.published_at !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    seller_user_id: row.seller_user_id,
+    slug: row.slug,
+    title: row.title,
+    subtitle: row.subtitle,
+    category: row.category,
+    cover: row.cover,
+    price_from: row.price_from,
+    delivery_label: row.delivery_label,
+    response_label: row.response_label,
+    timelike_trust: row.timelike_trust,
+    completed_orders: row.completed_orders,
+    queue_size: row.queue_size,
+    status,
+    packages_json: row.packages_json,
+    deliverables_json: row.deliverables_json,
+    tags_json: row.tags_json,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    published_at: row.published_at,
+  };
+}
+
+function asStoredOrderRow(value: unknown): StoredOrderRow | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.id !== "number" ||
+    typeof row.gig_id !== "number" ||
+    typeof row.buyer_user_id !== "string" ||
+    typeof row.seller_user_id !== "string" ||
+    typeof row.package_id !== "string" ||
+    typeof row.title !== "string" ||
+    typeof row.budget !== "number" ||
+    typeof row.due_date !== "string" ||
+    typeof row.stage_index !== "number" ||
+    typeof row.last_update !== "string" ||
+    typeof row.payment_released !== "number" ||
+    typeof row.timelike_trust !== "number" ||
+    typeof row.brief !== "string" ||
+    typeof row.notes_json !== "string" ||
+    typeof row.created_at !== "number" ||
+    typeof row.updated_at !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    gig_id: row.gig_id,
+    buyer_user_id: row.buyer_user_id,
+    seller_user_id: row.seller_user_id,
+    package_id: row.package_id,
+    title: row.title,
+    budget: row.budget,
+    due_date: row.due_date,
+    stage_index: row.stage_index,
+    last_update: row.last_update,
+    payment_released: row.payment_released,
+    timelike_trust: row.timelike_trust,
+    brief: row.brief,
+    notes_json: row.notes_json,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function asStoredConversationRow(value: unknown): StoredConversationRow | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.id !== "number" ||
+    typeof row.participant_a_user_id !== "string" ||
+    typeof row.participant_b_user_id !== "string" ||
+    typeof row.created_at !== "number" ||
+    typeof row.updated_at !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    participant_a_user_id: row.participant_a_user_id,
+    participant_b_user_id: row.participant_b_user_id,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function asStoredMessageRow(value: unknown): StoredMessageRow | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.id !== "number" ||
+    typeof row.conversation_id !== "number" ||
+    typeof row.sender_user_id !== "string" ||
+    typeof row.body !== "string" ||
+    typeof row.created_at !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    conversation_id: row.conversation_id,
+    sender_user_id: row.sender_user_id,
+    body: row.body,
     created_at: row.created_at,
   };
 }
@@ -1018,6 +1316,217 @@ function ensureSeedPosts() {
   }
 }
 
+function ensureSeedMarketplace() {
+  const db = ensureDatabase();
+  const existingGigCountRow = db.prepare("SELECT COUNT(*) as count FROM gigs").get() as { count?: unknown } | undefined;
+  const existingOrderCountRow = db.prepare("SELECT COUNT(*) as count FROM orders").get() as { count?: unknown } | undefined;
+  const existingGigCount = typeof existingGigCountRow?.count === "number" ? existingGigCountRow.count : 0;
+  const existingOrderCount = typeof existingOrderCountRow?.count === "number" ? existingOrderCountRow.count : 0;
+
+  const sellerProfiles = [
+    {
+      userId: "axelbelujon",
+      role: "seller",
+      username: "axelbelujon",
+      displayName: "Axel Belujon Studio",
+      bio: "Direction visuelle, pages premium, systems et handoff propre pour les services Pictomag.",
+      avatarUrl: "/figma-assets/avatar-post.png",
+      websiteUrl: "https://www.axelbelujon.com",
+    },
+    {
+      userId: "studio.heat",
+      role: "seller",
+      username: "studio.heat",
+      displayName: "Studio Heat",
+      bio: "Motion systems, hooks, pacing et execution propre pour shorts et ads.",
+      avatarUrl: "/figma-assets/avatar-story.png",
+      websiteUrl: "https://www.pictomag.app",
+    },
+    {
+      userId: "pictomag.news",
+      role: "seller",
+      username: "pictomag.news",
+      displayName: "Pictomag News Lab",
+      bio: "Brand clarity, service pages et offre plus lisible pour les equipes produit.",
+      avatarUrl: "/figma-assets/avatar-user.png",
+      websiteUrl: "https://www.pictomag.app",
+    },
+    {
+      userId: "neondriver",
+      role: "seller",
+      username: "neondriver",
+      displayName: "Neon Driver Audio",
+      bio: "Audio identity, signatures sonores et loops propres pour produit et campagnes.",
+      avatarUrl: "/figma-assets/avatar-post.png",
+      websiteUrl: "https://www.pictomag.app",
+    },
+  ] as const;
+
+  const buyerProfiles = [
+    {
+      userId: "aurora-labs",
+      role: "buyer",
+      username: "aurora.labs",
+      displayName: "Aurora Labs",
+      bio: "Client marketplace seed.",
+      avatarUrl: "/figma-assets/avatar-user.png",
+    },
+    {
+      userId: "chrome-lab",
+      role: "buyer",
+      username: "chrome.lab",
+      displayName: "Chrome Lab",
+      bio: "Client marketplace seed.",
+      avatarUrl: "/figma-assets/avatar-user.png",
+    },
+    {
+      userId: "northlight",
+      role: "buyer",
+      username: "northlight",
+      displayName: "Northlight",
+      bio: "Client marketplace seed.",
+      avatarUrl: "/figma-assets/avatar-user.png",
+    },
+  ] as const;
+
+  for (const profile of [...sellerProfiles, ...buyerProfiles]) {
+    ensureCompatibilityUserWithProfile(profile);
+  }
+
+  if (existingGigCount === 0) {
+    const now = Date.now();
+    const statusByGigId: Record<number, StoredGigStatus> = {
+      1: "active",
+      2: "active",
+      3: "pending",
+      4: "paused",
+    };
+    const sellerUserIdByHandle: Record<string, string> = {
+      "@axelbelujon": "axelbelujon",
+      "@studio.heat": "studio.heat",
+      "@pictomag.news": "pictomag.news",
+      "@neondriver": "neondriver",
+    };
+    const insertGigStatement = db.prepare(`
+      INSERT INTO gigs (
+        id,
+        seller_user_id,
+        slug,
+        title,
+        subtitle,
+        category,
+        cover,
+        price_from,
+        delivery_label,
+        response_label,
+        timelike_trust,
+        completed_orders,
+        queue_size,
+        status,
+        packages_json,
+        deliverables_json,
+        tags_json,
+        created_at,
+        updated_at,
+        published_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      for (const gig of serviceGigs) {
+        insertGigStatement.run(
+          gig.id,
+          sellerUserIdByHandle[gig.handle] ?? gig.handle.replace(/^@/, ""),
+          getMarketplaceGigSlug(gig),
+          gig.title,
+          gig.subtitle,
+          gig.category,
+          gig.cover,
+          gig.priceFrom,
+          gig.deliveryLabel,
+          gig.responseLabel,
+          gig.timelikeTrust,
+          gig.completedOrders,
+          gig.queueSize,
+          statusByGigId[gig.id] ?? "active",
+          JSON.stringify(gig.packages),
+          JSON.stringify(gig.deliverables),
+          JSON.stringify(gig.tags),
+          now - gig.id * 1_000,
+          now - gig.id * 1_000,
+          now - gig.id * 1_000,
+        );
+      }
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  if (existingOrderCount === 0) {
+    const now = Date.now();
+    const buyerUserIdByClient: Record<string, string> = {
+      "Aurora Labs": "aurora-labs",
+      "Chrome Lab": "chrome-lab",
+      Northlight: "northlight",
+    };
+    const insertOrderStatement = db.prepare(`
+      INSERT INTO orders (
+        id,
+        gig_id,
+        buyer_user_id,
+        seller_user_id,
+        package_id,
+        title,
+        budget,
+        due_date,
+        stage_index,
+        last_update,
+        payment_released,
+        timelike_trust,
+        brief,
+        notes_json,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      for (const order of seedOrders) {
+        const gig = serviceGigs.find((item) => item.id === order.gigId);
+        const packageId = gig?.packages.find((pkg) => pkg.price === order.budget)?.id ?? gig?.packages[0]?.id ?? "starter";
+        insertOrderStatement.run(
+          order.id,
+          order.gigId,
+          buyerUserIdByClient[order.client] ?? `buyer-${order.id}`,
+          gig?.handle.replace(/^@/, "") ?? order.seller.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          packageId,
+          order.title,
+          order.budget,
+          order.dueDate,
+          order.stageIndex,
+          order.lastUpdate,
+          order.paymentReleased ? 1 : 0,
+          order.timelikeTrust,
+          order.brief,
+          JSON.stringify(order.notes),
+          now - order.id,
+          now - order.id,
+        );
+      }
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+}
+
 export function getUserPreferencesRow(userId: string) {
   const db = ensureDatabase();
   const row = db.prepare("SELECT user_id, marketplace, live_shopping, updated_at FROM user_preferences WHERE user_id = ?").get(userId);
@@ -1363,6 +1872,552 @@ export function createPostWithMedia({
     db.exec("ROLLBACK");
     throw error;
   }
+}
+
+export function getGigRowById(gigId: number) {
+  const db = ensureDatabase();
+  const row = db
+    .prepare(`
+      SELECT
+        id,
+        seller_user_id,
+        slug,
+        title,
+        subtitle,
+        category,
+        cover,
+        price_from,
+        delivery_label,
+        response_label,
+        timelike_trust,
+        completed_orders,
+        queue_size,
+        status,
+        packages_json,
+        deliverables_json,
+        tags_json,
+        created_at,
+        updated_at,
+        published_at
+      FROM gigs
+      WHERE id = ?
+    `)
+    .get(gigId);
+  return asStoredGigRow(row);
+}
+
+export function getGigRowBySlug(slug: string) {
+  const db = ensureDatabase();
+  const row = db
+    .prepare(`
+      SELECT
+        id,
+        seller_user_id,
+        slug,
+        title,
+        subtitle,
+        category,
+        cover,
+        price_from,
+        delivery_label,
+        response_label,
+        timelike_trust,
+        completed_orders,
+        queue_size,
+        status,
+        packages_json,
+        deliverables_json,
+        tags_json,
+        created_at,
+        updated_at,
+        published_at
+      FROM gigs
+      WHERE slug = ?
+    `)
+    .get(slug);
+  return asStoredGigRow(row);
+}
+
+export function listGigRows({
+  sellerUserId,
+  statuses,
+  limit = 80,
+}: {
+  sellerUserId?: string;
+  statuses?: StoredGigStatus[];
+  limit?: number;
+}) {
+  const db = ensureDatabase();
+  const normalizedLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
+  const clauses: string[] = [];
+  const params: Array<string | number> = [];
+
+  if (sellerUserId) {
+    clauses.push("seller_user_id = ?");
+    params.push(sellerUserId);
+  }
+
+  if (statuses && statuses.length > 0) {
+    clauses.push(`status IN (${statuses.map(() => "?").join(", ")})`);
+    params.push(...statuses);
+  }
+
+  const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
+  const rows = db
+    .prepare(`
+      SELECT
+        id,
+        seller_user_id,
+        slug,
+        title,
+        subtitle,
+        category,
+        cover,
+        price_from,
+        delivery_label,
+        response_label,
+        timelike_trust,
+        completed_orders,
+        queue_size,
+        status,
+        packages_json,
+        deliverables_json,
+        tags_json,
+        created_at,
+        updated_at,
+        published_at
+      FROM gigs
+      ${whereClause}
+      ORDER BY published_at DESC, id DESC
+      LIMIT ?
+    `)
+    .all(...params, normalizedLimit);
+
+  return rows.map((row) => asStoredGigRow(row)).filter((row): row is StoredGigRow => row !== null);
+}
+
+export function createGigRow({
+  sellerUserId,
+  title,
+  subtitle,
+  category,
+  cover,
+  priceFrom,
+  deliveryLabel,
+  responseLabel,
+  timelikeTrust,
+  completedOrders,
+  queueSize,
+  status,
+  packagesJson,
+  deliverablesJson,
+  tagsJson,
+}: {
+  sellerUserId: string;
+  title: string;
+  subtitle: string;
+  category: string;
+  cover: string;
+  priceFrom: number;
+  deliveryLabel: string;
+  responseLabel: string;
+  timelikeTrust: number;
+  completedOrders: number;
+  queueSize: number;
+  status: StoredGigStatus;
+  packagesJson: string;
+  deliverablesJson: string;
+  tagsJson: string;
+}) {
+  const db = ensureDatabase();
+  const now = Date.now();
+  db.exec("BEGIN IMMEDIATE");
+
+  try {
+    const result = db
+      .prepare(`
+        INSERT INTO gigs (
+          seller_user_id,
+          slug,
+          title,
+          subtitle,
+          category,
+          cover,
+          price_from,
+          delivery_label,
+          response_label,
+          timelike_trust,
+          completed_orders,
+          queue_size,
+          status,
+          packages_json,
+          deliverables_json,
+          tags_json,
+          created_at,
+          updated_at,
+          published_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        sellerUserId,
+        `draft-${Date.now()}`,
+        title,
+        subtitle,
+        category,
+        cover,
+        priceFrom,
+        deliveryLabel,
+        responseLabel,
+        timelikeTrust,
+        completedOrders,
+        queueSize,
+        status,
+        packagesJson,
+        deliverablesJson,
+        tagsJson,
+        now,
+        now,
+        now,
+      ) as { lastInsertRowid?: number | bigint };
+
+    const gigId = Number(result.lastInsertRowid ?? 0);
+    const slug = getMarketplaceGigSlug({ id: gigId, title });
+
+    db.prepare(`
+      UPDATE gigs
+      SET slug = ?, updated_at = ?
+      WHERE id = ?
+    `).run(slug, now, gigId);
+
+    db.exec("COMMIT");
+    return getGigRowById(gigId);
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+export function getOrderRowById(orderId: number) {
+  const db = ensureDatabase();
+  const row = db
+    .prepare(`
+      SELECT
+        id,
+        gig_id,
+        buyer_user_id,
+        seller_user_id,
+        package_id,
+        title,
+        budget,
+        due_date,
+        stage_index,
+        last_update,
+        payment_released,
+        timelike_trust,
+        brief,
+        notes_json,
+        created_at,
+        updated_at
+      FROM orders
+      WHERE id = ?
+    `)
+    .get(orderId);
+  return asStoredOrderRow(row);
+}
+
+export function listOrderRowsForUser(userId: string) {
+  const db = ensureDatabase();
+  const rows = db
+    .prepare(`
+      SELECT
+        id,
+        gig_id,
+        buyer_user_id,
+        seller_user_id,
+        package_id,
+        title,
+        budget,
+        due_date,
+        stage_index,
+        last_update,
+        payment_released,
+        timelike_trust,
+        brief,
+        notes_json,
+        created_at,
+        updated_at
+      FROM orders
+      WHERE buyer_user_id = ? OR seller_user_id = ?
+      ORDER BY updated_at DESC, id DESC
+    `)
+    .all(userId, userId);
+
+  return rows.map((row) => asStoredOrderRow(row)).filter((row): row is StoredOrderRow => row !== null);
+}
+
+export function createOrderRow({
+  gigId,
+  buyerUserId,
+  sellerUserId,
+  packageId,
+  title,
+  budget,
+  dueDate,
+  stageIndex,
+  lastUpdate,
+  paymentReleased,
+  timelikeTrust,
+  brief,
+  notesJson,
+}: {
+  gigId: number;
+  buyerUserId: string;
+  sellerUserId: string;
+  packageId: string;
+  title: string;
+  budget: number;
+  dueDate: string;
+  stageIndex: number;
+  lastUpdate: string;
+  paymentReleased: boolean;
+  timelikeTrust: number;
+  brief: string;
+  notesJson: string;
+}) {
+  const db = ensureDatabase();
+  const now = Date.now();
+  const result = db
+    .prepare(`
+      INSERT INTO orders (
+        gig_id,
+        buyer_user_id,
+        seller_user_id,
+        package_id,
+        title,
+        budget,
+        due_date,
+        stage_index,
+        last_update,
+        payment_released,
+        timelike_trust,
+        brief,
+        notes_json,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    .run(
+      gigId,
+      buyerUserId,
+      sellerUserId,
+      packageId,
+      title,
+      budget,
+      dueDate,
+      stageIndex,
+      lastUpdate,
+      paymentReleased ? 1 : 0,
+      timelikeTrust,
+      brief,
+      notesJson,
+      now,
+      now,
+    ) as { lastInsertRowid?: number | bigint };
+
+  return getOrderRowById(Number(result.lastInsertRowid ?? 0));
+}
+
+export function updateOrderRowStage({
+  orderId,
+  stageIndex,
+  lastUpdate,
+  notesJson,
+}: {
+  orderId: number;
+  stageIndex: number;
+  lastUpdate: string;
+  notesJson?: string;
+}) {
+  const db = ensureDatabase();
+  const now = Date.now();
+  if (notesJson) {
+    db.prepare(`
+      UPDATE orders
+      SET stage_index = ?, last_update = ?, notes_json = ?, updated_at = ?
+      WHERE id = ?
+    `).run(stageIndex, lastUpdate, notesJson, now, orderId);
+  } else {
+    db.prepare(`
+      UPDATE orders
+      SET stage_index = ?, last_update = ?, updated_at = ?
+      WHERE id = ?
+    `).run(stageIndex, lastUpdate, now, orderId);
+  }
+  return getOrderRowById(orderId);
+}
+
+export function updateOrderRowPaymentReleased({
+  orderId,
+  paymentReleased,
+  lastUpdate,
+}: {
+  orderId: number;
+  paymentReleased: boolean;
+  lastUpdate?: string;
+}) {
+  const db = ensureDatabase();
+  const now = Date.now();
+  db.prepare(`
+    UPDATE orders
+    SET payment_released = ?, last_update = COALESCE(?, last_update), updated_at = ?
+    WHERE id = ?
+  `).run(paymentReleased ? 1 : 0, lastUpdate ?? null, now, orderId);
+  return getOrderRowById(orderId);
+}
+
+export function getConversationRowById(conversationId: number) {
+  const db = ensureDatabase();
+  const row = db
+    .prepare(`
+      SELECT
+        id,
+        participant_a_user_id,
+        participant_b_user_id,
+        created_at,
+        updated_at
+      FROM conversations
+      WHERE id = ?
+    `)
+    .get(conversationId);
+  return asStoredConversationRow(row);
+}
+
+export function findConversationBetweenUsers(userA: string, userB: string) {
+  const [participantA, participantB] = [userA, userB].sort((left, right) => left.localeCompare(right));
+  const db = ensureDatabase();
+  const row = db
+    .prepare(`
+      SELECT
+        id,
+        participant_a_user_id,
+        participant_b_user_id,
+        created_at,
+        updated_at
+      FROM conversations
+      WHERE participant_a_user_id = ? AND participant_b_user_id = ?
+    `)
+    .get(participantA, participantB);
+  return asStoredConversationRow(row);
+}
+
+export function listConversationRowsForUser(userId: string) {
+  const db = ensureDatabase();
+  const rows = db
+    .prepare(`
+      SELECT
+        id,
+        participant_a_user_id,
+        participant_b_user_id,
+        created_at,
+        updated_at
+      FROM conversations
+      WHERE participant_a_user_id = ? OR participant_b_user_id = ?
+      ORDER BY updated_at DESC, id DESC
+    `)
+    .all(userId, userId);
+
+  return rows.map((row) => asStoredConversationRow(row)).filter((row): row is StoredConversationRow => row !== null);
+}
+
+export function createConversationRow({
+  participantAUserId,
+  participantBUserId,
+}: {
+  participantAUserId: string;
+  participantBUserId: string;
+}) {
+  const [participantA, participantB] = [participantAUserId, participantBUserId].sort((left, right) => left.localeCompare(right));
+  const existingConversation = findConversationBetweenUsers(participantA, participantB);
+  if (existingConversation) {
+    return existingConversation;
+  }
+
+  const db = ensureDatabase();
+  const now = Date.now();
+  const result = db
+    .prepare(`
+      INSERT INTO conversations (
+        participant_a_user_id,
+        participant_b_user_id,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?)
+    `)
+    .run(participantA, participantB, now, now) as { lastInsertRowid?: number | bigint };
+
+  return getConversationRowById(Number(result.lastInsertRowid ?? 0));
+}
+
+export function listMessageRowsByConversationId({
+  conversationId,
+  limit = 200,
+}: {
+  conversationId: number;
+  limit?: number;
+}) {
+  const db = ensureDatabase();
+  const normalizedLimit = Math.max(1, Math.min(500, Math.trunc(limit)));
+  const rows = db
+    .prepare(`
+      SELECT
+        id,
+        conversation_id,
+        sender_user_id,
+        body,
+        created_at
+      FROM messages
+      WHERE conversation_id = ?
+      ORDER BY created_at ASC, id ASC
+      LIMIT ?
+    `)
+    .all(conversationId, normalizedLimit);
+
+  return rows.map((row) => asStoredMessageRow(row)).filter((row): row is StoredMessageRow => row !== null);
+}
+
+export function createMessageRow({
+  conversationId,
+  senderUserId,
+  body,
+}: {
+  conversationId: number;
+  senderUserId: string;
+  body: string;
+}) {
+  const db = ensureDatabase();
+  const now = Date.now();
+  const result = db
+    .prepare(`
+      INSERT INTO messages (
+        conversation_id,
+        sender_user_id,
+        body,
+        created_at
+      )
+      VALUES (?, ?, ?, ?)
+    `)
+    .run(conversationId, senderUserId, body, now) as { lastInsertRowid?: number | bigint };
+
+  db.prepare(`
+    UPDATE conversations
+    SET updated_at = ?
+    WHERE id = ?
+  `).run(now, conversationId);
+
+  return listMessageRowsByConversationId({ conversationId }).find((message) => message.id === Number(result.lastInsertRowid ?? 0)) ?? null;
 }
 
 export function upsertUserRuntimeStateRow({

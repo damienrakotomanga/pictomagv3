@@ -1,15 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { MarketplaceGigDetailPage } from "@/components/marketplace-gig-detail-page";
-import { getMarketplaceGigBySlug, serviceGigs } from "@/lib/marketplace-data";
+import { getMarketplaceGigRecordBySlug } from "@/lib/server/marketplace-records";
 
-export async function generateStaticParams() {
-  const { getMarketplaceGigSlug } = await import("@/lib/marketplace-data");
-
-  return serviceGigs.map((gig) => ({
-    slug: getMarketplaceGigSlug(gig),
-  }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -17,7 +11,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const gig = getMarketplaceGigBySlug(slug);
+  const gig = getMarketplaceGigRecordBySlug({ slug, viewerUserId: null });
   const metadataBase = new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000");
 
   if (!gig) {
@@ -52,7 +46,7 @@ export default async function Page({
 }) {
   const { slug } = await params;
   const { package: initialPackageId } = await searchParams;
-  const gig = getMarketplaceGigBySlug(slug);
+  const gig = getMarketplaceGigRecordBySlug({ slug, viewerUserId: null });
 
   if (!gig) {
     notFound();
