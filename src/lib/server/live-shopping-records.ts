@@ -316,13 +316,23 @@ export function upsertPersistedLiveRoomInventory({
   inventory: LiveInventoryProduct[];
 }) {
   const normalizedOwnerUserId = normalizePreferenceUserId(ownerUserId);
+  const liveSlugAliases = new Set(getLiveInventorySlugAliases(liveSlug));
   const preserved = listPersistedLiveInventoryForOwner(normalizedOwnerUserId).filter(
-    (item) => item.liveSlug !== liveSlug,
+    (item) => !liveSlugAliases.has(item.liveSlug ?? ""),
   );
+  const nextRoomInventory = new Map<string, LiveInventoryProduct>();
+
+  for (const item of inventory) {
+    const normalizedItem = normalizeLiveInventoryProduct({
+      ...item,
+      liveSlug,
+    });
+    nextRoomInventory.set(normalizedItem.id, normalizedItem);
+  }
 
   return replacePersistedLiveInventoryForOwner({
     ownerUserId: normalizedOwnerUserId,
-    inventory: [...preserved, ...inventory.map((item) => ({ ...normalizeLiveInventoryProduct(item), liveSlug }))],
+    inventory: [...preserved, ...nextRoomInventory.values()],
   });
 }
 
@@ -337,19 +347,16 @@ export function listPersistedLiveInventoryForRoom({
     listLiveInventoryRows({ liveSlug: alias }),
   );
   if (persistedRows.length > 0) {
-    const uniqueRows = new Map<string, StoredLiveInventoryRow>();
+    const uniqueRows = new Map<string, LiveInventoryProduct>();
     for (const row of persistedRows) {
-      if (!uniqueRows.has(row.id)) {
-        uniqueRows.set(row.id, row);
-      }
-    }
-
-    return [...uniqueRows.values()].map((row) =>
-      normalizePersistedInventoryRow({
+      const normalizedProduct = normalizePersistedInventoryRow({
         row,
         fallbackEvent: event ?? null,
-      }),
-    );
+      });
+      uniqueRows.set(normalizedProduct.id, normalizedProduct);
+    }
+
+    return [...uniqueRows.values()];
   }
 
   if (!event) {

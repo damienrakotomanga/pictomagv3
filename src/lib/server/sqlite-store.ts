@@ -7,13 +7,11 @@ import {
 } from "@/lib/live-shopping-data";
 import {
   liveShoppingInventorySeed,
-  type LiveInventoryProduct,
   normalizeLiveInventoryProduct,
 } from "@/lib/live-shopping-inventory";
 import {
   liveShoppingScheduleSeed,
   normalizeLiveShoppingScheduledLive,
-  type LiveShoppingScheduledLive,
 } from "@/lib/live-shopping-schedule";
 import { getMarketplaceGigSlug, seedOrders, serviceGigs } from "@/lib/marketplace-data";
 import { normalizePreferenceUserId } from "@/lib/server/preferences-store";
@@ -523,8 +521,6 @@ function ensureDatabase() {
     CREATE INDEX IF NOT EXISTS idx_orders_buyer_user_id ON orders (buyer_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_orders_seller_user_id ON orders (seller_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_orders_gig_id ON orders (gig_id, updated_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_orders_source ON orders (source, updated_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_orders_live_session_event_id ON orders (live_session_event_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_live_sessions_owner_user_id ON live_sessions (owner_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_live_sessions_slug ON live_sessions (slug);
     CREATE INDEX IF NOT EXISTS idx_live_inventory_owner_user_id ON live_inventory_products (owner_user_id, updated_at DESC);
@@ -538,6 +534,10 @@ function ensureDatabase() {
 
   ensureRuntimeStateSchema(db);
   ensureOrdersSchema(db);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_orders_source ON orders (source, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_orders_live_session_event_id ON orders (live_session_event_id, updated_at DESC);
+  `);
 
   database = db;
   ensureSeedPosts();
@@ -2731,7 +2731,7 @@ export function createOrderRow({
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .run(
       gigId,

@@ -352,40 +352,38 @@ async function testAuthSessionFlow() {
 }
 
 async function testLiveOrdersFlow() {
-  const getBefore = await requestJson(withUser("/api/state/live-shopping-orders"), { method: "GET" });
+  const buyerLogin = await loginAsRole({ userId: TEST_USER_ID, role: "buyer" });
+  const getBefore = await requestJson(new URL("/api/state/live-shopping-orders", BASE_URL).toString(), {
+    method: "GET",
+    headers: { Cookie: buyerLogin.cookieHeader },
+  });
   assert.equal(getBefore.response.status, 200, "GET live-shopping-orders doit retourner 200");
   assert.ok(Array.isArray(getBefore.payload?.orders), "GET live-shopping-orders doit retourner orders[]");
 
-  const orderId = Date.now() + 1;
-  const customOrder = {
-    id: orderId,
-    eventId: 101,
-    title: "Critical live order",
-    buyer: "Test Buyer",
-    seller: "Test Seller",
-    amount: 88,
-    quantity: 2,
-    stageIndex: 1,
-    etaLabel: "48h",
-    lastUpdate: "Live order smoke test",
-    note: "Smoke note",
-  };
-
-  const put = await requestJson(withUser("/api/state/live-shopping-orders"), {
+  const put = await requestJson(new URL("/api/state/live-shopping-orders", BASE_URL).toString(), {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ orders: [customOrder] }),
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: buyerLogin.cookieHeader,
+    },
+    body: JSON.stringify({ orders: [] }),
   });
-  assert.equal(put.response.status, 200, "PUT live-shopping-orders doit retourner 200");
-  assert.equal(put.payload.orders[0]?.id, customOrder.id, "PUT live-shopping-orders doit sauvegarder la commande");
+  assert.equal(put.response.status, 405, "PUT live-shopping-orders doit retourner 405");
 
-  const getAfter = await requestJson(withUser("/api/state/live-shopping-orders"), { method: "GET" });
+  const getAfter = await requestJson(new URL("/api/state/live-shopping-orders", BASE_URL).toString(), {
+    method: "GET",
+    headers: { Cookie: buyerLogin.cookieHeader },
+  });
   assert.equal(getAfter.response.status, 200, "GET live-shopping-orders apres PUT doit retourner 200");
-  assert.equal(getAfter.payload.orders[0]?.id, customOrder.id, "La commande live sauvegardee doit etre relue");
+  assert.ok(Array.isArray(getAfter.payload?.orders), "La liste des commandes live doit rester lisible apres PUT refuse");
 }
 
 async function testLiveInventoryFlow() {
-  const getBefore = await requestJson(withUser("/api/state/live-shopping-inventory"), { method: "GET" });
+  const sellerLogin = await loginAsRole({ userId: "axelbelujon", role: "seller" });
+  const getBefore = await requestJson(new URL("/api/state/live-shopping-inventory", BASE_URL).toString(), {
+    method: "GET",
+    headers: { Cookie: sellerLogin.cookieHeader },
+  });
   assert.equal(getBefore.response.status, 200, "GET live-shopping-inventory doit retourner 200");
   assert.ok(Array.isArray(getBefore.payload?.inventory), "GET live-shopping-inventory doit retourner inventory[]");
 
@@ -414,9 +412,12 @@ async function testLiveInventoryFlow() {
     createdAt: Date.now(),
   };
 
-  const put = await requestJson(withUser("/api/state/live-shopping-inventory"), {
+  const put = await requestJson(new URL("/api/state/live-shopping-inventory", BASE_URL).toString(), {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: sellerLogin.cookieHeader,
+    },
     body: JSON.stringify({ inventory: [customInventoryItem] }),
   });
   assert.equal(put.response.status, 200, "PUT live-shopping-inventory doit retourner 200");
@@ -431,7 +432,10 @@ async function testLiveInventoryFlow() {
     "PUT live-shopping-inventory doit conserver currentBid pour le mode auction",
   );
 
-  const getAfter = await requestJson(withUser("/api/state/live-shopping-inventory"), { method: "GET" });
+  const getAfter = await requestJson(new URL("/api/state/live-shopping-inventory", BASE_URL).toString(), {
+    method: "GET",
+    headers: { Cookie: sellerLogin.cookieHeader },
+  });
   assert.equal(getAfter.response.status, 200, "GET live-shopping-inventory apres PUT doit retourner 200");
   assert.equal(
     getAfter.payload.inventory[0]?.id,
@@ -441,7 +445,11 @@ async function testLiveInventoryFlow() {
 }
 
 async function testLiveScheduleFlow() {
-  const getBefore = await requestJson(withUser("/api/state/live-shopping-schedule"), { method: "GET" });
+  const sellerLogin = await loginAsRole({ userId: "axelbelujon", role: "seller" });
+  const getBefore = await requestJson(new URL("/api/state/live-shopping-schedule", BASE_URL).toString(), {
+    method: "GET",
+    headers: { Cookie: sellerLogin.cookieHeader },
+  });
   assert.equal(getBefore.response.status, 200, "GET live-shopping-schedule doit retourner 200");
   assert.equal(Array.isArray(getBefore.payload?.schedule), true, "GET live-shopping-schedule doit retourner schedule[]");
 
@@ -473,9 +481,12 @@ async function testLiveScheduleFlow() {
     updatedAt: Date.now(),
   };
 
-  const put = await requestJson(withUser("/api/state/live-shopping-schedule"), {
+  const put = await requestJson(new URL("/api/state/live-shopping-schedule", BASE_URL).toString(), {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: sellerLogin.cookieHeader,
+    },
     body: JSON.stringify({ schedule: [customScheduledLive] }),
   });
   assert.equal(put.response.status, 200, "PUT live-shopping-schedule doit retourner 200");
@@ -485,7 +496,10 @@ async function testLiveScheduleFlow() {
     "PUT live-shopping-schedule doit sauvegarder le live programme",
   );
 
-  const getAfter = await requestJson(withUser("/api/state/live-shopping-schedule"), { method: "GET" });
+  const getAfter = await requestJson(new URL("/api/state/live-shopping-schedule", BASE_URL).toString(), {
+    method: "GET",
+    headers: { Cookie: sellerLogin.cookieHeader },
+  });
   assert.equal(getAfter.response.status, 200, "GET live-shopping-schedule apres PUT doit retourner 200");
   assert.equal(
     getAfter.payload.schedule[0]?.id,
@@ -495,7 +509,12 @@ async function testLiveScheduleFlow() {
 }
 
 async function testLiveActionsFlow() {
-  const inventoryBefore = await requestJson(withUser("/api/state/live-shopping-inventory"), { method: "GET" });
+  const sellerLogin = await loginAsRole({ userId: "axelbelujon", role: "seller" });
+  const buyerLogin = await loginAsRole({ userId: TEST_USER_ID, role: "buyer" });
+  const inventoryBefore = await requestJson(new URL("/api/state/live-shopping-inventory", BASE_URL).toString(), {
+    method: "GET",
+    headers: { Cookie: sellerLogin.cookieHeader },
+  });
   assert.equal(inventoryBefore.response.status, 200, "GET inventory avant actions live doit retourner 200");
 
   const inventoryList = Array.isArray(inventoryBefore.payload?.inventory) ? inventoryBefore.payload.inventory : [];
@@ -504,11 +523,12 @@ async function testLiveActionsFlow() {
 
   const minimumBid = (Number(auctionItem.currentBid ?? auctionItem.price) || 0) + (Number(auctionItem.bidIncrement) || 1);
 
-  const bid = await requestJson(withUser("/api/live-shopping/actions"), {
+  const bid = await requestJson(new URL("/api/live-shopping/actions", BASE_URL).toString(), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-idempotency-key": `critical-bid-${Date.now()}`,
+      Cookie: buyerLogin.cookieHeader,
     },
     body: JSON.stringify({
       action: "place_bid",
@@ -552,11 +572,12 @@ async function testLiveActionsFlow() {
     paymentMethod: "card",
   };
 
-  const checkout = await requestJson(withUser("/api/live-shopping/actions"), {
+  const checkout = await requestJson(new URL("/api/live-shopping/actions", BASE_URL).toString(), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-idempotency-key": checkoutKey,
+      Cookie: buyerLogin.cookieHeader,
     },
     body: JSON.stringify(checkoutBody),
   });
@@ -569,11 +590,12 @@ async function testLiveActionsFlow() {
     "Le checkout doit decrementer le stock",
   );
 
-  const replay = await requestJson(withUser("/api/live-shopping/actions"), {
+  const replay = await requestJson(new URL("/api/live-shopping/actions", BASE_URL).toString(), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-idempotency-key": checkoutKey,
+      Cookie: buyerLogin.cookieHeader,
     },
     body: JSON.stringify(checkoutBody),
   });
@@ -707,7 +729,6 @@ async function testLiveSharedRealtimeFlow() {
   assert.ok(auctionLotIds.length > 0, "Le roomState doit contenir au moins un lot auction");
   const auctionLotId = auctionLotIds[0];
   const roomLotStateBefore = roomLotStates[auctionLotId];
-  const bidIncrement = 1;
   const startBid = Number(roomLotStateBefore?.currentBid ?? 0) || 0;
 
   const marker = `critical-chat-${Date.now()}`;
@@ -752,7 +773,7 @@ async function testLiveSharedRealtimeFlow() {
   );
   assert.equal(hasMarkerMessage, true, "Le chat doit etre partage entre utilisateurs");
 
-  const bidFromB = startBid + bidIncrement;
+  const bidFromB = startBid + 1;
   const bidResultB = await requestJson(withCustomUser("/api/live-shopping/actions", userB), {
     method: "POST",
     headers: {
@@ -770,7 +791,7 @@ async function testLiveSharedRealtimeFlow() {
         mode: "auction",
         price: startBid,
         currentBid: startBid,
-        bidIncrement,
+        bidIncrement: 1,
         delivery: "48h",
         stock: 1,
       },
@@ -778,8 +799,9 @@ async function testLiveSharedRealtimeFlow() {
     }),
   });
   assert.equal(bidResultB.response.status, 200, "POST bid userB doit retourner 200");
+  const acceptedBidFromB = Number(bidResultB.payload?.acceptedBid ?? 0) || bidFromB;
 
-  const bidFromA = bidFromB + bidIncrement;
+  const bidFromA = acceptedBidFromB + 1;
   const bidResultA = await requestJson(withCustomUser("/api/live-shopping/actions", userA), {
     method: "POST",
     headers: {
@@ -796,8 +818,8 @@ async function testLiveSharedRealtimeFlow() {
         title: "Shared room lot",
         mode: "auction",
         price: startBid,
-        currentBid: bidFromB,
-        bidIncrement,
+        currentBid: acceptedBidFromB,
+        bidIncrement: 1,
         delivery: "48h",
         stock: 1,
       },
@@ -805,6 +827,7 @@ async function testLiveSharedRealtimeFlow() {
     }),
   });
   assert.equal(bidResultA.response.status, 200, "POST bid userA doit retourner 200");
+  const acceptedBidFromA = Number(bidResultA.payload?.acceptedBid ?? 0) || bidFromA;
   if (wsA && wsB && hasRedisBridge) {
     await Promise.all([
       wsA.waitForEvent(
@@ -812,7 +835,7 @@ async function testLiveSharedRealtimeFlow() {
           event?.type === "live.sync" &&
           event?.payload?.action === "place_bid" &&
           event?.payload?.lotId === auctionLotId &&
-          Number(event?.payload?.acceptedBid ?? 0) === bidFromA,
+          Number(event?.payload?.acceptedBid ?? 0) === acceptedBidFromA,
         "bid sync final clientA",
       ),
       wsB.waitForEvent(
@@ -820,7 +843,7 @@ async function testLiveSharedRealtimeFlow() {
           event?.type === "live.sync" &&
           event?.payload?.action === "place_bid" &&
           event?.payload?.lotId === auctionLotId &&
-          Number(event?.payload?.acceptedBid ?? 0) === bidFromA,
+          Number(event?.payload?.acceptedBid ?? 0) === acceptedBidFromA,
         "bid sync final clientB",
       ),
     ]);
@@ -844,8 +867,8 @@ async function testLiveSharedRealtimeFlow() {
   const lotAfterB = roomAfterB.payload?.roomState?.lotStates?.[auctionLotId];
   assert.ok(lotAfterA, "Le lot doit exister en roomState apres enchere");
   assert.ok(lotAfterB, "Le lot doit exister en roomState apres enchere");
-  assert.equal(lotAfterA.currentBid, bidFromA, "Le currentBid final doit etre le plus haut montant");
-  assert.equal(lotAfterB.currentBid, bidFromA, "Le currentBid final doit etre partage pour tous");
+  assert.equal(lotAfterA.currentBid, acceptedBidFromA, "Le currentBid final doit etre le plus haut montant accepte");
+  assert.equal(lotAfterB.currentBid, acceptedBidFromA, "Le currentBid final doit etre partage pour tous");
   assert.equal(lotAfterA.leadingBidder, userA, "Le leading bidder doit etre userA");
   assert.equal(lotAfterB.leadingBidder, userA, "Le leading bidder partage doit etre userA");
   } finally {

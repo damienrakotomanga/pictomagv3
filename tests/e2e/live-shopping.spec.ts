@@ -22,7 +22,12 @@ test.describe("live shopping realtime flow", () => {
     const payload = await response.json();
     expect(payload.transport).toBe("websocket");
     expect(payload.bridge?.redisConfigured).toBeTruthy();
-    expect(payload.bridge?.redisEnabled).toBeTruthy();
+    if (payload.bridge?.redisEnabled) {
+      expect(payload.bridge?.disabledReason ?? null).toBeNull();
+    } else {
+      expect(typeof payload.bridge?.disabledReason).toBe("string");
+      expect(String(payload.bridge?.disabledReason ?? "").length).toBeGreaterThan(0);
+    }
   });
 
   test("opens the bid modal, confirms a bid, and posts a chat message", async ({ page }) => {

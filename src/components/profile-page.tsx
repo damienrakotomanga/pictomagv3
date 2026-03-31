@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   BadgeCheck,
@@ -434,6 +434,36 @@ export function ProfilePage() {
       return changed ? nextSnapshots : current;
     });
   }, [profileDrawerVideos]);
+
+  const handleProfileTimeLikeStateChange = useCallback((videoId: number, snapshot: TimeLikeSnapshot) => {
+    setTimeLikeSnapshots((current) => {
+      const previous = current[videoId];
+      if (
+        previous &&
+        previous.videoId === snapshot.videoId &&
+        previous.kind === snapshot.kind &&
+        previous.author === snapshot.author &&
+        previous.title === snapshot.title &&
+        previous.count === snapshot.count &&
+        previous.triggered === snapshot.triggered &&
+        previous.activeMs === snapshot.activeMs &&
+        previous.maxProgress === snapshot.maxProgress &&
+        previous.progressValue === snapshot.progressValue &&
+        previous.rule.minActiveMs === snapshot.rule.minActiveMs &&
+        previous.rule.minProgress === snapshot.rule.minProgress &&
+        previous.rule.mode === snapshot.rule.mode &&
+        previous.rule.segment === snapshot.rule.segment &&
+        previous.durationSeconds === snapshot.durationSeconds
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [videoId]: snapshot,
+      };
+    });
+  }, []);
 
   useEffect(() => {
     document.body.style.overflow =
@@ -938,12 +968,7 @@ export function ProfilePage() {
                 onOpenShare={handleOpenShare}
                 onOpenTimeLike={handleOpenTimeLike}
                 onOpenMore={handleOpenMore}
-                onTimeLikeStateChange={(videoId, snapshot) => {
-                  setTimeLikeSnapshots((current) => ({
-                    ...current,
-                    [videoId]: snapshot,
-                  }));
-                }}
+                onTimeLikeStateChange={handleProfileTimeLikeStateChange}
               />
             </div>
           </section>

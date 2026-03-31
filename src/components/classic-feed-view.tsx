@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import type { AnimationItem } from "lottie-web";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type SVGProps } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type SVGProps } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, MessageCircleMore, Play, Send, X } from "lucide-react";
 import timeAnimationData from "../../public/feed-rail-animations/feed-time-icon.json";
@@ -695,7 +695,10 @@ function ClassicFeedCard({
     count: baseTimeLikeCount,
     dismissed: false,
   }));
-  const timeLikeRule = getTimeLikeRule(mediaKind, resolvedDurationSeconds);
+  const timeLikeRule = useMemo(
+    () => getTimeLikeRule(mediaKind, resolvedDurationSeconds),
+    [mediaKind, resolvedDurationSeconds],
+  );
   const timeLikeProgress = timeLikeState.triggered
     ? 1
     : getTimeLikeProgress(timeLikeRule, timeLikeState.activeMs, timeLikeState.maxProgress);
