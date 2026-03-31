@@ -42,15 +42,20 @@ import {
   type ServiceGig,
   getMarketplaceGigHref,
   projectStages,
-  seedOrders,
-  sellerPulse,
   serviceCategories,
-  serviceGigs,
   topCreateOptions,
-  topMessages,
   topNotifications,
 } from "@/lib/marketplace-data";
-import { readMarketplaceOrdersFromApi, writeMarketplaceOrdersToApi } from "@/lib/state-api";
+import {
+  createMarketplaceGig,
+  createMarketplaceOrder,
+  patchMarketplaceOrder,
+  readMarketplaceGigs,
+  readMarketplaceOrders,
+  type MarketplaceSellerGigRecord,
+} from "@/lib/marketplace-api";
+import { MarketplaceConversationModal } from "@/components/marketplace-conversation-modal";
+import { useMarketplaceMessaging } from "@/lib/use-marketplace-messaging";
 import {
   type MarketplaceDiscoverSort,
   type MarketplaceFilterId,
@@ -83,7 +88,7 @@ type SellerGigDashboardStatus = "active" | "pending" | "modification" | "draft" 
 type SellerGigDashboardRow = {
   id: string;
   gig: ServiceGig;
-  source: "seed" | "draft";
+  source: "persisted" | "draft";
   status: SellerGigDashboardStatus;
   impressions: number;
   clicks: number;
@@ -194,120 +199,58 @@ const sellerGigStatusTabs: { id: SellerGigDashboardStatus; label: string }[] = [
   { id: "paused", label: "PAUSED" },
 ];
 
-const discoverCards: DiscoverCard[] = [
-  {
-    id: "card-1",
-    gigId: 1,
-    cover: "/figma-assets/photo-feed/photo-grid-6.jpg",
-    title: "Je construis un hero premium et une vitrine services qui convertit vraiment",
-    seller: "Axel Belujon Studio",
-    handle: "@axelbelujon",
-    avatar: "/figma-assets/avatar-post.png",
-    price: 240,
-    timelikeTrust: 96,
-    level: "Top retenu",
-    delivery: "3 jours",
-    track: "design",
-  },
-  {
-    id: "card-2",
-    gigId: 3,
-    cover: "/figma-assets/photo-feed/photo-grid-8.jpg",
-    title: "Je clarifie ton offre et je redesign ta page service en mode premium",
-    seller: "Pictomag News Lab",
-    handle: "@pictomag.news",
-    avatar: "/figma-assets/avatar-user.png",
-    price: 320,
-    timelikeTrust: 94,
-    level: "Seller pro",
-    delivery: "4 jours",
-    track: "design",
-  },
-  {
-    id: "card-3",
-    gigId: 2,
-    cover: "/figma-assets/photo-feed/photo-grid-5.jpg",
-    title: "Je cree ton systeme motion reels, ads et hooks pour mieux capter",
-    seller: "Studio Heat",
-    handle: "@studio.heat",
-    avatar: "/figma-assets/avatar-story.png",
-    price: 180,
-    timelikeTrust: 91,
-    level: "Motion expert",
-    delivery: "2 jours",
-    track: "video",
-  },
-  {
-    id: "card-4",
-    gigId: 4,
-    cover: "/figma-assets/photo-feed/photo-grid-3.jpg",
-    title: "Je compose une identite sonore simple, nette et vendable",
-    seller: "Neon Driver Audio",
-    handle: "@neondriver",
-    avatar: "/figma-assets/avatar-post.png",
-    price: 210,
-    timelikeTrust: 89,
-    level: "Audio lab",
-    delivery: "3 jours",
-    track: "music",
-  },
-  {
-    id: "card-5",
-    gigId: 1,
-    cover: "/figma-assets/photo-feed/photo-grid-7.jpg",
-    title: "Je transforme ton lancement produit en grille visuelle plus desirable",
-    seller: "Axel Belujon Studio",
-    handle: "@axelbelujon",
-    avatar: "/figma-assets/avatar-post.png",
-    price: 520,
-    timelikeTrust: 96,
-    level: "Top retenu",
-    delivery: "5 jours",
-    track: "design",
-  },
-  {
-    id: "card-6",
-    gigId: 3,
-    cover: "/figma-assets/photo-feed/photo-grid-4.jpg",
-    title: "Je pose une page business plus credible pour vendre un service technique",
-    seller: "Pictomag News Lab",
-    handle: "@pictomag.news",
-    avatar: "/figma-assets/avatar-user.png",
-    price: 690,
-    timelikeTrust: 94,
-    level: "Business clarity",
-    delivery: "6 jours",
-    track: "business",
-  },
-  {
-    id: "card-7",
-    gigId: 2,
-    cover: "/figma-assets/photo-feed/photo-grid-2.jpg",
-    title: "Je monte un pack video vertical qui tient mieux l attention du feed",
-    seller: "Studio Heat",
-    handle: "@studio.heat",
-    avatar: "/figma-assets/avatar-story.png",
-    price: 410,
-    timelikeTrust: 91,
-    level: "Shorts ready",
-    delivery: "4 jours",
-    track: "video",
-  },
-  {
-    id: "card-8",
-    gigId: 4,
-    cover: "/figma-assets/photo-feed/photo-grid-1.jpg",
-    title: "Je livre un sound logo et un loop de marque pour ads, reels et produit",
-    seller: "Neon Driver Audio",
-    handle: "@neondriver",
-    avatar: "/figma-assets/avatar-post.png",
-    price: 460,
-    timelikeTrust: 89,
-    level: "Audio branding",
-    delivery: "5 jours",
-    track: "music",
-  },
-];
+function toSellerGigDashboardStatus(
+  status: MarketplaceSellerGigRecord["status"],
+): SellerGigDashboardStatus {
+  return status;
+}
+
+function getDiscoverTrack(category: string) {
+  const normalizedCategory = category.toLowerCase();
+  const track =
+    marketplaceTracks.find((item) =>
+      item.matches.some((match) => match.toLowerCase() === normalizedCategory),
+    ) ?? marketplaceTracks.find((item) => item.id === "design");
+
+  return track?.id ?? "design";
+}
+
+function getDiscoverLevel(gig: ServiceGig) {
+  if (gig.timelikeTrust >= 95) {
+    return "Top retenu";
+  }
+
+  if (gig.category === "Video" || gig.category === "Motion") {
+    return "Motion expert";
+  }
+
+  if (gig.category === "Audio") {
+    return "Audio lab";
+  }
+
+  if (gig.category === "Strategy") {
+    return "Business clarity";
+  }
+
+  return "Seller pro";
+}
+
+function toDiscoverCard(gig: ServiceGig): DiscoverCard {
+  return {
+    id: `gig-${gig.id}`,
+    gigId: gig.id,
+    cover: gig.cover,
+    title: gig.title,
+    seller: gig.seller,
+    handle: gig.handle,
+    avatar: gig.avatar,
+    price: gig.priceFrom,
+    timelikeTrust: gig.timelikeTrust,
+    level: getDiscoverLevel(gig),
+    delivery: gig.deliveryLabel,
+    track: getDiscoverTrack(gig.category),
+  };
+}
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("fr-FR", {
@@ -683,11 +626,12 @@ export function MarketplacePage({
   const [checkoutState, setCheckoutState] = useState<CheckoutState | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
   const [buyerBrief, setBuyerBrief] = useState("");
-  const [orders, setOrders] = useState<ProjectOrder[]>(seedOrders);
-  const [ordersHydrated, setOrdersHydrated] = useState(false);
-  const [selectedOrderId, setSelectedOrderId] = useState<number>(initialOrderId ?? seedOrders[0]!.id);
+  const [orders, setOrders] = useState<ProjectOrder[]>([]);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(initialOrderId ?? null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [createdSellerGigs, setCreatedSellerGigs] = useState<SellerDraftGig[]>([]);
+  const [createdSellerGigs] = useState<SellerDraftGig[]>([]);
+  const [marketplaceGigs, setMarketplaceGigs] = useState<ServiceGig[]>([]);
+  const [sellerMarketplaceGigs, setSellerMarketplaceGigs] = useState<MarketplaceSellerGigRecord[]>([]);
   const [gigCreationDraft, setGigCreationDraft] = useState<GigCreationDraft>(createInitialGigCreationDraft);
   const [gigCreationStep, setGigCreationStep] = useState(0);
   const [customOrdersEnabled, setCustomOrdersEnabled] = useState(false);
@@ -703,16 +647,43 @@ export function MarketplacePage({
   );
   const [sellerRangeDropdownOpen, setSellerRangeDropdownOpen] = useState(false);
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
+  const messaging = useMarketplaceMessaging();
+
+  const allKnownGigs = useMemo(() => {
+    const deduped = new Map<number, ServiceGig>();
+
+    for (const record of sellerMarketplaceGigs) {
+      deduped.set(record.gig.id, record.gig);
+    }
+
+    for (const gig of marketplaceGigs) {
+      deduped.set(gig.id, gig);
+    }
+
+    return [...deduped.values()];
+  }, [marketplaceGigs, sellerMarketplaceGigs]);
+
+  const suggestedSellers = useMemo(() => {
+    const deduped = new Map<string, ServiceGig>();
+
+    for (const gig of allKnownGigs) {
+      if (!deduped.has(gig.handle)) {
+        deduped.set(gig.handle, gig);
+      }
+    }
+
+    return [...deduped.values()].slice(0, 4);
+  }, [allKnownGigs]);
 
   const filteredGigs = useMemo(
     () =>
-      serviceGigs.filter((gig) => {
+      allKnownGigs.filter((gig) => {
         const matchesCategory = activeCategory === "Tout" || gig.category === activeCategory;
         const haystack = `${gig.title} ${gig.subtitle} ${gig.category} ${gig.seller} ${gig.tags.join(" ")}`.toLowerCase();
         const matchesQuery = searchQuery.trim().length === 0 || haystack.includes(searchQuery.trim().toLowerCase());
         return matchesCategory && matchesQuery;
       }),
-    [activeCategory, searchQuery],
+    [activeCategory, allKnownGigs, searchQuery],
   );
 
   const filteredDiscoverCards = useMemo(() => {
@@ -725,8 +696,8 @@ export function MarketplacePage({
     const selectedLevel = discoverFilters.level;
     const selectedSpeaks = discoverFilters.speaks;
 
-    const filtered = discoverCards.filter((card) => {
-      const baseGig = serviceGigs.find((gig) => gig.id === card.gigId);
+    const filtered = allKnownGigs.map((gig) => toDiscoverCard(gig)).filter((card) => {
+      const baseGig = allKnownGigs.find((gig) => gig.id === card.gigId);
       const sellerMeta = discoverSellerMeta[card.seller] ?? { location: "Remote", speaks: ["EN"] };
       const subcategory = baseGig?.category ?? "Design";
       const budgetRange = getBudgetRangePreferenceLabel(card.price);
@@ -780,24 +751,24 @@ export function MarketplacePage({
 
       return 0;
     });
-  }, [activeTrack, discoverFilters, discoverSort, searchQuery]);
+  }, [activeTrack, allKnownGigs, discoverFilters, discoverSort, searchQuery]);
 
-  const selectedGig = serviceGigs.find((gig) => gig.id === selectedGigId) ?? null;
-  const checkoutGig = serviceGigs.find((gig) => gig.id === checkoutState?.gigId) ?? null;
+  const selectedGig = allKnownGigs.find((gig) => gig.id === selectedGigId) ?? null;
+  const checkoutGig = allKnownGigs.find((gig) => gig.id === checkoutState?.gigId) ?? null;
   const checkoutPackage = checkoutGig?.packages.find((pkg) => pkg.id === checkoutState?.packageId) ?? null;
   const selectedOrder = orders.find((order) => order.id === selectedOrderId) ?? orders[0] ?? null;
   const sellerDisplayGigs = useMemo(
     () => [
       ...createdSellerGigs,
-      ...serviceGigs.map((gig) => ({
-        id: gig.id,
-        serviceGig: gig,
+      ...sellerMarketplaceGigs.map((record) => ({
+        id: record.gig.id,
+        serviceGig: record.gig,
         draft: createInitialGigCreationDraft(),
-        statusLabel: "Actif",
-        helper: `${gig.queueSize} en file · ${gig.deliveryLabel}`,
+        statusLabel: record.status === "active" ? "Actif" : record.status,
+        helper: `${record.gig.queueSize} en file · ${record.gig.deliveryLabel}`,
       })),
     ],
-    [createdSellerGigs],
+    [createdSellerGigs, sellerMarketplaceGigs],
   );
   const sellerRangeMultiplier =
     sellerAnalyticsRangeOptions.find((option) => option.id === sellerAnalyticsRange)?.multiplier ?? 1;
@@ -813,18 +784,24 @@ export function MarketplacePage({
         orders: 0,
         cancellations: "0 %",
       })),
-      ...serviceGigs.map((gig, index) => ({
-        id: `seed-${gig.id}`,
-        gig,
-        source: "seed" as const,
-        status: (index === 0 ? "active" : index === 1 ? "active" : index === 2 ? "pending" : "paused") as SellerGigDashboardStatus,
-        impressions: Math.max(0, Math.round((gig.completedOrders * 64 + gig.queueSize * 18) * sellerRangeMultiplier)),
-        clicks: Math.max(0, Math.round((gig.completedOrders * 5 + gig.queueSize * 3) * sellerRangeMultiplier)),
-        orders: Math.max(0, Math.round(gig.completedOrders * sellerRangeMultiplier)),
-        cancellations: `${Math.max(0, Math.round((100 - gig.timelikeTrust) / 3))} %`,
+      ...sellerMarketplaceGigs.map((record) => ({
+        id: `persisted-${record.gig.id}`,
+        gig: record.gig,
+        source: "persisted" as const,
+        status: toSellerGigDashboardStatus(record.status),
+        impressions: Math.max(
+          0,
+          Math.round((record.gig.completedOrders * 64 + record.gig.queueSize * 18) * sellerRangeMultiplier),
+        ),
+        clicks: Math.max(
+          0,
+          Math.round((record.gig.completedOrders * 5 + record.gig.queueSize * 3) * sellerRangeMultiplier),
+        ),
+        orders: Math.max(0, Math.round(record.gig.completedOrders * sellerRangeMultiplier)),
+        cancellations: `${Math.max(0, Math.round((100 - record.gig.timelikeTrust) / 3))} %`,
       })),
     ],
-    [createdSellerGigs, sellerRangeMultiplier],
+    [createdSellerGigs, sellerMarketplaceGigs, sellerRangeMultiplier],
   );
   const sellerGigTabCounts = useMemo(
     () =>
@@ -852,6 +829,34 @@ export function MarketplacePage({
     .filter((order) => !order.paymentReleased)
     .reduce((sum, order) => sum + order.budget, 0);
   const totalRevenue = orders.reduce((sum, order) => sum + order.budget, 0);
+  const sellerPulse = useMemo(
+    () => [
+      {
+        label: "Revenus 30j",
+        value: formatCurrency(totalRevenue),
+        helper: `${orders.length} commande${orders.length > 1 ? "s" : ""}`,
+      },
+      {
+        label: "Briefs ouverts",
+        value: String(orders.filter((order) => order.stageIndex < projectStages.length - 1).length),
+        helper: "Suivi projet en cours",
+      },
+      {
+        label: "Temps de reponse",
+        value: "43 min",
+        helper: "Moyenne vendeur actuelle",
+      },
+      {
+        label: "Trust TimeLike",
+        value: `${Math.round(
+          sellerMarketplaceGigs.reduce((sum, record) => sum + record.gig.timelikeTrust, 0) /
+            Math.max(sellerMarketplaceGigs.length, 1),
+        )}%`,
+        helper: "Signal d attention moyen",
+      },
+    ],
+    [orders, sellerMarketplaceGigs, totalRevenue],
+  );
   const isCreateView = activeView === "create";
 
   useEffect(() => {
@@ -872,35 +877,42 @@ export function MarketplacePage({
     let active = true;
 
     void (async () => {
-      const serverOrders = await readMarketplaceOrdersFromApi(seedOrders);
-      const nextOrders = serverOrders.length > 0 ? serverOrders : seedOrders;
+      const [gigsResult, sellerGigsResult, ordersResult] = await Promise.all([
+        readMarketplaceGigs({ limit: 48 }),
+        readMarketplaceGigs({ seller: "me", limit: 48 }),
+        readMarketplaceOrders(),
+      ]);
+
+      const nextGigs = gigsResult.ok ? gigsResult.data.gigs : [];
+      const nextSellerGigs =
+        sellerGigsResult.ok
+          ? (sellerGigsResult.data.sellerRecords ??
+            sellerGigsResult.data.gigs.map((gig) => ({
+              gig,
+              status: "active" as const,
+            })))
+          : [];
+      const nextOrders = ordersResult.ok ? ordersResult.data.orders : [];
       const nextSelectedOrderId =
         initialOrderId && nextOrders.some((order) => order.id === initialOrderId)
           ? initialOrderId
-          : nextOrders[0]?.id ?? seedOrders[0]!.id;
+          : nextOrders[0]?.id ?? null;
 
       if (!active) {
         return;
       }
 
+      setMarketplaceGigs(nextGigs);
+      setSellerMarketplaceGigs(nextSellerGigs);
       setOrders(nextOrders);
       setActiveView(initialView);
       setSelectedOrderId(nextSelectedOrderId);
-      setOrdersHydrated(true);
     })();
 
     return () => {
       active = false;
     };
   }, [initialOrderId, initialView]);
-
-  useEffect(() => {
-    if (!ordersHydrated) {
-      return;
-    }
-
-    void writeMarketplaceOrdersToApi(orders);
-  }, [orders, ordersHydrated]);
 
   useEffect(() => {
     let active = true;
@@ -989,6 +1001,13 @@ export function MarketplacePage({
   };
 
   const handleHeaderPanelAction = (panel: HeaderPanelId) => {
+    if (panel === "messages") {
+      setSearchOpen(false);
+      setHeaderPanel(null);
+      void messaging.loadConversations({ openModal: true });
+      return;
+    }
+
     setSearchOpen(false);
     setHeaderPanel((current) => (current === panel ? null : panel));
   };
@@ -1053,64 +1072,23 @@ export function MarketplacePage({
     setToastMessage("Brouillon enregistre localement. Tu peux reprendre la creation quand tu veux.");
   };
 
-  const handlePublishGigDraft = () => {
+  const handlePublishGigDraft = async () => {
     const normalizedTitle = gigCreationDraft.title.trim() || "Nouveau gig";
-    const firstPackage = gigCreationDraft.packages[0] ?? createInitialGigCreationDraft().packages[0]!;
-    const recommendedPackage =
-      gigCreationDraft.packages.find((item) => item.recommended) ?? gigCreationDraft.packages[1] ?? firstPackage;
-    const nextId = 9000 + createdSellerGigs.length + 1;
+    const result = await createMarketplaceGig(gigCreationDraft);
 
-    const nextGig: ServiceGig = {
-      id: nextId,
-      title: normalizedTitle,
-      subtitle: gigCreationDraft.subtitle.trim() || "Gig cree depuis votre dashboard vendeur.",
-      seller: gigCreationDraft.seller.trim() || "Votre studio",
-      handle: gigCreationDraft.handle.trim() || "@votrestudio",
-      avatar: "/figma-assets/avatar-post.png",
-      cover: gigCreationDraft.cover,
-      category: gigCreationDraft.category,
-      priceFrom: Number(firstPackage.price) || 0,
-      deliveryLabel: gigCreationDraft.deliveryLabel.trim() || `${firstPackage.deliveryDays || "3"} jours`,
-      responseLabel: gigCreationDraft.responseLabel.trim() || "Reponse < 1h",
-      timelikeTrust: 96,
-      completedOrders: 0,
-      queueSize: 0,
-      tags: gigCreationDraft.tags
-        .split(/\n|,/)
-        .map((item) => item.trim())
-        .filter(Boolean),
-      deliverables: gigCreationDraft.deliverables
-        .split(/\n|,/)
-        .map((item) => item.trim())
-        .filter(Boolean),
-      packages: gigCreationDraft.packages.map((pkg) => ({
-        id: pkg.id,
-        name: pkg.name.trim() || "Package",
-        price: Number(pkg.price) || 0,
-        deliveryDays: Number(pkg.deliveryDays) || 3,
-        revisions: pkg.revisions.trim() || "1 revision",
-        description: pkg.description.trim() || "Description a completer",
-        features: pkg.features
-          .split(/\n|,/)
-          .map((item) => item.trim())
-          .filter(Boolean),
-        recommended: pkg.recommended,
-      })),
-    };
+    if (!result.ok) {
+      setToastMessage(result.message);
+      return;
+    }
 
-    setCreatedSellerGigs((current) => [
-      {
-        id: nextId,
-        serviceGig: nextGig,
-        draft: structuredClone(gigCreationDraft),
-        statusLabel: "Nouveau",
-        helper: `${recommendedPackage.name} · ${nextGig.deliveryLabel}`,
-      },
-      ...current,
+    setMarketplaceGigs((current) => [result.data.gig, ...current.filter((gig) => gig.id !== result.data.gig.id)]);
+    setSellerMarketplaceGigs((current) => [
+      { gig: result.data.gig, status: "active" },
+      ...current.filter((record) => record.gig.id !== result.data.gig.id),
     ]);
     setGigCreationDraft(createInitialGigCreationDraft());
     setGigCreationStep(0);
-    setSellerGigFilter("draft");
+    setSellerGigFilter("active");
     setActiveView("seller");
     setToastMessage(`Gig cree. "${normalizedTitle}" est maintenant visible dans votre dashboard vendeur.`);
   };
@@ -1122,7 +1100,7 @@ export function MarketplacePage({
   };
 
   const handleOpenGig = (gigId: number) => {
-    const gig = serviceGigs.find((item) => item.id === gigId);
+    const gig = allKnownGigs.find((item) => item.id === gigId);
 
     if (!gig) {
       return;
@@ -1141,32 +1119,26 @@ export function MarketplacePage({
     }
   };
 
-  const handleConfirmCheckout = () => {
+  const handleConfirmCheckout = async () => {
     if (!checkoutGig || !checkoutPackage) {
       return;
     }
 
-    const nextOrder: ProjectOrder = {
-      id: Date.now(),
+    const result = await createMarketplaceOrder({
       gigId: checkoutGig.id,
-      title: checkoutGig.title,
-      client: "Vous",
-      seller: checkoutGig.seller,
-      budget: checkoutPackage.price,
-      dueDate: `${checkoutPackage.deliveryDays + 24} mars`,
-      stageIndex: 0,
-      lastUpdate: "Commande creee, brief en attente de validation",
-      paymentReleased: false,
-      timelikeTrust: checkoutGig.timelikeTrust,
+      packageId: checkoutPackage.id,
       brief: buyerBrief.trim() || "Brief a partager apres paiement.",
-      notes: [
-        "Commande creee",
-        "Paiement sous escrow verrouille",
-        "Le vendeur peut maintenant valider le brief",
-      ],
-    };
+      totalBudget: checkoutPackage.price,
+    });
 
-    setOrders((current) => [nextOrder, ...current]);
+    if (!result.ok) {
+      setToastMessage(result.message);
+      return;
+    }
+
+    const nextOrder = result.data.order;
+
+    setOrders((current) => [nextOrder, ...current.filter((order) => order.id !== nextOrder.id)]);
     setSelectedOrderId(nextOrder.id);
     setActiveView("tracker");
     setCheckoutState(null);
@@ -1174,32 +1146,38 @@ export function MarketplacePage({
     setToastMessage("Commande creee. Le tracker projet est ouvert.");
   };
 
-  const handleAdvanceOrder = (orderId: number) => {
+  const handleAdvanceOrder = async (orderId: number) => {
+    const result = await patchMarketplaceOrder({
+      orderId,
+      action: "advanceStage",
+    });
+
+    if (!result.ok) {
+      setToastMessage(result.message);
+      return;
+    }
+
     setOrders((current) =>
-      current.map((order) =>
-        order.id === orderId
-          ? {
-              ...order,
-              stageIndex: Math.min(order.stageIndex + 1, projectStages.length - 1),
-              lastUpdate: `Etape ${projectStages[Math.min(order.stageIndex + 1, projectStages.length - 1)]!.label.toLowerCase()} activee`,
-            }
-          : order,
-      ),
+      current.map((order) => (order.id === orderId ? result.data.order : order)),
     );
+    setToastMessage("Etape projet mise a jour.");
   };
 
-  const handleReleasePayment = (orderId: number) => {
+  const handleReleasePayment = async (orderId: number) => {
+    const result = await patchMarketplaceOrder({
+      orderId,
+      action: "releasePayment",
+    });
+
+    if (!result.ok) {
+      setToastMessage(result.message);
+      return;
+    }
+
     setOrders((current) =>
-      current.map((order) =>
-        order.id === orderId
-          ? {
-              ...order,
-              paymentReleased: true,
-              lastUpdate: "Paiement final libere",
-            }
-          : order,
-      ),
+      current.map((order) => (order.id === orderId ? result.data.order : order)),
     );
+    setToastMessage("Paiement final libere.");
   };
 
   const renderHeaderPanel = () => {
@@ -1251,19 +1229,25 @@ export function MarketplacePage({
         {headerPanel === "messages" ? (
           <div className="space-y-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7b8797]">Messages</p>
-            {topMessages.map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => {
-                  setActiveView("tracker");
-                  setHeaderPanel(null);
-                }}
-                className="block w-full rounded-[10px] border border-black/7 bg-[#f8fafc] px-4 py-3 text-left text-[13px] leading-6 text-[#233042] transition hover:border-black/12 hover:bg-white"
-              >
-                {item}
-              </button>
-            ))}
+            <button
+              type="button"
+              onClick={() => {
+                setHeaderPanel(null);
+                void messaging.loadConversations({ openModal: true });
+              }}
+              className="flex w-full items-start justify-between rounded-[10px] border border-black/7 bg-[#f8fafc] px-4 py-3 text-left transition hover:border-black/12 hover:bg-white"
+            >
+              <div>
+                <p className="text-[14px] font-semibold text-[#101522]">Ouvrir la messagerie privee</p>
+                <p className="mt-1 text-[12px] leading-5 text-[#667487]">
+                  Conversations 1-to-1 persistées en SQLite entre acheteurs et vendeurs.
+                </p>
+              </div>
+              <ChevronRight className="mt-1 h-4 w-4 text-[#7b8797]" />
+            </button>
+            {messaging.errorMessage ? (
+              <p className="text-[12px] leading-5 text-[#8d5661]">{messaging.errorMessage}</p>
+            ) : null}
           </div>
         ) : null}
 
@@ -1415,7 +1399,7 @@ export function MarketplacePage({
 
               <div className="space-y-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7b8797]">Vendeurs a suivre</p>
-                {serviceGigs.slice(0, 4).map((gig) => (
+                {suggestedSellers.map((gig) => (
                   <button
                     key={`seller-${gig.id}`}
                     type="button"
@@ -2345,6 +2329,28 @@ export function MarketplacePage({
               </div>
             </section>
           ) : null}
+
+          {activeView === "tracker" && !selectedOrder ? (
+            <section className="mt-6 rounded-[10px] border border-black/7 bg-white px-8 py-12 text-center shadow-[0_24px_56px_rgba(15,23,42,0.08)]">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#eef5ff] text-[#2b6fff]">
+                <FolderKanban className="h-6 w-6" />
+              </div>
+              <h3 className="mt-4 text-[22px] font-semibold tracking-[-0.04em] text-[#101522]">
+                Aucun projet a suivre pour le moment
+              </h3>
+              <p className="mx-auto mt-2 max-w-[520px] text-[14px] leading-6 text-[#607085]">
+                Cree une commande depuis un gig pour ouvrir un tracker, suivre les etapes et gerer la liberation du paiement.
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveView("discover")}
+                className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#101522] px-5 py-3 text-[13px] font-semibold text-white"
+              >
+                Explorer les gigs
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </section>
+          ) : null}
         </main>
 
         <MarketplaceGigDrawer gig={selectedGig} onClose={() => setSelectedGigId(null)} onCheckout={handleStartCheckout} />
@@ -2357,6 +2363,26 @@ export function MarketplacePage({
           onMethodChange={setPaymentMethod}
           onClose={() => setCheckoutState(null)}
           onConfirm={handleConfirmCheckout}
+        />
+        <MarketplaceConversationModal
+          open={messaging.isOpen}
+          conversations={messaging.conversations}
+          activeConversationId={messaging.activeConversationId}
+          messages={messaging.messages}
+          composerValue={messaging.composerValue}
+          loadingConversations={messaging.loadingConversations}
+          loadingMessages={messaging.loadingMessages}
+          sending={messaging.sending}
+          requiresAuth={messaging.requiresAuth}
+          errorMessage={messaging.errorMessage}
+          onClose={messaging.close}
+          onComposerChange={messaging.setComposerValue}
+          onConversationSelect={(conversationId) => {
+            void messaging.openConversation(conversationId);
+          }}
+          onSend={() => {
+            void messaging.sendMessage();
+          }}
         />
       </div>
     </div>

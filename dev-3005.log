@@ -1,0 +1,44 @@
+
+> pictomagv3@0.1.0 dev:3005
+> next dev --hostname 127.0.0.1 --port 3005
+
+▲ Next.js 16.2.1 (Turbopack)
+- Local:         http://127.0.0.1:3005
+- Network:       http://127.0.0.1:3005
+✓ Ready in 592ms
+
+ GET / 200 in 416ms (next.js: 209ms, application-code: 207ms)
+ GET /marketplace 200 in 224ms (next.js: 70ms, application-code: 154ms)
+(node:47472) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ GET /api/preferences/marketplace 200 in 136ms (next.js: 101ms, application-code: 35ms)
+ PUT /api/preferences/marketplace 200 in 14ms (next.js: 4ms, application-code: 10ms)
+ GET /api/orders 401 in 324ms (next.js: 318ms, application-code: 6ms)
+ GET /api/gigs?limit=48 200 in 391ms (next.js: 383ms, application-code: 7ms)
+ GET /api/gigs?seller=me&limit=48 401 in 397ms (next.js: 391ms, application-code: 7ms)
+[browser] Image with src "/figma-assets/photo-feed/photo-grid-7.jpg" was detected as the Largest Contentful Paint (LCP). Please add the `loading="eager"` property if this image is above the fold.
+Read more: https://nextjs.org/docs/app/api-reference/components/image#loading
+(node:45760) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ GET /marketplace/2-motion-system-pour-reels-shorts-et-ads 200 in 720ms (next.js: 642ms, application-code: 79ms)
+ GET / 200 in 61ms (next.js: 4ms, application-code: 57ms)
+ GET /api/posts?scope=feed&limit=12 200 in 34ms (next.js: 27ms, application-code: 7ms)
+ GET /api/posts?scope=classic&limit=12 200 in 38ms (next.js: 34ms, application-code: 4ms)
+ GET /marketplace 200 in 43ms (next.js: 7ms, application-code: 36ms)
+ GET /api/gigs?limit=48 200 in 19ms (next.js: 11ms, application-code: 7ms)
+ GET /api/gigs?seller=me&limit=48 401 in 25ms (next.js: 19ms, application-code: 6ms)
+ GET /api/orders 401 in 32ms (next.js: 28ms, application-code: 5ms)
+ GET /api/preferences/marketplace 200 in 41ms (next.js: 34ms, application-code: 6ms)
+ GET /api/gigs?limit=48 200 in 30ms (next.js: 22ms, application-code: 8ms)
+ GET /api/gigs?seller=me&limit=48 401 in 20ms (next.js: 15ms, application-code: 5ms)
+ GET /api/orders 401 in 20ms (next.js: 13ms, application-code: 7ms)
+ GET /api/preferences/marketplace 200 in 20ms (next.js: 14ms, application-code: 6ms)
+ PUT /api/preferences/marketplace 200 in 8ms (next.js: 2ms, application-code: 6ms)
+ GET / 200 in 65ms (next.js: 3ms, application-code: 62ms)
+ GET /api/posts?scope=feed&limit=12 200 in 11ms (next.js: 4ms, application-code: 8ms)
+ GET /api/posts?scope=classic&limit=12 200 in 20ms (next.js: 13ms, application-code: 7ms)
+ GET /profile 200 in 154ms (next.js: 51ms, application-code: 103ms)
+ GET /marketplace 200 in 67ms (next.js: 9ms, application-code: 58ms)
+ GET / 200 in 57ms (next.js: 4ms, application-code: 54ms)
+ GET /marketplace 200 in 91ms (next.js: 9ms, application-code: 82ms)
+ GET /profile 200 in 87ms (next.js: 9ms, application-code: 78ms)

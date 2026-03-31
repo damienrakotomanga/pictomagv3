@@ -3,6 +3,7 @@ import { resolveAuthenticatedAppUser } from "@/lib/server/auth-user";
 import {
   createMarketplaceGigRecord,
   listMarketplaceGigs,
+  listMarketplaceSellerGigRecords,
 } from "@/lib/server/marketplace-records";
 
 export const runtime = "nodejs";
@@ -16,6 +17,14 @@ export async function GET(request: NextRequest) {
 
   if (sellerQuery === "me" && !authenticatedUser) {
     return NextResponse.json({ message: "Authentification requise." }, { status: 401 });
+  }
+
+  if (sellerQuery === "me" && authenticatedUser) {
+    const sellerRecords = listMarketplaceSellerGigRecords(authenticatedUser.user.id);
+    return NextResponse.json({
+      gigs: sellerRecords.map((record) => record.gig),
+      sellerRecords,
+    });
   }
 
   const gigs = listMarketplaceGigs({

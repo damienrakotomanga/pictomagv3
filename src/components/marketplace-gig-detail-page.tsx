@@ -26,13 +26,14 @@ import {
   type ServiceGig,
   getMarketplaceGigHref,
   projectStages,
-  seedOrders,
   topCreateOptions,
-  topMessages,
   topNotifications,
 } from "@/lib/marketplace-data";
-import { createMarketplaceOrder } from "@/lib/marketplace-orders";
-import { readMarketplaceOrdersFromApi, writeMarketplaceOrdersToApi } from "@/lib/state-api";
+import {
+  createMarketplaceOrder,
+} from "@/lib/marketplace-api";
+import { MarketplaceConversationModal } from "@/components/marketplace-conversation-modal";
+import { useMarketplaceMessaging } from "@/lib/use-marketplace-messaging";
 
 const topActions = [
   { id: "create", src: "/figma-assets/top-plus.svg", left: 0, label: "Create" },
@@ -430,6 +431,7 @@ export function MarketplaceGigDetailPage({
   const [activeTab, setActiveTab] = useState<GigDetailTab>("description");
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const [savedGig, setSavedGig] = useState(false);
+  const messaging = useMarketplaceMessaging();
 
   const selectedPackage =
     gig.packages.find((pkg) => pkg.id === selectedPackageId) ?? gig.packages[0] ?? null;
@@ -548,6 +550,12 @@ export function MarketplaceGigDetailPage({
   };
 
   const handleHeaderPanelAction = (panel: HeaderPanelId) => {
+    if (panel === "messages") {
+      void messaging.loadConversations({ openModal: true });
+      setHeaderPanel(null);
+      return;
+    }
+
     setHeaderPanel((current) => (current === panel ? null : panel));
   };
 
@@ -597,7 +605,13 @@ export function MarketplaceGigDetailPage({
     });
   };
 
-  const handleContactSeller = () => {
+  const handleContactSeller = async () => {
+    const result = await messaging.openConversationWithParticipant(gig.handle);
+    if (!result.ok) {
+      setToastMessage(result.message ?? "Impossible d'ouvrir la conversation.");
+      return;
+    }
+
     setToastMessage(`Conversation ouverte avec ${gig.seller}.`);
   };
 
@@ -616,16 +630,20 @@ export function MarketplaceGigDetailPage({
       return;
     }
 
-    const nextOrder = createMarketplaceOrder({
-      gig,
-      selectedPackage,
+    const result = await createMarketplaceOrder({
+      gigId: gig.id,
+      packageId: selectedPackage.id,
       brief: buyerBrief,
       totalBudget: subtotal,
     });
-    const existingOrders = await readMarketplaceOrdersFromApi(seedOrders);
-    await writeMarketplaceOrdersToApi([nextOrder, ...existingOrders]);
+
+    if (!result.ok) {
+      setToastMessage(result.message);
+      return;
+    }
+
     setCheckoutOpen(false);
-    router.push(`/marketplace?view=tracker&order=${nextOrder.id}`);
+    router.push(`/marketplace?view=tracker&order=${result.data.order.id}`);
   };
 
   if (!selectedPackage) {
@@ -676,19 +694,16 @@ export function MarketplaceGigDetailPage({
         {headerPanel === "messages" ? (
           <div className="space-y-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7b8797]">Messages</p>
-            {topMessages.map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => {
-                  router.push("/marketplace?view=tracker");
-                  setHeaderPanel(null);
-                }}
-                className="block w-full rounded-[10px] border border-black/7 bg-[#f8fafc] px-4 py-3 text-left text-[13px] leading-6 text-[#233042] transition hover:border-black/12 hover:bg-white"
-              >
-                {item}
-              </button>
-            ))}
+            <button
+              type="button"
+              onClick={() => {
+                void messaging.loadConversations({ openModal: true });
+                setHeaderPanel(null);
+              }}
+              className="block w-full rounded-[10px] border border-black/7 bg-[#f8fafc] px-4 py-3 text-left text-[13px] leading-6 text-[#233042] transition hover:border-black/12 hover:bg-white"
+            >
+              Ouvrir la messagerie privee marketplace
+            </button>
           </div>
         ) : null}
 
@@ -1272,6 +1287,27 @@ export function MarketplaceGigDetailPage({
           onConfirm={handleConfirmCheckout}
         />
       ) : null}
+
+      <MarketplaceConversationModal
+        open={messaging.isOpen}
+        conversations={messaging.conversations}
+        activeConversationId={messaging.activeConversationId}
+        messages={messaging.messages}
+        composerValue={messaging.composerValue}
+        loadingConversations={messaging.loadingConversations}
+        loadingMessages={messaging.loadingMessages}
+        sending={messaging.sending}
+        requiresAuth={messaging.requiresAuth}
+        errorMessage={messaging.errorMessage}
+        onClose={messaging.close}
+        onComposerChange={messaging.setComposerValue}
+        onConversationSelect={(conversationId) => {
+          void messaging.openConversation(conversationId);
+        }}
+        onSend={() => {
+          void messaging.sendMessage();
+        }}
+      />
 
       {toastMessage ? (
         <div className="fixed bottom-8 left-1/2 z-[300] -translate-x-1/2 rounded-full bg-[#101522] px-4 py-2 text-[13px] font-medium text-white shadow-[0_16px_44px_rgba(8,12,24,0.24)]">

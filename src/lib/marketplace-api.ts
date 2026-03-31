@@ -3,6 +3,19 @@
 import type { GigCreationDraft } from "@/components/marketplace-gig-creator";
 import type { ProjectOrder, ServiceGig } from "@/lib/marketplace-data";
 
+export type MarketplaceSellerGigStatus =
+  | "active"
+  | "pending"
+  | "modification"
+  | "draft"
+  | "denied"
+  | "paused";
+
+export type MarketplaceSellerGigRecord = {
+  gig: ServiceGig;
+  status: MarketplaceSellerGigStatus;
+};
+
 export type MarketplaceConversationRecord = {
   id: number;
   participant: {
@@ -93,7 +106,10 @@ export function readMarketplaceGigs({
   }
 
   const query = params.toString();
-  return requestMarketplaceApi<{ gigs: ServiceGig[] }>(`/api/gigs${query ? `?${query}` : ""}`);
+  return requestMarketplaceApi<{
+    gigs: ServiceGig[];
+    sellerRecords?: MarketplaceSellerGigRecord[];
+  }>(`/api/gigs${query ? `?${query}` : ""}`);
 }
 
 export function readMarketplaceGig(gigId: number) {

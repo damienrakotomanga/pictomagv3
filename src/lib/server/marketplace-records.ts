@@ -8,7 +8,6 @@ import {
   type ProjectOrder,
   projectStages,
   type ServiceGig,
-  slugifyMarketplaceText,
 } from "@/lib/marketplace-data";
 import {
   createConversationRow,
@@ -22,7 +21,6 @@ import {
   getOrderRowById,
   getProfileByUserId,
   getProfileByUsername,
-  getUserById,
   listConversationRowsForUser,
   listGigRows,
   listMessageRowsByConversationId,
