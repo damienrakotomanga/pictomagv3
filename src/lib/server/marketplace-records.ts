@@ -425,7 +425,7 @@ export function listMarketplaceSellerGigRecords(sellerUserId: string) {
 }
 
 export function listMarketplaceOrdersForUser(userId: string) {
-  return listOrderRowsForUser(userId)
+  return listOrderRowsForUser(userId, { source: "marketplace" })
     .map((row) => toProjectOrder(row))
     .filter((order): order is ProjectOrder => order !== null);
 }
@@ -462,9 +462,11 @@ export function createMarketplaceOrderRecord({
     gigId: serviceGig.id,
     buyerUserId,
     sellerUserId: gig.seller_user_id,
+    source: "marketplace",
     packageId: selectedPackage.id,
     title: serviceGig.title,
     budget: Math.max(selectedPackage.price, totalBudget ?? selectedPackage.price),
+    quantity: 1,
     dueDate: resolveDueDateLabel(selectedPackage.deliveryDays),
     stageIndex: 0,
     lastUpdate: "Brief recu",
@@ -476,6 +478,8 @@ export function createMarketplaceOrderRecord({
       "Kickoff a planifier",
       "Production en attente",
     ]),
+    liveSessionEventId: null,
+    liveItemId: null,
   });
 
   return order ? { order: toProjectOrder(order) } : { error: "Commande introuvable." as const };
@@ -491,6 +495,10 @@ export function advanceMarketplaceOrderStage({
   const order = getOrderRowById(orderId);
   if (!order) {
     return { error: "Commande introuvable." as const };
+  }
+
+  if (order.source !== "marketplace") {
+    return { error: "Commande hors marketplace." as const };
   }
 
   if (order.seller_user_id !== actorUserId) {
@@ -524,6 +532,10 @@ export function releaseMarketplaceOrderPayment({
   const order = getOrderRowById(orderId);
   if (!order) {
     return { error: "Commande introuvable." as const };
+  }
+
+  if (order.source !== "marketplace") {
+    return { error: "Commande hors marketplace." as const };
   }
 
   if (order.seller_user_id !== actorUserId) {

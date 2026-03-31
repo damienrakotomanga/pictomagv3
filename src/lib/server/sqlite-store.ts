@@ -1,7 +1,22 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import {
+  liveShoppingEvents,
+  type LiveShoppingEvent,
+} from "@/lib/live-shopping-data";
+import {
+  liveShoppingInventorySeed,
+  type LiveInventoryProduct,
+  normalizeLiveInventoryProduct,
+} from "@/lib/live-shopping-inventory";
+import {
+  liveShoppingScheduleSeed,
+  normalizeLiveShoppingScheduledLive,
+  type LiveShoppingScheduledLive,
+} from "@/lib/live-shopping-schedule";
 import { getMarketplaceGigSlug, seedOrders, serviceGigs } from "@/lib/marketplace-data";
+import { normalizePreferenceUserId } from "@/lib/server/preferences-store";
 
 type PreferencesRow = {
   user_id: string;
@@ -91,14 +106,18 @@ export type StoredGigRow = {
   published_at: number;
 };
 
+export type StoredOrderSource = "marketplace" | "live-shopping";
+
 export type StoredOrderRow = {
   id: number;
   gig_id: number;
   buyer_user_id: string;
   seller_user_id: string;
+  source: StoredOrderSource;
   package_id: string;
   title: string;
   budget: number;
+  quantity: number;
   due_date: string;
   stage_index: number;
   last_update: string;
@@ -106,6 +125,43 @@ export type StoredOrderRow = {
   timelike_trust: number;
   brief: string;
   notes_json: string;
+  live_session_event_id: number | null;
+  live_item_id: string | null;
+  created_at: number;
+  updated_at: number;
+};
+
+export type StoredLiveSessionRow = {
+  event_id: number;
+  owner_user_id: string;
+  slug: string;
+  title: string;
+  category_id: string;
+  live_state: string;
+  payload_json: string;
+  created_at: number;
+  updated_at: number;
+};
+
+export type StoredLiveInventoryRow = {
+  id: string;
+  owner_user_id: string;
+  title: string;
+  category_id: string;
+  status: string;
+  reserve_for_live: number;
+  live_slug: string | null;
+  payload_json: string;
+  created_at: number;
+  updated_at: number;
+};
+
+export type StoredLiveScheduleRow = {
+  id: string;
+  owner_user_id: string;
+  live_state: string;
+  live_slug: string | null;
+  payload_json: string;
   created_at: number;
   updated_at: number;
 };
@@ -174,6 +230,23 @@ const DATABASE_FILE = path.join(DATA_DIRECTORY, "pictomag.db");
 
 let database: DatabaseSync | null = null;
 
+function getLiveShoppingOwnerUserIdFromEvent(event: Pick<LiveShoppingEvent, "handle" | "seller">) {
+  const candidate = typeof event.handle === "string" ? event.handle.replace(/^@/, "").trim() : "";
+  return normalizePreferenceUserId(candidate || event.seller);
+}
+
+export function getLiveInventoryStorageId({
+  ownerUserId,
+  liveSlug,
+  productId,
+}: {
+  ownerUserId: string;
+  liveSlug: string | null;
+  productId: string;
+}) {
+  return `${normalizePreferenceUserId(ownerUserId)}::${liveSlug ?? "inventory"}::${productId}`;
+}
+
 function ensureRuntimeStateSchema(db: DatabaseSync) {
   const columns = db
     .prepare("PRAGMA table_info(user_runtime_state)")
@@ -192,6 +265,41 @@ function ensureRuntimeStateSchema(db: DatabaseSync) {
     db.exec(
       "ALTER TABLE user_runtime_state ADD COLUMN live_shopping_schedule TEXT NOT NULL DEFAULT '[]'",
     );
+  }
+}
+
+function listTableColumns(db: DatabaseSync, tableName: string) {
+  return db
+    .prepare(`PRAGMA table_info(${tableName})`)
+    .all()
+    .map((row) => {
+      if (!row || typeof row !== "object") {
+        return null;
+      }
+
+      const value = row as Record<string, unknown>;
+      return typeof value.name === "string" ? value.name : null;
+    })
+    .filter((name): name is string => name !== null);
+}
+
+function ensureOrdersSchema(db: DatabaseSync) {
+  const columns = listTableColumns(db, "orders");
+
+  if (!columns.includes("source")) {
+    db.exec("ALTER TABLE orders ADD COLUMN source TEXT NOT NULL DEFAULT 'marketplace'");
+  }
+
+  if (!columns.includes("quantity")) {
+    db.exec("ALTER TABLE orders ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1");
+  }
+
+  if (!columns.includes("live_session_event_id")) {
+    db.exec("ALTER TABLE orders ADD COLUMN live_session_event_id INTEGER");
+  }
+
+  if (!columns.includes("live_item_id")) {
+    db.exec("ALTER TABLE orders ADD COLUMN live_item_id TEXT");
   }
 }
 
@@ -315,6 +423,41 @@ function ensureDatabase() {
       updated_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS live_sessions (
+      event_id INTEGER PRIMARY KEY,
+      owner_user_id TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      category_id TEXT NOT NULL,
+      live_state TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS live_inventory_products (
+      id TEXT PRIMARY KEY,
+      owner_user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      category_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      reserve_for_live INTEGER NOT NULL DEFAULT 0,
+      live_slug TEXT,
+      payload_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS live_schedule_entries (
+      id TEXT PRIMARY KEY,
+      owner_user_id TEXT NOT NULL,
+      live_state TEXT NOT NULL,
+      live_slug TEXT,
+      payload_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       participant_a_user_id TEXT NOT NULL,
@@ -380,16 +523,26 @@ function ensureDatabase() {
     CREATE INDEX IF NOT EXISTS idx_orders_buyer_user_id ON orders (buyer_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_orders_seller_user_id ON orders (seller_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_orders_gig_id ON orders (gig_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_orders_source ON orders (source, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_orders_live_session_event_id ON orders (live_session_event_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_live_sessions_owner_user_id ON live_sessions (owner_user_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_live_sessions_slug ON live_sessions (slug);
+    CREATE INDEX IF NOT EXISTS idx_live_inventory_owner_user_id ON live_inventory_products (owner_user_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_live_inventory_live_slug ON live_inventory_products (live_slug, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_live_schedule_owner_user_id ON live_schedule_entries (owner_user_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_live_schedule_live_slug ON live_schedule_entries (live_slug, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_conversations_participant_a ON conversations (participant_a_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_conversations_participant_b ON conversations (participant_b_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages (conversation_id, created_at ASC);
   `);
 
   ensureRuntimeStateSchema(db);
+  ensureOrdersSchema(db);
 
   database = db;
   ensureSeedPosts();
   ensureSeedMarketplace();
+  ensureSeedLiveShopping();
   return db;
 }
 
@@ -689,20 +842,31 @@ function asStoredGigRow(value: unknown): StoredGigRow | null {
   };
 }
 
+function asStoredOrderSource(value: unknown): StoredOrderSource | null {
+  if (value === "marketplace" || value === "live-shopping") {
+    return value;
+  }
+
+  return null;
+}
+
 function asStoredOrderRow(value: unknown): StoredOrderRow | null {
   if (!value || typeof value !== "object") {
     return null;
   }
 
   const row = value as Record<string, unknown>;
+  const source = asStoredOrderSource(row.source ?? "marketplace");
   if (
     typeof row.id !== "number" ||
     typeof row.gig_id !== "number" ||
     typeof row.buyer_user_id !== "string" ||
     typeof row.seller_user_id !== "string" ||
+    source === null ||
     typeof row.package_id !== "string" ||
     typeof row.title !== "string" ||
     typeof row.budget !== "number" ||
+    typeof row.quantity !== "number" ||
     typeof row.due_date !== "string" ||
     typeof row.stage_index !== "number" ||
     typeof row.last_update !== "string" ||
@@ -721,9 +885,11 @@ function asStoredOrderRow(value: unknown): StoredOrderRow | null {
     gig_id: row.gig_id,
     buyer_user_id: row.buyer_user_id,
     seller_user_id: row.seller_user_id,
+    source,
     package_id: row.package_id,
     title: row.title,
     budget: row.budget,
+    quantity: Math.max(1, Math.trunc(row.quantity)),
     due_date: row.due_date,
     stage_index: row.stage_index,
     last_update: row.last_update,
@@ -731,6 +897,103 @@ function asStoredOrderRow(value: unknown): StoredOrderRow | null {
     timelike_trust: row.timelike_trust,
     brief: row.brief,
     notes_json: row.notes_json,
+    live_session_event_id: asNullableNumber(row.live_session_event_id),
+    live_item_id: asNullableString(row.live_item_id),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function asStoredLiveSessionRow(value: unknown): StoredLiveSessionRow | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.event_id !== "number" ||
+    typeof row.owner_user_id !== "string" ||
+    typeof row.slug !== "string" ||
+    typeof row.title !== "string" ||
+    typeof row.category_id !== "string" ||
+    typeof row.live_state !== "string" ||
+    typeof row.payload_json !== "string" ||
+    typeof row.created_at !== "number" ||
+    typeof row.updated_at !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    event_id: row.event_id,
+    owner_user_id: row.owner_user_id,
+    slug: row.slug,
+    title: row.title,
+    category_id: row.category_id,
+    live_state: row.live_state,
+    payload_json: row.payload_json,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function asStoredLiveInventoryRow(value: unknown): StoredLiveInventoryRow | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.id !== "string" ||
+    typeof row.owner_user_id !== "string" ||
+    typeof row.title !== "string" ||
+    typeof row.category_id !== "string" ||
+    typeof row.status !== "string" ||
+    typeof row.reserve_for_live !== "number" ||
+    typeof row.payload_json !== "string" ||
+    typeof row.created_at !== "number" ||
+    typeof row.updated_at !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    owner_user_id: row.owner_user_id,
+    title: row.title,
+    category_id: row.category_id,
+    status: row.status,
+    reserve_for_live: row.reserve_for_live,
+    live_slug: asNullableString(row.live_slug),
+    payload_json: row.payload_json,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function asStoredLiveScheduleRow(value: unknown): StoredLiveScheduleRow | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.id !== "string" ||
+    typeof row.owner_user_id !== "string" ||
+    typeof row.live_state !== "string" ||
+    typeof row.payload_json !== "string" ||
+    typeof row.created_at !== "number" ||
+    typeof row.updated_at !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    owner_user_id: row.owner_user_id,
+    live_state: row.live_state,
+    live_slug: asNullableString(row.live_slug),
+    payload_json: row.payload_json,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -1874,6 +2137,195 @@ export function createPostWithMedia({
   }
 }
 
+function ensureSeedLiveShopping() {
+  const db = ensureDatabase();
+  const defaultOwnerUserId = "axelbelujon";
+
+  const sellerProfiles = Array.from(
+    new Map(
+      liveShoppingEvents.map((event) => {
+        const ownerUserId = getLiveShoppingOwnerUserIdFromEvent(event);
+        return [
+          ownerUserId,
+          {
+            userId: ownerUserId,
+            role: "seller",
+            username: ownerUserId,
+            displayName: event.seller,
+            bio: `${event.category} en direct sur Pictomag.`,
+            avatarUrl: event.avatar,
+            websiteUrl: "https://www.pictomag.app",
+          },
+        ] as const;
+      }),
+    ).values(),
+  );
+
+  for (const profile of sellerProfiles) {
+    ensureCompatibilityUserWithProfile(profile);
+  }
+
+  ensureCompatibilityUserWithProfile({
+    userId: defaultOwnerUserId,
+    role: "seller",
+    username: defaultOwnerUserId,
+    displayName: "Axel Belujon",
+    bio: "Owner profile pour les ecrans inventaire et planning live.",
+    avatarUrl: "/figma-assets/avatar-post.png",
+    websiteUrl: "https://www.axelbelujon.com",
+  });
+
+  const upsertLiveInventoryStatement = db.prepare(`
+    INSERT INTO live_inventory_products (
+      id,
+      owner_user_id,
+      title,
+      category_id,
+      status,
+      reserve_for_live,
+      live_slug,
+      payload_json,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id)
+    DO UPDATE SET
+      owner_user_id = excluded.owner_user_id,
+      title = excluded.title,
+      category_id = excluded.category_id,
+      status = excluded.status,
+      reserve_for_live = excluded.reserve_for_live,
+      live_slug = excluded.live_slug,
+      payload_json = excluded.payload_json,
+      updated_at = excluded.updated_at
+  `);
+
+  const upsertLiveScheduleStatement = db.prepare(`
+    INSERT INTO live_schedule_entries (
+      id,
+      owner_user_id,
+      live_state,
+      live_slug,
+      payload_json,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id)
+    DO UPDATE SET
+      owner_user_id = excluded.owner_user_id,
+      live_state = excluded.live_state,
+      live_slug = excluded.live_slug,
+      payload_json = excluded.payload_json,
+      updated_at = excluded.updated_at
+  `);
+
+  db.exec("BEGIN IMMEDIATE");
+
+  try {
+    for (const event of liveShoppingEvents) {
+      const ownerUserId = getLiveShoppingOwnerUserIdFromEvent(event);
+
+      upsertLiveSessionRow({
+        eventId: event.id,
+        ownerUserId,
+        slug: event.slug,
+        title: event.title,
+        categoryId: event.categoryId,
+        liveState: event.status === "live" ? "live" : "scheduled",
+        payloadJson: JSON.stringify(event),
+      });
+
+      for (const lot of event.items) {
+        const normalizedProduct = normalizeLiveInventoryProduct({
+          id: lot.id,
+          title: lot.title,
+          categoryId: event.categoryId,
+          categoryLabel: event.category,
+          description: lot.subtitle,
+          quantity: Math.max(0, lot.stock),
+          price: lot.price,
+          status: lot.stock > 0 ? "active" : "inactive",
+          mode: lot.mode,
+          currentBid: lot.currentBid ?? null,
+          bidIncrement: lot.bidIncrement ?? null,
+          reserveForLive: true,
+          liveSlug: event.slug,
+          flashSale: false,
+          acceptOffers: lot.mode === "fixed",
+          cover: lot.cover,
+          deliveryProfile: lot.delivery,
+          dangerousGoods: "Pas de matieres dangereuses",
+          costPerItem: String(Math.max(1, Math.round(lot.price * 0.65))),
+          sku: `${event.id}-${lot.id}`.slice(0, 80),
+          createdAt: Date.now() - event.id * 1_000,
+        });
+
+        upsertLiveInventoryStatement.run(
+          getLiveInventoryStorageId({
+            ownerUserId,
+            liveSlug: event.slug,
+            productId: lot.id,
+          }),
+          ownerUserId,
+          normalizedProduct.title,
+          normalizedProduct.categoryId,
+          normalizedProduct.status,
+          normalizedProduct.reserveForLive ? 1 : 0,
+          normalizedProduct.liveSlug ?? null,
+          JSON.stringify(normalizedProduct),
+          normalizedProduct.createdAt,
+          Date.now(),
+        );
+      }
+    }
+
+    for (const item of liveShoppingInventorySeed) {
+      const normalizedItem = normalizeLiveInventoryProduct(item);
+      upsertLiveInventoryStatement.run(
+        getLiveInventoryStorageId({
+          ownerUserId: defaultOwnerUserId,
+          liveSlug: normalizedItem.liveSlug,
+          productId: normalizedItem.id,
+        }),
+        defaultOwnerUserId,
+        normalizedItem.title,
+        normalizedItem.categoryId,
+        normalizedItem.status,
+        normalizedItem.reserveForLive ? 1 : 0,
+        normalizedItem.liveSlug ?? null,
+        JSON.stringify(normalizedItem),
+        normalizedItem.createdAt,
+        Date.now(),
+      );
+    }
+
+    for (const item of liveShoppingScheduleSeed) {
+      const normalizedItem = normalizeLiveShoppingScheduledLive(item);
+      const ownerUserId =
+        normalizedItem.liveSessionSlug && getLiveSessionRowBySlug(normalizedItem.liveSessionSlug)
+          ? getLiveSessionRowBySlug(normalizedItem.liveSessionSlug)?.owner_user_id ?? defaultOwnerUserId
+          : defaultOwnerUserId;
+
+      upsertLiveScheduleStatement.run(
+        normalizedItem.id,
+        ownerUserId,
+        normalizedItem.liveState,
+        normalizedItem.liveSessionSlug ?? null,
+        JSON.stringify(normalizedItem),
+        normalizedItem.createdAt,
+        Date.now(),
+      );
+    }
+
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
 export function getGigRowById(gigId: number) {
   const db = ensureDatabase();
   const row = db
@@ -1998,6 +2450,7 @@ export function listGigRows({
 
 export function createGigRow({
   sellerUserId,
+  slugOverride,
   title,
   subtitle,
   category,
@@ -2014,6 +2467,7 @@ export function createGigRow({
   tagsJson,
 }: {
   sellerUserId: string;
+  slugOverride?: string;
   title: string;
   subtitle: string;
   category: string;
@@ -2061,7 +2515,7 @@ export function createGigRow({
       `)
       .run(
         sellerUserId,
-        `draft-${Date.now()}`,
+        slugOverride ?? `draft-${Date.now()}`,
         title,
         subtitle,
         category,
@@ -2082,7 +2536,7 @@ export function createGigRow({
       ) as { lastInsertRowid?: number | bigint };
 
     const gigId = Number(result.lastInsertRowid ?? 0);
-    const slug = getMarketplaceGigSlug({ id: gigId, title });
+    const slug = slugOverride ?? getMarketplaceGigSlug({ id: gigId, title });
 
     db.prepare(`
       UPDATE gigs
@@ -2107,9 +2561,11 @@ export function getOrderRowById(orderId: number) {
         gig_id,
         buyer_user_id,
         seller_user_id,
+        source,
         package_id,
         title,
         budget,
+        quantity,
         due_date,
         stage_index,
         last_update,
@@ -2117,6 +2573,8 @@ export function getOrderRowById(orderId: number) {
         timelike_trust,
         brief,
         notes_json,
+        live_session_event_id,
+        live_item_id,
         created_at,
         updated_at
       FROM orders
@@ -2126,7 +2584,58 @@ export function getOrderRowById(orderId: number) {
   return asStoredOrderRow(row);
 }
 
-export function listOrderRowsForUser(userId: string) {
+export function listOrderRowsForUser(
+  userId: string,
+  options?: {
+    source?: StoredOrderSource;
+  },
+) {
+  const db = ensureDatabase();
+  const queryBase = `
+      SELECT
+        id,
+        gig_id,
+        buyer_user_id,
+        seller_user_id,
+        source,
+        package_id,
+        title,
+        budget,
+        quantity,
+        due_date,
+        stage_index,
+        last_update,
+        payment_released,
+        timelike_trust,
+        brief,
+        notes_json,
+        live_session_event_id,
+        live_item_id,
+        created_at,
+        updated_at
+      FROM orders
+      WHERE (buyer_user_id = ? OR seller_user_id = ?)
+    `;
+  const rows =
+    options?.source
+      ? db
+          .prepare(
+            `${queryBase}
+             AND source = ?
+             ORDER BY updated_at DESC, id DESC`,
+          )
+          .all(userId, userId, options.source)
+      : db
+          .prepare(
+            `${queryBase}
+             ORDER BY updated_at DESC, id DESC`,
+          )
+          .all(userId, userId);
+
+  return rows.map((row) => asStoredOrderRow(row)).filter((row): row is StoredOrderRow => row !== null);
+}
+
+export function listOrderRowsForLiveSessionEvent(eventId: number) {
   const db = ensureDatabase();
   const rows = db
     .prepare(`
@@ -2135,9 +2644,11 @@ export function listOrderRowsForUser(userId: string) {
         gig_id,
         buyer_user_id,
         seller_user_id,
+        source,
         package_id,
         title,
         budget,
+        quantity,
         due_date,
         stage_index,
         last_update,
@@ -2145,13 +2656,15 @@ export function listOrderRowsForUser(userId: string) {
         timelike_trust,
         brief,
         notes_json,
+        live_session_event_id,
+        live_item_id,
         created_at,
         updated_at
       FROM orders
-      WHERE buyer_user_id = ? OR seller_user_id = ?
+      WHERE source = 'live-shopping' AND live_session_event_id = ?
       ORDER BY updated_at DESC, id DESC
     `)
-    .all(userId, userId);
+    .all(eventId);
 
   return rows.map((row) => asStoredOrderRow(row)).filter((row): row is StoredOrderRow => row !== null);
 }
@@ -2160,9 +2673,11 @@ export function createOrderRow({
   gigId,
   buyerUserId,
   sellerUserId,
+  source,
   packageId,
   title,
   budget,
+  quantity,
   dueDate,
   stageIndex,
   lastUpdate,
@@ -2170,13 +2685,17 @@ export function createOrderRow({
   timelikeTrust,
   brief,
   notesJson,
+  liveSessionEventId,
+  liveItemId,
 }: {
   gigId: number;
   buyerUserId: string;
   sellerUserId: string;
+  source?: StoredOrderSource;
   packageId: string;
   title: string;
   budget: number;
+  quantity?: number;
   dueDate: string;
   stageIndex: number;
   lastUpdate: string;
@@ -2184,6 +2703,8 @@ export function createOrderRow({
   timelikeTrust: number;
   brief: string;
   notesJson: string;
+  liveSessionEventId?: number | null;
+  liveItemId?: string | null;
 }) {
   const db = ensureDatabase();
   const now = Date.now();
@@ -2193,9 +2714,11 @@ export function createOrderRow({
         gig_id,
         buyer_user_id,
         seller_user_id,
+        source,
         package_id,
         title,
         budget,
+        quantity,
         due_date,
         stage_index,
         last_update,
@@ -2203,18 +2726,22 @@ export function createOrderRow({
         timelike_trust,
         brief,
         notes_json,
+        live_session_event_id,
+        live_item_id,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .run(
       gigId,
       buyerUserId,
       sellerUserId,
+      source ?? "marketplace",
       packageId,
       title,
       budget,
+      Math.max(1, Math.trunc(quantity ?? 1)),
       dueDate,
       stageIndex,
       lastUpdate,
@@ -2222,6 +2749,8 @@ export function createOrderRow({
       timelikeTrust,
       brief,
       notesJson,
+      liveSessionEventId ?? null,
+      liveItemId ?? null,
       now,
       now,
     ) as { lastInsertRowid?: number | bigint };
@@ -2275,6 +2804,380 @@ export function updateOrderRowPaymentReleased({
     WHERE id = ?
   `).run(paymentReleased ? 1 : 0, lastUpdate ?? null, now, orderId);
   return getOrderRowById(orderId);
+}
+
+export function getLiveSessionRowByEventId(eventId: number) {
+  const db = ensureDatabase();
+  const row = db
+    .prepare(`
+      SELECT
+        event_id,
+        owner_user_id,
+        slug,
+        title,
+        category_id,
+        live_state,
+        payload_json,
+        created_at,
+        updated_at
+      FROM live_sessions
+      WHERE event_id = ?
+    `)
+    .get(eventId);
+  return asStoredLiveSessionRow(row);
+}
+
+export function getLiveSessionRowBySlug(slug: string) {
+  const db = ensureDatabase();
+  const row = db
+    .prepare(`
+      SELECT
+        event_id,
+        owner_user_id,
+        slug,
+        title,
+        category_id,
+        live_state,
+        payload_json,
+        created_at,
+        updated_at
+      FROM live_sessions
+      WHERE slug = ?
+    `)
+    .get(slug);
+  return asStoredLiveSessionRow(row);
+}
+
+export function listLiveSessionRows({
+  ownerUserId,
+  liveState,
+  limit,
+}: {
+  ownerUserId?: string;
+  liveState?: string;
+  limit?: number;
+}) {
+  const db = ensureDatabase();
+  const normalizedLimit = limit ? Math.max(1, Math.min(200, Math.trunc(limit))) : null;
+
+  let query = `
+    SELECT
+      event_id,
+      owner_user_id,
+      slug,
+      title,
+      category_id,
+      live_state,
+      payload_json,
+      created_at,
+      updated_at
+    FROM live_sessions
+    WHERE 1 = 1
+  `;
+  const params: Array<string | number> = [];
+
+  if (ownerUserId) {
+    query += " AND owner_user_id = ?";
+    params.push(ownerUserId);
+  }
+
+  if (liveState) {
+    query += " AND live_state = ?";
+    params.push(liveState);
+  }
+
+  query += " ORDER BY updated_at DESC, event_id DESC";
+
+  if (normalizedLimit) {
+    query += " LIMIT ?";
+    params.push(normalizedLimit);
+  }
+
+  const rows = db.prepare(query).all(...params);
+  return rows.map((row) => asStoredLiveSessionRow(row)).filter((row): row is StoredLiveSessionRow => row !== null);
+}
+
+export function upsertLiveSessionRow({
+  eventId,
+  ownerUserId,
+  slug,
+  title,
+  categoryId,
+  liveState,
+  payloadJson,
+}: {
+  eventId: number;
+  ownerUserId: string;
+  slug: string;
+  title: string;
+  categoryId: string;
+  liveState: string;
+  payloadJson: string;
+}) {
+  const db = ensureDatabase();
+  const now = Date.now();
+
+  db.prepare(`
+    INSERT INTO live_sessions (
+      event_id,
+      owner_user_id,
+      slug,
+      title,
+      category_id,
+      live_state,
+      payload_json,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(event_id)
+    DO UPDATE SET
+      owner_user_id = excluded.owner_user_id,
+      slug = excluded.slug,
+      title = excluded.title,
+      category_id = excluded.category_id,
+      live_state = excluded.live_state,
+      payload_json = excluded.payload_json,
+      updated_at = excluded.updated_at
+  `).run(eventId, ownerUserId, slug, title, categoryId, liveState, payloadJson, now, now);
+
+  return getLiveSessionRowByEventId(eventId);
+}
+
+export function listLiveInventoryRows({
+  ownerUserId,
+  liveSlug,
+  limit,
+}: {
+  ownerUserId?: string;
+  liveSlug?: string;
+  limit?: number;
+}) {
+  const db = ensureDatabase();
+  const normalizedLimit = limit ? Math.max(1, Math.min(500, Math.trunc(limit))) : null;
+  let query = `
+    SELECT
+      id,
+      owner_user_id,
+      title,
+      category_id,
+      status,
+      reserve_for_live,
+      live_slug,
+      payload_json,
+      created_at,
+      updated_at
+    FROM live_inventory_products
+    WHERE 1 = 1
+  `;
+  const params: Array<string | number> = [];
+
+  if (ownerUserId) {
+    query += " AND owner_user_id = ?";
+    params.push(ownerUserId);
+  }
+
+  if (liveSlug) {
+    query += " AND live_slug = ?";
+    params.push(liveSlug);
+  }
+
+  query += " ORDER BY updated_at DESC, created_at DESC";
+
+  if (normalizedLimit) {
+    query += " LIMIT ?";
+    params.push(normalizedLimit);
+  }
+
+  const rows = db.prepare(query).all(...params);
+  return rows.map((row) => asStoredLiveInventoryRow(row)).filter((row): row is StoredLiveInventoryRow => row !== null);
+}
+
+export function getLiveInventoryRowById(id: string) {
+  const db = ensureDatabase();
+  const row = db
+    .prepare(`
+      SELECT
+        id,
+        owner_user_id,
+        title,
+        category_id,
+        status,
+        reserve_for_live,
+        live_slug,
+        payload_json,
+        created_at,
+        updated_at
+      FROM live_inventory_products
+      WHERE id = ?
+    `)
+    .get(id);
+  return asStoredLiveInventoryRow(row);
+}
+
+export function replaceLiveInventoryRowsForOwner({
+  ownerUserId,
+  inventory,
+}: {
+  ownerUserId: string;
+  inventory: Array<{
+    id: string;
+    title: string;
+    categoryId: string;
+    status: string;
+    reserveForLive: boolean;
+    liveSlug: string | null;
+    payloadJson: string;
+    createdAt?: number;
+  }>;
+}) {
+  const db = ensureDatabase();
+  const now = Date.now();
+
+  db.exec("BEGIN IMMEDIATE");
+
+  try {
+    db.prepare("DELETE FROM live_inventory_products WHERE owner_user_id = ?").run(ownerUserId);
+
+    const insertStatement = db.prepare(`
+      INSERT INTO live_inventory_products (
+        id,
+        owner_user_id,
+        title,
+        category_id,
+        status,
+        reserve_for_live,
+        live_slug,
+        payload_json,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const item of inventory) {
+      insertStatement.run(
+        item.id,
+        ownerUserId,
+        item.title,
+        item.categoryId,
+        item.status,
+        item.reserveForLive ? 1 : 0,
+        item.liveSlug ?? null,
+        item.payloadJson,
+        item.createdAt ?? now,
+        now,
+      );
+    }
+
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+
+  return listLiveInventoryRows({ ownerUserId });
+}
+
+export function listLiveScheduleRows({
+  ownerUserId,
+  liveSlug,
+  limit,
+}: {
+  ownerUserId?: string;
+  liveSlug?: string;
+  limit?: number;
+}) {
+  const db = ensureDatabase();
+  const normalizedLimit = limit ? Math.max(1, Math.min(500, Math.trunc(limit))) : null;
+  let query = `
+    SELECT
+      id,
+      owner_user_id,
+      live_state,
+      live_slug,
+      payload_json,
+      created_at,
+      updated_at
+    FROM live_schedule_entries
+    WHERE 1 = 1
+  `;
+  const params: Array<string | number> = [];
+
+  if (ownerUserId) {
+    query += " AND owner_user_id = ?";
+    params.push(ownerUserId);
+  }
+
+  if (liveSlug) {
+    query += " AND live_slug = ?";
+    params.push(liveSlug);
+  }
+
+  query += " ORDER BY updated_at DESC, created_at DESC";
+
+  if (normalizedLimit) {
+    query += " LIMIT ?";
+    params.push(normalizedLimit);
+  }
+
+  const rows = db.prepare(query).all(...params);
+  return rows.map((row) => asStoredLiveScheduleRow(row)).filter((row): row is StoredLiveScheduleRow => row !== null);
+}
+
+export function replaceLiveScheduleRowsForOwner({
+  ownerUserId,
+  schedule,
+}: {
+  ownerUserId: string;
+  schedule: Array<{
+    id: string;
+    liveState: string;
+    liveSlug: string | null;
+    payloadJson: string;
+    createdAt?: number;
+  }>;
+}) {
+  const db = ensureDatabase();
+  const now = Date.now();
+
+  db.exec("BEGIN IMMEDIATE");
+
+  try {
+    db.prepare("DELETE FROM live_schedule_entries WHERE owner_user_id = ?").run(ownerUserId);
+
+    const insertStatement = db.prepare(`
+      INSERT INTO live_schedule_entries (
+        id,
+        owner_user_id,
+        live_state,
+        live_slug,
+        payload_json,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const item of schedule) {
+      insertStatement.run(
+        item.id,
+        ownerUserId,
+        item.liveState,
+        item.liveSlug ?? null,
+        item.payloadJson,
+        item.createdAt ?? now,
+        now,
+      );
+    }
+
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+
+  return listLiveScheduleRows({ ownerUserId });
 }
 
 export function getConversationRowById(conversationId: number) {

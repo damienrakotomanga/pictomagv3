@@ -2,27 +2,36 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { applyBidToRoomState } from "@/lib/live-shopping-room-state";
 import { consumeLiveShoppingRateLimit } from "@/lib/server/live-shopping-rate-limit";
-import { isRoleAllowed, resolveAuthRole } from "@/lib/server/auth-user";
+import {
+  createLiveShoppingOrderRecord,
+  getLiveShoppingOwnerUserId,
+  getPersistedLiveSessionEventById,
+  listPersistedLiveInventoryForRoom,
+  listPersistedLiveOrdersForUser,
+  upsertPersistedLiveRoomInventory,
+} from "@/lib/server/live-shopping-records";
 import { publishLiveShoppingEvent } from "@/lib/server/live-shopping-realtime";
 import {
   readLiveShoppingRoomStateServer,
   writeLiveShoppingRoomStateServer,
 } from "@/lib/server/live-shopping-room-state-store";
-import { attachPreferenceUserCookie, resolvePreferenceUser } from "@/lib/server/preference-user";
+import {
+  isRoleAllowed,
+  resolveAuthenticatedAppUser,
+} from "@/lib/server/auth-user";
+import {
+  attachPreferenceUserCookie,
+  bindPreferenceUserToUserId,
+  resolveExistingPreferenceUser,
+} from "@/lib/server/preference-user";
 import {
   getActionIdempotencyRecord,
   insertActionIdempotencyRecord,
   insertAuditLog,
 } from "@/lib/server/sqlite-store";
-import {
-  readLiveShoppingInventoryServer,
-  readLiveShoppingOrdersServer,
-  seedUserRuntimeStateIfMissing,
-  writeLiveShoppingInventoryServer,
-  writeLiveShoppingOrdersServer,
-} from "@/lib/server/user-runtime-state-store";
 
 export const runtime = "nodejs";
+
 const IDEMPOTENCY_HEADER_NAME = "x-idempotency-key";
 
 type LiveActionKind = "place_bid" | "checkout";
@@ -180,7 +189,7 @@ function jsonWithPreferenceCookie(
     status?: number;
     idempotencyReplay?: boolean;
     headers?: Record<string, string>;
-    resolvedUser: ReturnType<typeof resolvePreferenceUser>;
+    resolvedUser: ReturnType<typeof resolveExistingPreferenceUser> | ReturnType<typeof bindPreferenceUserToUserId>;
   },
 ) {
   const responseHeaders: Record<string, string> = {
@@ -196,8 +205,25 @@ function jsonWithPreferenceCookie(
 }
 
 export async function POST(request: NextRequest) {
-  const resolvedUser = resolvePreferenceUser(request);
-  const role = resolveAuthRole(request);
+  const compatibilityUser = resolveExistingPreferenceUser(request, {
+    allowQueryUserId: false,
+  });
+  const authenticatedUser = resolveAuthenticatedAppUser(request);
+
+  if (!authenticatedUser) {
+    return jsonWithPreferenceCookie(
+      {
+        message: "Authentification requise pour interagir avec le live.",
+      },
+      {
+        status: 401,
+        resolvedUser: compatibilityUser,
+      },
+    );
+  }
+
+  const resolvedUser = bindPreferenceUserToUserId(request, authenticatedUser.user.id, "auth-token");
+  const role = authenticatedUser.role;
 
   if (!isRoleAllowed(role, ["buyer", "seller", "moderator", "admin"])) {
     return jsonWithPreferenceCookie(
@@ -242,7 +268,7 @@ export async function POST(request: NextRequest) {
 
   if (idempotencyKey) {
     const existingRecord = getActionIdempotencyRecord({
-      userId: resolvedUser.userId,
+      userId: authenticatedUser.user.id,
       key: idempotencyKey,
       action: payload.action,
     });
@@ -260,8 +286,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const storedBody = parseStoredBody(existingRecord.response_body);
-      return jsonWithPreferenceCookie(storedBody, {
+      return jsonWithPreferenceCookie(parseStoredBody(existingRecord.response_body), {
         status: existingRecord.status_code,
         idempotencyReplay: true,
         resolvedUser,
@@ -269,117 +294,95 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  if (payload.action === "place_bid") {
-    const bidBurst = consumeLiveShoppingRateLimit({
-      scope: "live-bid-burst",
-      userId: resolvedUser.userId,
-      eventId: payload.eventId,
-      limit: 12,
-      windowMs: 10_000,
-    });
-    if (!bidBurst.ok) {
-      return jsonWithPreferenceCookie(
-        {
-          message: "Trop d encheres en peu de temps. Reessaie dans un instant.",
-          retryAfterMs: bidBurst.retryAfterMs,
-        },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(Math.max(1, Math.ceil(bidBurst.retryAfterMs / 1000))),
-          },
-          resolvedUser,
-        },
-      );
-    }
+  const burstLimit = consumeLiveShoppingRateLimit({
+    scope: `live-action-${payload.action}-burst`,
+    userId: authenticatedUser.user.id,
+    eventId: payload.eventId,
+    limit: payload.action === "place_bid" ? 6 : 4,
+    windowMs: 10_000,
+  });
 
-    const bidMinute = consumeLiveShoppingRateLimit({
-      scope: "live-bid-minute",
-      userId: resolvedUser.userId,
-      eventId: payload.eventId,
-      limit: 80,
-      windowMs: 60_000,
-    });
-    if (!bidMinute.ok) {
-      return jsonWithPreferenceCookie(
-        {
-          message: "Limite d encheres atteinte pour cette minute.",
-          retryAfterMs: bidMinute.retryAfterMs,
+  if (!burstLimit.ok) {
+    return jsonWithPreferenceCookie(
+      {
+        message: "Trop d actions live en peu de temps. Reessaie dans un instant.",
+        retryAfterMs: burstLimit.retryAfterMs,
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(Math.max(1, Math.ceil(burstLimit.retryAfterMs / 1000))),
         },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(Math.max(1, Math.ceil(bidMinute.retryAfterMs / 1000))),
-          },
-          resolvedUser,
-        },
-      );
-    }
-  }
-
-  if (payload.action === "checkout") {
-    const checkoutLimit = consumeLiveShoppingRateLimit({
-      scope: "live-checkout-minute",
-      userId: resolvedUser.userId,
-      eventId: payload.eventId,
-      limit: 8,
-      windowMs: 60_000,
-    });
-    if (!checkoutLimit.ok) {
-      return jsonWithPreferenceCookie(
-        {
-          message: "Trop de tentatives de paiement. Reessaie dans quelques secondes.",
-          retryAfterMs: checkoutLimit.retryAfterMs,
-        },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(Math.max(1, Math.ceil(checkoutLimit.retryAfterMs / 1000))),
-          },
-          resolvedUser,
-        },
-      );
-    }
-  }
-
-  await seedUserRuntimeStateIfMissing(resolvedUser.userId);
-
-  const [orders, inventory] = await Promise.all([
-    readLiveShoppingOrdersServer(resolvedUser.userId),
-    readLiveShoppingInventoryServer(resolvedUser.userId),
-  ]);
-  const roomState = await readLiveShoppingRoomStateServer(payload.eventId);
-
-  const inventoryIndex = inventory.findIndex((product) => product.id === payload.lot.id);
-  const inventoryProduct = inventoryIndex >= 0 ? inventory[inventoryIndex] : null;
-
-  if (payload.action === "place_bid") {
-    if (payload.lot.mode !== "auction") {
-      return jsonWithPreferenceCookie(
-        { message: "Ce lot n est pas en mode enchere." },
-        {
-          status: 409,
-          resolvedUser,
-        },
-      );
-    }
-
-    const runtimeLotState = roomState.lotStates[payload.lot.id];
-    const currentBid = Math.max(
-      payload.lot.price,
-      inventoryProduct?.currentBid ?? 0,
-      runtimeLotState?.currentBid ?? 0,
-      payload.lot.currentBid ?? 0,
+        resolvedUser,
+      },
     );
-    const bidIncrement = inventoryProduct?.bidIncrement ?? payload.lot.bidIncrement ?? 1;
-    const minimumBid = currentBid + bidIncrement;
-    const offeredAmount = payload.amount ?? 0;
+  }
 
-    if (offeredAmount < minimumBid) {
+  const minuteLimit = consumeLiveShoppingRateLimit({
+    scope: `live-action-${payload.action}-minute`,
+    userId: authenticatedUser.user.id,
+    eventId: payload.eventId,
+    limit: payload.action === "place_bid" ? 30 : 20,
+    windowMs: 60_000,
+  });
+
+  if (!minuteLimit.ok) {
+    return jsonWithPreferenceCookie(
+      {
+        message: "Limite d actions live atteinte pour cette minute.",
+        retryAfterMs: minuteLimit.retryAfterMs,
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(Math.max(1, Math.ceil(minuteLimit.retryAfterMs / 1000))),
+        },
+        resolvedUser,
+      },
+    );
+  }
+
+  const event = getPersistedLiveSessionEventById(payload.eventId);
+  if (!event) {
+    return jsonWithPreferenceCookie(
+      {
+        message: "Session live introuvable.",
+      },
+      {
+        status: 404,
+        resolvedUser,
+      },
+    );
+  }
+
+  const ownerUserId = getLiveShoppingOwnerUserId(event);
+  const inventory = listPersistedLiveInventoryForRoom({
+    liveSlug: event.slug,
+    event,
+  });
+  const inventoryProduct = inventory.find((product) => product.id === payload.lot.id) ?? null;
+  const roomState = await readLiveShoppingRoomStateServer(event.id);
+  const orders = listPersistedLiveOrdersForUser(authenticatedUser.user.id, {
+    eventId: event.id,
+  });
+
+  if (!inventoryProduct) {
+    return jsonWithPreferenceCookie(
+      {
+        message: "Lot live introuvable.",
+      },
+      {
+        status: 404,
+        resolvedUser,
+      },
+    );
+  }
+
+  if (payload.action === "place_bid") {
+    if (inventoryProduct.mode !== "auction") {
       return jsonWithPreferenceCookie(
         {
-          message: `Offre minimale: ${minimumBid} EUR.`,
-          minimumBid,
+          message: "Ce lot ne prend pas d encheres.",
         },
         {
           status: 409,
@@ -388,25 +391,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let nextInventory = inventory;
-    if (inventoryProduct) {
-      nextInventory = inventory.map((product) =>
+    const increment = Math.max(1, inventoryProduct.bidIncrement ?? payload.lot.bidIncrement ?? 1);
+    const currentBid = Math.max(
+      inventoryProduct.price,
+      roomState.lotStates[payload.lot.id]?.currentBid ??
+        inventoryProduct.currentBid ??
+        payload.lot.currentBid ??
+        inventoryProduct.price,
+    );
+    const minimumBid = currentBid + increment;
+    const offeredAmount = Math.max(minimumBid, payload.amount ?? minimumBid);
+
+    const nextInventory = upsertPersistedLiveRoomInventory({
+      ownerUserId,
+      liveSlug: event.slug,
+      inventory: inventory.map((product) =>
         product.id !== payload.lot.id
           ? product
           : {
               ...product,
               currentBid: offeredAmount,
             },
-      );
-      await writeLiveShoppingInventoryServer(nextInventory, resolvedUser.userId);
-    }
+      ),
+    });
+
     const nextRoomState = await writeLiveShoppingRoomStateServer(
       payload.eventId,
       applyBidToRoomState({
         state: roomState,
         lotId: payload.lot.id,
         amount: offeredAmount,
-        bidder: resolvedUser.userId,
+        bidder: authenticatedUser.profile.username,
       }),
     );
 
@@ -418,13 +433,13 @@ export async function POST(request: NextRequest) {
       inventory: nextInventory,
       orders,
       roomState: nextRoomState,
-      userId: resolvedUser.userId,
+      userId: authenticatedUser.user.id,
       role,
     } satisfies Record<string, unknown>;
 
     if (idempotencyKey) {
       insertActionIdempotencyRecord({
-        userId: resolvedUser.userId,
+        userId: authenticatedUser.user.id,
         key: idempotencyKey,
         action: payload.action,
         requestFingerprint: payloadFingerprint,
@@ -434,7 +449,7 @@ export async function POST(request: NextRequest) {
     }
 
     insertAuditLog({
-      userId: resolvedUser.userId,
+      userId: authenticatedUser.user.id,
       role,
       actionType: "place_bid",
       resourceType: "live_lot",
@@ -448,9 +463,9 @@ export async function POST(request: NextRequest) {
 
     publishLiveShoppingEvent({
       type: "live.sync",
-      userId: resolvedUser.userId,
+      userId: authenticatedUser.user.id,
       eventId: payload.eventId,
-      actorUserId: resolvedUser.userId,
+      actorUserId: authenticatedUser.user.id,
       payload: {
         action: "place_bid",
         acceptedBid: offeredAmount,
@@ -465,12 +480,13 @@ export async function POST(request: NextRequest) {
       type: "live.sync",
       userId: "__global__",
       eventId: payload.eventId,
-      actorUserId: resolvedUser.userId,
+      actorUserId: authenticatedUser.user.id,
       payload: {
         action: "place_bid",
         acceptedBid: offeredAmount,
         minimumBid,
         lotId: payload.lot.id,
+        inventory: nextInventory,
         roomState: nextRoomState,
       },
     });
@@ -481,17 +497,30 @@ export async function POST(request: NextRequest) {
   }
 
   const quantity = payload.quantity ?? 1;
+  if (inventoryProduct.quantity < quantity) {
+    return jsonWithPreferenceCookie(
+      {
+        message: "Stock insuffisant pour finaliser la commande.",
+        remainingStock: inventoryProduct.quantity,
+      },
+      {
+        status: 409,
+        resolvedUser,
+      },
+    );
+  }
+
   const checkoutAmount =
-    payload.lot.mode === "auction"
+    inventoryProduct.mode === "auction"
       ? Math.max(
-          0,
+          inventoryProduct.price,
           payload.amount ??
             roomState.lotStates[payload.lot.id]?.currentBid ??
-            inventoryProduct?.currentBid ??
+            inventoryProduct.currentBid ??
             payload.lot.currentBid ??
-            payload.lot.price,
+            inventoryProduct.price,
         )
-      : Math.max(0, inventoryProduct?.price ?? payload.lot.price);
+      : Math.max(0, inventoryProduct.price);
 
   if (checkoutAmount <= 0) {
     return jsonWithPreferenceCookie(
@@ -503,25 +532,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let nextInventory = inventory;
-  let remainingStock = Math.max(0, (payload.lot.stock ?? quantity) - quantity);
-
-  if (inventoryProduct) {
-    if (inventoryProduct.quantity < quantity) {
-      return jsonWithPreferenceCookie(
-        {
-          message: "Stock insuffisant pour finaliser la commande.",
-          remainingStock: inventoryProduct.quantity,
-        },
-        {
-          status: 409,
-          resolvedUser,
-        },
-      );
-    }
-
-    remainingStock = inventoryProduct.quantity - quantity;
-    nextInventory = inventory.map((product) => {
+  const remainingStock = inventoryProduct.quantity - quantity;
+  const nextInventory = upsertPersistedLiveRoomInventory({
+    ownerUserId,
+    liveSlug: event.slug,
+    inventory: inventory.map((product) => {
       if (product.id !== payload.lot.id) {
         return product;
       }
@@ -531,66 +546,76 @@ export async function POST(request: NextRequest) {
         quantity: remainingStock,
         status: remainingStock <= 0 ? "inactive" : product.status,
         currentBid:
-          payload.lot.mode === "auction"
+          inventoryProduct.mode === "auction"
             ? Math.max(product.currentBid ?? product.price, checkoutAmount)
             : product.currentBid,
       };
-    });
-  }
+    }),
+  });
 
-  const fees = Math.max(4, Math.round(checkoutAmount * 0.08));
-  const totalAmount = checkoutAmount * quantity + fees;
-  const orderId = Date.now() + Math.trunc(Math.random() * 1000);
-
-  const nextOrders = [
-    {
-      id: orderId,
-      eventId: payload.eventId,
-      title: payload.lot.title,
-      buyer: "Vous",
-      seller: payload.eventSeller,
-      amount: totalAmount,
-      quantity,
-      stageIndex: 0,
-      etaLabel: payload.lot.delivery ?? "48h",
-      lastUpdate: "Paiement simule valide, preparation du lot en cours.",
-      note: payload.note?.trim() || `Paiement ${payload.paymentMethod ?? "carte"} valide.`,
-    },
-    ...orders,
-  ];
-
-  await Promise.all([
-    writeLiveShoppingOrdersServer(nextOrders, resolvedUser.userId),
-    writeLiveShoppingInventoryServer(nextInventory, resolvedUser.userId),
-  ]);
   let nextRoomState = roomState;
-  if (payload.lot.mode === "auction") {
+  if (inventoryProduct.mode === "auction") {
     nextRoomState = await writeLiveShoppingRoomStateServer(
       payload.eventId,
       applyBidToRoomState({
         state: roomState,
         lotId: payload.lot.id,
         amount: checkoutAmount,
-        bidder: resolvedUser.userId,
+        bidder: authenticatedUser.profile.username,
       }),
     );
   }
 
+  const fees = Math.max(4, Math.round(checkoutAmount * 0.08));
+  const totalAmount = checkoutAmount * quantity + fees;
+  const orderResult = createLiveShoppingOrderRecord({
+    buyerUserId: authenticatedUser.user.id,
+    event,
+    lot: {
+      ...inventoryProduct,
+      quantity: remainingStock,
+      currentBid:
+        inventoryProduct.mode === "auction"
+          ? Math.max(inventoryProduct.currentBid ?? inventoryProduct.price, checkoutAmount)
+          : inventoryProduct.currentBid,
+    },
+    quantity,
+    note: payload.note,
+    paymentMethod: payload.paymentMethod,
+    amount: totalAmount,
+  });
+
+  if ("error" in orderResult) {
+    return jsonWithPreferenceCookie(
+      {
+        message: orderResult.error,
+      },
+      {
+        status: 500,
+        resolvedUser,
+      },
+    );
+  }
+
+  const nextOrders = listPersistedLiveOrdersForUser(authenticatedUser.user.id, {
+    eventId: event.id,
+  });
+
   const responsePayload = {
     ok: true,
     action: payload.action,
-    order: nextOrders[0],
+    order: orderResult.order,
     orders: nextOrders,
     inventory: nextInventory,
     remainingStock,
     roomState: nextRoomState,
-    userId: resolvedUser.userId,
+    userId: authenticatedUser.user.id,
     role,
   } satisfies Record<string, unknown>;
 
   if (idempotencyKey) {
     insertActionIdempotencyRecord({
-      userId: resolvedUser.userId,
+      userId: authenticatedUser.user.id,
       key: idempotencyKey,
       action: payload.action,
       requestFingerprint: payloadFingerprint,
@@ -600,14 +625,14 @@ export async function POST(request: NextRequest) {
   }
 
   insertAuditLog({
-    userId: resolvedUser.userId,
+    userId: authenticatedUser.user.id,
     role,
     actionType: "checkout",
     resourceType: "live_lot",
     resourceId: payload.lot.id,
     metadata: JSON.stringify({
       eventId: payload.eventId,
-      orderId: orderId,
+      orderId: orderResult.order.id,
       quantity,
       amount: checkoutAmount,
       totalAmount,
@@ -617,30 +642,31 @@ export async function POST(request: NextRequest) {
 
   publishLiveShoppingEvent({
     type: "live.sync",
-    userId: resolvedUser.userId,
+    userId: authenticatedUser.user.id,
     eventId: payload.eventId,
-    actorUserId: resolvedUser.userId,
+    actorUserId: authenticatedUser.user.id,
     payload: {
-        action: "checkout",
-        order: nextOrders[0],
-        orders: nextOrders,
-        inventory: nextInventory,
-        remainingStock,
-        roomState: nextRoomState,
-      },
-    });
+      action: "checkout",
+      order: orderResult.order,
+      orders: nextOrders,
+      inventory: nextInventory,
+      remainingStock,
+      roomState: nextRoomState,
+    },
+  });
 
   publishLiveShoppingEvent({
-      type: "live.sync",
-      userId: "__global__",
-      eventId: payload.eventId,
-      actorUserId: resolvedUser.userId,
-      payload: {
-        action: "checkout",
-        lotId: payload.lot.id,
-        roomState: nextRoomState,
-      },
-    });
+    type: "live.sync",
+    userId: "__global__",
+    eventId: payload.eventId,
+    actorUserId: authenticatedUser.user.id,
+    payload: {
+      action: "checkout",
+      lotId: payload.lot.id,
+      inventory: nextInventory,
+      roomState: nextRoomState,
+    },
+  });
 
   return jsonWithPreferenceCookie(responsePayload, {
     resolvedUser,
