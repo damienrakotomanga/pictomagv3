@@ -1,20 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { attachPreferenceUserCookie, resolvePreferenceUser } from "@/lib/server/preference-user";
+import { resolveAuthenticatedAppUser } from "@/lib/server/auth-user";
 import {
-  readLiveShoppingOrdersServer,
-  seedUserRuntimeStateIfMissing,
-  writeLiveShoppingOrdersServer,
-} from "@/lib/server/user-runtime-state-store";
+  attachPreferenceUserCookie,
+  bindPreferenceUserToUserId,
+  resolveExistingPreferenceUser,
+} from "@/lib/server/preference-user";
+import { listPersistedLiveOrdersForUser } from "@/lib/server/live-shopping-records";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  const resolvedUser = resolvePreferenceUser(request);
-  await seedUserRuntimeStateIfMissing(resolvedUser.userId);
-  const orders = await readLiveShoppingOrdersServer(resolvedUser.userId);
+  const compatibilityUser = resolveExistingPreferenceUser(request, {
+    allowQueryUserId: false,
+  });
+  const authenticatedUser = resolveAuthenticatedAppUser(request);
+
+  if (!authenticatedUser) {
+    const denied = NextResponse.json({ message: "Authentification requise." }, { status: 401 });
+    attachPreferenceUserCookie(denied, compatibilityUser);
+    return denied;
+  }
+
+  const resolvedUser = bindPreferenceUserToUserId(request, authenticatedUser.user.id, "auth-token");
+  const orders = listPersistedLiveOrdersForUser(authenticatedUser.user.id);
   const response = NextResponse.json({
     orders,
-    userId: resolvedUser.userId,
+    userId: authenticatedUser.user.id,
   });
 
   attachPreferenceUserCookie(response, resolvedUser);
@@ -22,21 +33,15 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const resolvedUser = resolvePreferenceUser(request);
-  let payload: { orders?: unknown } | null = null;
-
-  try {
-    payload = (await request.json()) as { orders?: unknown };
-  } catch {
-    return NextResponse.json({ message: "JSON body invalide." }, { status: 400 });
-  }
-
-  const orders = await writeLiveShoppingOrdersServer(payload?.orders, resolvedUser.userId);
-  const response = NextResponse.json({
-    orders,
-    userId: resolvedUser.userId,
+  const compatibilityUser = resolveExistingPreferenceUser(request, {
+    allowQueryUserId: false,
   });
-
-  attachPreferenceUserCookie(response, resolvedUser);
+  const response = NextResponse.json(
+    {
+      message: "Les commandes live sont gerees par les actions live et ne peuvent pas etre ecrasees ici.",
+    },
+    { status: 405 },
+  );
+  attachPreferenceUserCookie(response, compatibilityUser);
   return response;
 }

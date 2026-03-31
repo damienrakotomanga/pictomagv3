@@ -18,7 +18,6 @@ import { type HeaderNavItemId } from "@/components/animated-header-nav";
 import { LiveHeader } from "@/components/live-shopping-page";
 import { liveShoppingCategories } from "@/lib/live-shopping-data";
 import {
-  liveShoppingScheduleSeed,
   normalizeLiveShoppingScheduledLive,
   type LiveShoppingScheduledLive,
 } from "@/lib/live-shopping-schedule";
@@ -170,7 +169,7 @@ export function LiveShoppingSchedulePage({
   const [explicitLanguage, setExplicitLanguage] = useState(false);
   const [mutedWords, setMutedWords] = useState("");
   const [discoveryMode, setDiscoveryMode] = useState<"public" | "followers" | "private">("public");
-  const [scheduledLives, setScheduledLives] = useState<LiveShoppingScheduledLive[]>(liveShoppingScheduleSeed);
+  const [scheduledLives, setScheduledLives] = useState<LiveShoppingScheduledLive[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(true);
   const [editingScheduledLiveId, setEditingScheduledLiveId] = useState<string | null>(initialEditId);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -240,7 +239,7 @@ export function LiveShoppingSchedulePage({
     let active = true;
 
     const syncSchedule = async () => {
-      const nextSchedule = await readLiveShoppingScheduleFromApi(liveShoppingScheduleSeed);
+      const nextSchedule = await readLiveShoppingScheduleFromApi([]);
       if (!active) {
         return;
       }

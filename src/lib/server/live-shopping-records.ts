@@ -53,6 +53,26 @@ function findStaticLiveEventBySlug(slug: string) {
   return liveShoppingEvents.find((entry) => entry.slug === slug) ?? null;
 }
 
+function getLiveInventorySlugAliases(liveSlug: string) {
+  const aliases = new Set<string>([liveSlug]);
+
+  if (liveSlug.startsWith("scheduled-live-")) {
+    const scheduledId = liveSlug.slice("scheduled-live-".length);
+    if (scheduledId) {
+      aliases.add(`schedule:${scheduledId}`);
+    }
+  }
+
+  if (liveSlug.startsWith("schedule:")) {
+    const scheduledId = liveSlug.slice("schedule:".length);
+    if (scheduledId) {
+      aliases.add(`scheduled-live-${scheduledId}`);
+    }
+  }
+
+  return [...aliases];
+}
+
 function normalizePersistedEventPayload(
   value: string | null | undefined,
   fallback: LiveShoppingEvent | null,
@@ -106,6 +126,13 @@ function normalizePersistedInventoryRow({
 }) {
   const parsed = parseJson<Partial<LiveInventoryProduct>>(row.payload_json);
   if (parsed && typeof parsed.id === "string") {
+    const status =
+      parsed.status === "active" || parsed.status === "draft" || parsed.status === "inactive"
+        ? parsed.status
+        : row.status === "active" || row.status === "draft" || row.status === "inactive"
+          ? row.status
+          : "active";
+
     return normalizeLiveInventoryProduct({
       ...parsed,
       id: parsed.id,
@@ -118,7 +145,7 @@ function normalizePersistedInventoryRow({
       description: typeof parsed.description === "string" ? parsed.description : "",
       quantity: typeof parsed.quantity === "number" ? parsed.quantity : 0,
       price: typeof parsed.price === "number" ? parsed.price : 0,
-      status: parsed.status === "active" || parsed.status === "draft" || parsed.status === "inactive" ? parsed.status : row.status,
+      status,
       mode: parsed.mode === "auction" ? "auction" : "fixed",
       currentBid: typeof parsed.currentBid === "number" ? parsed.currentBid : null,
       bidIncrement: typeof parsed.bidIncrement === "number" ? parsed.bidIncrement : null,
@@ -200,11 +227,6 @@ function normalizePersistedScheduleRow(row: StoredLiveScheduleRow) {
 function resolveDisplayName(userId: string, fallback: string) {
   const profile = getProfileByUserId(userId);
   return profile?.display_name ?? fallback;
-}
-
-function resolveUsername(userId: string, fallback: string) {
-  const profile = getProfileByUserId(userId);
-  return profile?.username ?? fallback;
 }
 
 function toLiveShoppingOrder({
@@ -311,9 +333,18 @@ export function listPersistedLiveInventoryForRoom({
   liveSlug: string;
   event?: LiveShoppingEvent | null;
 }) {
-  const persistedRows = listLiveInventoryRows({ liveSlug });
+  const persistedRows = getLiveInventorySlugAliases(liveSlug).flatMap((alias) =>
+    listLiveInventoryRows({ liveSlug: alias }),
+  );
   if (persistedRows.length > 0) {
-    return persistedRows.map((row) =>
+    const uniqueRows = new Map<string, StoredLiveInventoryRow>();
+    for (const row of persistedRows) {
+      if (!uniqueRows.has(row.id)) {
+        uniqueRows.set(row.id, row);
+      }
+    }
+
+    return [...uniqueRows.values()].map((row) =>
       normalizePersistedInventoryRow({
         row,
         fallbackEvent: event ?? null,

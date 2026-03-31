@@ -7,7 +7,6 @@ import { ChevronDown, Package2, Search, UploadCloud } from "lucide-react";
 import { type HeaderNavItemId } from "@/components/animated-header-nav";
 import { LiveHeader } from "@/components/live-shopping-page";
 import {
-  liveShoppingInventorySeed,
   type LiveInventoryProduct,
   type LiveInventoryStatus,
 } from "@/lib/live-shopping-inventory";
@@ -33,19 +32,19 @@ export function LiveShoppingInventoryPage() {
   const [search, setSearch] = useState("");
   const [bulkEdit, setBulkEdit] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [products, setProducts] = useState<LiveInventoryProduct[]>(liveShoppingInventorySeed);
+  const [products, setProducts] = useState<LiveInventoryProduct[]>([]);
 
   useEffect(() => {
     let active = true;
 
     const syncInventory = async () => {
-      const next = await readLiveShoppingInventoryFromApi(liveShoppingInventorySeed);
+      const next = await readLiveShoppingInventoryFromApi([]);
 
       if (!active) {
         return;
       }
 
-      setProducts(next.length > 0 ? next : liveShoppingInventorySeed);
+      setProducts(next);
     };
 
     void syncInventory();

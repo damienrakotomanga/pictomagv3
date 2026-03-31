@@ -14,12 +14,11 @@ import { LiveHeader } from "@/components/live-shopping-page";
 import { liveShoppingCategories, liveShoppingEvents } from "@/lib/live-shopping-data";
 import {
   createLiveShoppingInventoryProduct,
-  liveShoppingInventorySeed,
   type LiveInventoryMode,
   type LiveInventoryProduct,
   type LiveInventoryStatus,
 } from "@/lib/live-shopping-inventory";
-import { liveShoppingScheduleSeed, type LiveShoppingScheduledLive } from "@/lib/live-shopping-schedule";
+import { type LiveShoppingScheduledLive } from "@/lib/live-shopping-schedule";
 import {
   readLiveShoppingInventoryFromApi,
   readLiveShoppingScheduleFromApi,
@@ -79,8 +78,8 @@ export function LiveShoppingProductCreatePage({
 }) {
   const router = useRouter();
 
-  const [inventory, setInventory] = useState<LiveInventoryProduct[]>(liveShoppingInventorySeed);
-  const [scheduledLives, setScheduledLives] = useState<LiveShoppingScheduledLive[]>(liveShoppingScheduleSeed);
+  const [inventory, setInventory] = useState<LiveInventoryProduct[]>([]);
+  const [scheduledLives, setScheduledLives] = useState<LiveShoppingScheduledLive[]>([]);
   const existingProduct = useMemo(
     () => (productId ? inventory.find((product) => product.id === productId) ?? null : null),
     [inventory, productId],
@@ -109,15 +108,15 @@ export function LiveShoppingProductCreatePage({
 
     void (async () => {
       const [nextInventory, nextSchedule] = await Promise.all([
-        readLiveShoppingInventoryFromApi(liveShoppingInventorySeed),
-        readLiveShoppingScheduleFromApi(liveShoppingScheduleSeed),
+        readLiveShoppingInventoryFromApi([]),
+        readLiveShoppingScheduleFromApi([]),
       ]);
 
       if (!active) {
         return;
       }
 
-      const resolvedInventory = nextInventory.length > 0 ? nextInventory : liveShoppingInventorySeed;
+      const resolvedInventory = nextInventory;
       setInventory(resolvedInventory);
       setScheduledLives(nextSchedule);
 

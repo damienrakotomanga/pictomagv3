@@ -1,20 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
-import { attachPreferenceUserCookie, resolvePreferenceUser } from "@/lib/server/preference-user";
+import { resolveAuthenticatedAppUser } from "@/lib/server/auth-user";
 import {
-  readLiveShoppingInventoryServer,
-  seedUserRuntimeStateIfMissing,
-  writeLiveShoppingInventoryServer,
-} from "@/lib/server/user-runtime-state-store";
+  attachPreferenceUserCookie,
+  bindPreferenceUserToUserId,
+  resolveExistingPreferenceUser,
+} from "@/lib/server/preference-user";
+import {
+  listPersistedLiveInventoryForOwner,
+  replacePersistedLiveInventoryForOwner,
+} from "@/lib/server/live-shopping-records";
+import {
+  normalizeLiveInventoryProduct,
+  type LiveInventoryProduct,
+} from "@/lib/live-shopping-inventory";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  const resolvedUser = resolvePreferenceUser(request);
-  await seedUserRuntimeStateIfMissing(resolvedUser.userId);
-  const inventory = await readLiveShoppingInventoryServer(resolvedUser.userId);
+  const compatibilityUser = resolveExistingPreferenceUser(request, {
+    allowQueryUserId: false,
+  });
+  const authenticatedUser = resolveAuthenticatedAppUser(request);
+
+  if (!authenticatedUser) {
+    const denied = NextResponse.json({ message: "Authentification requise." }, { status: 401 });
+    attachPreferenceUserCookie(denied, compatibilityUser);
+    return denied;
+  }
+
+  const resolvedUser = bindPreferenceUserToUserId(request, authenticatedUser.user.id, "auth-token");
+  const inventory = listPersistedLiveInventoryForOwner(authenticatedUser.user.id);
   const response = NextResponse.json({
     inventory,
-    userId: resolvedUser.userId,
+    userId: authenticatedUser.user.id,
   });
 
   attachPreferenceUserCookie(response, resolvedUser);
@@ -22,7 +40,18 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const resolvedUser = resolvePreferenceUser(request);
+  const compatibilityUser = resolveExistingPreferenceUser(request, {
+    allowQueryUserId: false,
+  });
+  const authenticatedUser = resolveAuthenticatedAppUser(request);
+
+  if (!authenticatedUser) {
+    const denied = NextResponse.json({ message: "Authentification requise." }, { status: 401 });
+    attachPreferenceUserCookie(denied, compatibilityUser);
+    return denied;
+  }
+
+  const resolvedUser = bindPreferenceUserToUserId(request, authenticatedUser.user.id, "auth-token");
   let payload: { inventory?: unknown } | null = null;
 
   try {
@@ -31,10 +60,14 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ message: "JSON body invalide." }, { status: 400 });
   }
 
-  const inventory = await writeLiveShoppingInventoryServer(payload?.inventory, resolvedUser.userId);
+  const incomingInventory = Array.isArray(payload?.inventory) ? payload.inventory : [];
+  const inventory = replacePersistedLiveInventoryForOwner({
+    ownerUserId: authenticatedUser.user.id,
+    inventory: incomingInventory.map((entry) => normalizeLiveInventoryProduct(entry as LiveInventoryProduct)),
+  });
   const response = NextResponse.json({
     inventory,
-    userId: resolvedUser.userId,
+    userId: authenticatedUser.user.id,
   });
 
   attachPreferenceUserCookie(response, resolvedUser);

@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { attachPreferenceUserCookie, resolvePreferenceUser } from "@/lib/server/preference-user";
+import { resolveAuthenticatedAppUser } from "@/lib/server/auth-user";
+import {
+  attachPreferenceUserCookie,
+  bindPreferenceUserToUserId,
+  resolvePreferenceUser,
+} from "@/lib/server/preference-user";
 import {
   formatSseEvent,
   getLiveShoppingPresenceSnapshot,
@@ -7,12 +12,12 @@ import {
   subscribeLiveShoppingEvents,
   type LiveShoppingRealtimeEvent,
 } from "@/lib/server/live-shopping-realtime";
-import {
-  readLiveShoppingInventoryServer,
-  readLiveShoppingOrdersServer,
-  seedUserRuntimeStateIfMissing,
-} from "@/lib/server/user-runtime-state-store";
 import { readLiveShoppingRoomStateServer } from "@/lib/server/live-shopping-room-state-store";
+import {
+  getPersistedLiveSessionEventById,
+  listPersistedLiveInventoryForRoom,
+  listPersistedLiveOrdersForUser,
+} from "@/lib/server/live-shopping-records";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,13 +36,33 @@ function parseEventId(rawValue: string | null) {
 }
 
 export async function GET(request: NextRequest) {
-  const resolvedUser = resolvePreferenceUser(request);
+  const compatibilityUser = resolvePreferenceUser(request, {
+    allowQueryUserId: false,
+  });
+  const authenticatedUser = resolveAuthenticatedAppUser(request);
+  const resolvedUser = authenticatedUser
+    ? bindPreferenceUserToUserId(request, authenticatedUser.user.id, "auth-token")
+    : compatibilityUser;
   const eventId = parseEventId(request.nextUrl.searchParams.get("eventId"));
+  const event = eventId ? getPersistedLiveSessionEventById(eventId) : null;
+  const liveSlug = event?.slug ?? null;
 
-  await seedUserRuntimeStateIfMissing(resolvedUser.userId);
   const [orders, inventory, roomState] = await Promise.all([
-    readLiveShoppingOrdersServer(resolvedUser.userId),
-    readLiveShoppingInventoryServer(resolvedUser.userId),
+    authenticatedUser
+      ? Promise.resolve(
+          listPersistedLiveOrdersForUser(authenticatedUser.user.id, {
+            eventId: eventId ?? undefined,
+          }),
+        )
+      : Promise.resolve([]),
+    liveSlug
+      ? Promise.resolve(
+          listPersistedLiveInventoryForRoom({
+            liveSlug,
+            event,
+          }),
+        )
+      : Promise.resolve([]),
     eventId ? readLiveShoppingRoomStateServer(eventId) : Promise.resolve(null),
   ]);
   const initialPresence = getLiveShoppingPresenceSnapshot(eventId);

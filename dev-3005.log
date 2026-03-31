@@ -37805,3 +37805,7 @@ Read more: https://nextjs.org/docs/app/api-reference/components/image#loading
   errstr: 'SQL logic error'
 }
  GET /api/posts?scope=classic&limit=12 500 in 191ms (next.js: 135ms, application-code: 56ms)
+✓ Compiled in 239ms
+✓ Compiled in 139ms
+✓ Compiled in 113ms
+✓ Compiled in 131ms

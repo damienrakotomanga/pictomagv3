@@ -1,5 +1,19 @@
 import { expect, test } from "@playwright/test";
 
+async function registerLiveUser(page: Parameters<Parameters<typeof test>[1]>[0]["page"]) {
+  const nonce = `${Date.now()}-${Math.trunc(Math.random() * 100_000)}`;
+  const response = await page.request.post("/api/auth/register", {
+    data: {
+      email: `playwright-live-${nonce}@pictomag.test`,
+      password: "playwright-live-password",
+      displayName: `Playwright Live ${nonce}`,
+      username: `playwrightlive${nonce.replace(/[^a-zA-Z0-9]/g, "")}`.slice(0, 28),
+    },
+  });
+
+  expect(response.ok()).toBeTruthy();
+}
+
 test.describe("live shopping realtime flow", () => {
   test("exposes a realtime descriptor with Redis bridge enabled", async ({ request }) => {
     const response = await request.get("/api/live-shopping/realtime?eventId=1");
@@ -14,6 +28,7 @@ test.describe("live shopping realtime flow", () => {
   test("opens the bid modal, confirms a bid, and posts a chat message", async ({ page }) => {
     const chatMessage = `playwright-live-${Date.now()}`;
 
+    await registerLiveUser(page);
     await page.setViewportSize({ width: 1600, height: 1400 });
     await page.goto("/live-shopping/tenten-one-piece-fr-boxbreak");
 
@@ -51,6 +66,7 @@ test.describe("live shopping realtime flow", () => {
   });
 
   test("opens custom bid, wallet, and fixed checkout flows", async ({ page }) => {
+    await registerLiveUser(page);
     await page.setViewportSize({ width: 1600, height: 1400 });
     await page.goto("/live-shopping/tenten-one-piece-fr-boxbreak");
 

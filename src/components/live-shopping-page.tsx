@@ -36,16 +36,13 @@ import {
   liveShoppingBrowseTabs,
   liveShoppingCategories,
   liveShoppingEvents,
-  liveShoppingOrdersSeed,
   liveShoppingShelvesByCategory,
 } from "@/lib/live-shopping-data";
 import { type LiveShoppingRoomState } from "@/lib/live-shopping-room-state";
 import {
-  liveShoppingInventorySeed,
   type LiveInventoryProduct,
 } from "@/lib/live-shopping-inventory";
 import {
-  liveShoppingScheduleSeed,
   normalizeLiveShoppingScheduledLive,
   type LiveShoppingScheduledLive,
 } from "@/lib/live-shopping-schedule";
@@ -63,8 +60,6 @@ import {
   readLiveShoppingInventoryFromApi,
   readLiveShoppingOrdersFromApi,
   readLiveShoppingScheduleFromApi,
-  writeLiveShoppingInventoryToApi,
-  writeLiveShoppingOrdersToApi,
   writeLiveShoppingScheduleToApi,
 } from "@/lib/state-api";
 
@@ -620,6 +615,7 @@ type LiveShoppingPresenceSnapshot = {
 async function submitLiveShoppingAction(payload: {
   action: "place_bid" | "checkout";
   eventId: number;
+  liveSlug?: string;
   eventSeller: string;
   lot: LiveShoppingLot;
   amount?: number;
@@ -1579,8 +1575,8 @@ export function LiveShoppingPage({
 }) {
   const router = useRouter();
   const [events, setEvents] = useState(liveShoppingEvents);
-  const [orders, setOrders] = useState<LiveShoppingOrder[]>(liveShoppingOrdersSeed);
-  const [inventoryProducts, setInventoryProducts] = useState<LiveInventoryProduct[]>(liveShoppingInventorySeed);
+  const [, setOrders] = useState<LiveShoppingOrder[]>([]);
+  const [inventoryProducts, setInventoryProducts] = useState<LiveInventoryProduct[]>([]);
   const [browseTab, setBrowseTab] = useState<LiveShoppingBrowseTab["id"]>("recommended");
   const [sortMode, setSortMode] = useState<SortMode>("recommended");
   const [searchQuery] = useState("");
@@ -1609,10 +1605,9 @@ export function LiveShoppingPage({
   const [presenceByEventId, setPresenceByEventId] = useState<Record<number, LiveShoppingPresenceSnapshot>>({});
   const [chatDraft, setChatDraft] = useState("");
   const [chatSubmitting, setChatSubmitting] = useState(false);
-  const [scheduledLives, setScheduledLives] = useState<LiveShoppingScheduledLive[]>(liveShoppingScheduleSeed);
+  const [scheduledLives, setScheduledLives] = useState<LiveShoppingScheduledLive[]>([]);
   const [scheduleHydrated, setScheduleHydrated] = useState(false);
   const [scheduleBusyId, setScheduleBusyId] = useState<string | null>(null);
-  const [runtimeStateHydrated, setRuntimeStateHydrated] = useState(false);
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [bidSubmitting, setBidSubmitting] = useState(false);
@@ -1643,7 +1638,7 @@ export function LiveShoppingPage({
     let active = true;
 
     void (async () => {
-      const schedule = await readLiveShoppingScheduleFromApi(liveShoppingScheduleSeed);
+      const schedule = await readLiveShoppingScheduleFromApi([]);
 
       if (!active) {
         return;
@@ -1778,37 +1773,22 @@ export function LiveShoppingPage({
 
     void (async () => {
       const [serverOrders, serverInventory] = await Promise.all([
-        readLiveShoppingOrdersFromApi(liveShoppingOrdersSeed),
-        readLiveShoppingInventoryFromApi(liveShoppingInventorySeed),
+        readLiveShoppingOrdersFromApi([]),
+        readLiveShoppingInventoryFromApi([]),
       ]);
 
       if (!active) {
         return;
       }
 
-      setOrders(serverOrders.length > 0 ? serverOrders : liveShoppingOrdersSeed);
-      setInventoryProducts(serverInventory.length > 0 ? serverInventory : liveShoppingInventorySeed);
-      setRuntimeStateHydrated(true);
+      setOrders(serverOrders);
+      setInventoryProducts(serverInventory);
     })();
 
     return () => {
       active = false;
     };
   }, []);
-  useEffect(() => {
-    if (!runtimeStateHydrated) {
-      return;
-    }
-
-    void writeLiveShoppingOrdersToApi(orders);
-  }, [orders, runtimeStateHydrated]);
-  useEffect(() => {
-    if (!runtimeStateHydrated) {
-      return;
-    }
-
-    void writeLiveShoppingInventoryToApi(inventoryProducts);
-  }, [inventoryProducts, runtimeStateHydrated]);
   useEffect(() => {
     let active = true;
 
@@ -2167,8 +2147,14 @@ export function LiveShoppingPage({
   const lots = useMemo(() => {
     if (!activeRoom) return [];
     const q = roomQuery.trim().toLowerCase();
-    const merged = [...liveInventoryLots, ...activeRoom.items];
-    const filtered = merged.filter((item) => {
+    const merged = new Map<string, LiveShoppingLot>();
+    for (const item of activeRoom.items) {
+      merged.set(item.id, item);
+    }
+    for (const item of liveInventoryLots) {
+      merged.set(item.id, item);
+    }
+    const filtered = [...merged.values()].filter((item) => {
       const matchesQuery = q ? `${item.title} ${item.subtitle}`.toLowerCase().includes(q) : true;
       const matchesFilter = roomFilter === "all" ? true : item.mode === roomFilter;
       return matchesQuery && matchesFilter;
@@ -2485,6 +2471,7 @@ export function LiveShoppingPage({
       const result = await submitLiveShoppingAction({
         action: "checkout",
         eventId: activeRoom.id,
+        liveSlug: activeRoom.slug,
         eventSeller: activeRoom.seller,
         lot: selectedLot,
         quantity: 1,
@@ -2534,6 +2521,7 @@ export function LiveShoppingPage({
       const result = await submitLiveShoppingAction({
         action: "place_bid",
         eventId: activeRoom.id,
+        liveSlug: activeRoom.slug,
         eventSeller: activeRoom.seller,
         lot: selectedLot,
         amount: offer,

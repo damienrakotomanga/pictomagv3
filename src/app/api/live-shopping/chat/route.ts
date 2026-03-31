@@ -6,7 +6,16 @@ import {
   patchLiveShoppingRoomStateServer,
   readLiveShoppingRoomStateServer,
 } from "@/lib/server/live-shopping-room-state-store";
-import { attachPreferenceUserCookie, resolvePreferenceUser } from "@/lib/server/preference-user";
+import {
+  isRoleAllowed,
+  resolveAuthenticatedAppUser,
+} from "@/lib/server/auth-user";
+import {
+  attachPreferenceUserCookie,
+  bindPreferenceUserToUserId,
+  createGuestPreferenceUser,
+  resolveExistingPreferenceUser,
+} from "@/lib/server/preference-user";
 import { insertAuditLog } from "@/lib/server/sqlite-store";
 
 export const runtime = "nodejs";
@@ -26,17 +35,15 @@ function toPositiveInteger(value: unknown) {
   return parsed > 0 ? parsed : null;
 }
 
-function toAuthorLabel(userId: string) {
-  const compact = userId.replace(/[^a-zA-Z0-9_-]/g, "");
-  if (compact.startsWith("guest-")) {
-    return `guest_${compact.slice(-4)}`;
-  }
-
-  return compact.slice(0, 24) || "viewer";
-}
-
 export async function GET(request: NextRequest) {
-  const resolvedUser = resolvePreferenceUser(request);
+  const compatibilityUser =
+    resolveExistingPreferenceUser(request, {
+      allowQueryUserId: false,
+    }) ?? createGuestPreferenceUser(request);
+  const authenticatedUser = resolveAuthenticatedAppUser(request);
+  const resolvedUser = authenticatedUser
+    ? bindPreferenceUserToUserId(request, authenticatedUser.user.id, "auth-token")
+    : compatibilityUser;
   const rawEventId = request.nextUrl.searchParams.get("eventId");
   const parsedEventId = rawEventId ? Number.parseInt(rawEventId, 10) : NaN;
   const eventId = Number.isFinite(parsedEventId) && parsedEventId > 0 ? parsedEventId : null;
@@ -59,7 +66,35 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const resolvedUser = resolvePreferenceUser(request);
+  const compatibilityUser = resolveExistingPreferenceUser(request, {
+    allowQueryUserId: false,
+  });
+  const authenticatedUser = resolveAuthenticatedAppUser(request);
+
+  if (!authenticatedUser) {
+    const denied = NextResponse.json(
+      {
+        message: "Authentification requise pour envoyer un message live.",
+      },
+      { status: 401 },
+    );
+    attachPreferenceUserCookie(denied, compatibilityUser);
+    return denied;
+  }
+
+  const resolvedUser = bindPreferenceUserToUserId(request, authenticatedUser.user.id, "auth-token");
+  const role = authenticatedUser.role;
+  if (!isRoleAllowed(role, ["buyer", "seller", "moderator", "admin"])) {
+    const denied = NextResponse.json(
+      {
+        message: "Role non autorise pour le chat live.",
+      },
+      { status: 403 },
+    );
+    attachPreferenceUserCookie(denied, resolvedUser);
+    return denied;
+  }
+
   let payload: ChatPayload | null = null;
 
   try {
@@ -137,20 +172,25 @@ export async function POST(request: NextRequest) {
     return response;
   }
 
-  const author = toAuthorLabel(resolvedUser.userId);
+  const author =
+    authenticatedUser.profile.username ||
+    authenticatedUser.profile.display_name ||
+    authenticatedUser.user.id;
+  const isModerator = role === "moderator" || role === "admin";
   const roomState = await patchLiveShoppingRoomStateServer(eventId, (current) =>
     appendChatMessageToRoomState({
       state: current,
       author,
       body,
+      mod: isModerator,
       accent,
     }),
   );
   const chatMessage = roomState.chat[roomState.chat.length - 1] ?? null;
 
   insertAuditLog({
-    userId: resolvedUser.userId,
-    role: "viewer",
+    userId: authenticatedUser.user.id,
+    role,
     actionType: "send_chat",
     resourceType: "live_room",
     resourceId: String(eventId),
@@ -164,7 +204,7 @@ export async function POST(request: NextRequest) {
     type: "live.sync",
     userId: "__global__",
     eventId,
-    actorUserId: resolvedUser.userId,
+    actorUserId: authenticatedUser.user.id,
     payload: {
       action: "send_chat",
       roomState,
@@ -177,7 +217,7 @@ export async function POST(request: NextRequest) {
     eventId,
     roomState,
     chatMessage,
-    userId: resolvedUser.userId,
+    userId: authenticatedUser.user.id,
   });
 
   attachPreferenceUserCookie(response, resolvedUser);

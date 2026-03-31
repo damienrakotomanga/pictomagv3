@@ -6,6 +6,7 @@ import {
   createLiveShoppingOrderRecord,
   getLiveShoppingOwnerUserId,
   getPersistedLiveSessionEventById,
+  getPersistedLiveSessionEventBySlug,
   listPersistedLiveInventoryForRoom,
   listPersistedLiveOrdersForUser,
   upsertPersistedLiveRoomInventory,
@@ -51,6 +52,7 @@ type LiveActionLotPayload = {
 type LiveActionPayload = {
   action: LiveActionKind;
   eventId: number;
+  liveSlug?: string;
   eventSeller: string;
   lot: LiveActionLotPayload;
   amount?: number;
@@ -88,6 +90,7 @@ function parsePayload(value: unknown): LiveActionPayload | null {
 
   const action = asString(value.action);
   const eventId = asNumber(value.eventId);
+  const liveSlug = asString(value.liveSlug);
   const eventSeller = asString(value.eventSeller);
   const lotValue = value.lot;
 
@@ -107,6 +110,7 @@ function parsePayload(value: unknown): LiveActionPayload | null {
   return {
     action,
     eventId,
+    liveSlug: liveSlug ?? undefined,
     eventSeller,
     lot: {
       id: lotId,
@@ -342,7 +346,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const event = getPersistedLiveSessionEventById(payload.eventId);
+  const event =
+    getPersistedLiveSessionEventById(payload.eventId) ??
+    (payload.liveSlug ? getPersistedLiveSessionEventBySlug(payload.liveSlug) : null);
   if (!event) {
     return jsonWithPreferenceCookie(
       {

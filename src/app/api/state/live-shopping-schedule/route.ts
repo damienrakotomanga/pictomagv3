@@ -1,21 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
-import { attachPreferenceUserCookie, resolvePreferenceUser } from "@/lib/server/preference-user";
+import { resolveAuthenticatedAppUser } from "@/lib/server/auth-user";
 import {
-  readLiveShoppingScheduleServer,
-  seedUserRuntimeStateIfMissing,
-  writeLiveShoppingScheduleServer,
-} from "@/lib/server/user-runtime-state-store";
+  attachPreferenceUserCookie,
+  bindPreferenceUserToUserId,
+  resolveExistingPreferenceUser,
+} from "@/lib/server/preference-user";
+import {
+  listPersistedLiveScheduleForOwner,
+  replacePersistedLiveScheduleForOwner,
+} from "@/lib/server/live-shopping-records";
+import {
+  normalizeLiveShoppingScheduledLive,
+  type LiveShoppingScheduledLive,
+} from "@/lib/live-shopping-schedule";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  const resolvedUser = resolvePreferenceUser(request);
-  await seedUserRuntimeStateIfMissing(resolvedUser.userId);
-  const schedule = await readLiveShoppingScheduleServer(resolvedUser.userId);
+  const compatibilityUser = resolveExistingPreferenceUser(request, {
+    allowQueryUserId: false,
+  });
+  const authenticatedUser = resolveAuthenticatedAppUser(request);
+
+  if (!authenticatedUser) {
+    const denied = NextResponse.json({ message: "Authentification requise." }, { status: 401 });
+    attachPreferenceUserCookie(denied, compatibilityUser);
+    return denied;
+  }
+
+  const resolvedUser = bindPreferenceUserToUserId(request, authenticatedUser.user.id, "auth-token");
+  const schedule = listPersistedLiveScheduleForOwner(authenticatedUser.user.id);
 
   const response = NextResponse.json({
     schedule,
-    userId: resolvedUser.userId,
+    userId: authenticatedUser.user.id,
   });
   attachPreferenceUserCookie(response, resolvedUser);
 
@@ -23,7 +41,18 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const resolvedUser = resolvePreferenceUser(request);
+  const compatibilityUser = resolveExistingPreferenceUser(request, {
+    allowQueryUserId: false,
+  });
+  const authenticatedUser = resolveAuthenticatedAppUser(request);
+
+  if (!authenticatedUser) {
+    const denied = NextResponse.json({ message: "Authentification requise." }, { status: 401 });
+    attachPreferenceUserCookie(denied, compatibilityUser);
+    return denied;
+  }
+
+  const resolvedUser = bindPreferenceUserToUserId(request, authenticatedUser.user.id, "auth-token");
   let payload: { schedule?: unknown } | null = null;
 
   try {
@@ -32,10 +61,16 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ message: "JSON body invalide." }, { status: 400 });
   }
 
-  const schedule = await writeLiveShoppingScheduleServer(payload?.schedule, resolvedUser.userId);
+  const incomingSchedule = Array.isArray(payload?.schedule) ? payload.schedule : [];
+  const schedule = replacePersistedLiveScheduleForOwner({
+    ownerUserId: authenticatedUser.user.id,
+    schedule: incomingSchedule.map((entry) =>
+      normalizeLiveShoppingScheduledLive(entry as LiveShoppingScheduledLive),
+    ),
+  });
   const response = NextResponse.json({
     schedule,
-    userId: resolvedUser.userId,
+    userId: authenticatedUser.user.id,
   });
   attachPreferenceUserCookie(response, resolvedUser);
 
