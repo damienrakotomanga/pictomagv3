@@ -395,6 +395,15 @@ function ensureLiveStreamingPhase5Schema(db: DatabaseSync) {
   if (!liveInventoryColumns.includes("lot_order")) {
     db.exec("ALTER TABLE live_inventory_products ADD COLUMN lot_order INTEGER");
   }
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_live_sessions_auction_state ON live_sessions (auction_status, auction_ends_at);
+    CREATE INDEX IF NOT EXISTS idx_live_inventory_gig_id ON live_inventory_products (gig_id);
+    CREATE INDEX IF NOT EXISTS idx_live_inventory_event_id ON live_inventory_products (live_session_event_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_live_media_streams_event_id ON live_media_streams (live_session_event_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_live_bid_events_event_lot ON live_bid_events (live_session_event_id, lot_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_live_bid_events_bidder ON live_bid_events (bidder_user_id, created_at DESC);
+  `);
 }
 
 function ensureDatabase() {
@@ -657,16 +666,10 @@ function ensureDatabase() {
     CREATE INDEX IF NOT EXISTS idx_orders_gig_id ON orders (gig_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_live_sessions_owner_user_id ON live_sessions (owner_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_live_sessions_slug ON live_sessions (slug);
-    CREATE INDEX IF NOT EXISTS idx_live_sessions_auction_state ON live_sessions (auction_status, auction_ends_at);
     CREATE INDEX IF NOT EXISTS idx_live_inventory_owner_user_id ON live_inventory_products (owner_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_live_inventory_live_slug ON live_inventory_products (live_slug, updated_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_live_inventory_gig_id ON live_inventory_products (gig_id);
-    CREATE INDEX IF NOT EXISTS idx_live_inventory_event_id ON live_inventory_products (live_session_event_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_live_schedule_owner_user_id ON live_schedule_entries (owner_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_live_schedule_live_slug ON live_schedule_entries (live_slug, updated_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_live_media_streams_event_id ON live_media_streams (live_session_event_id, updated_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_live_bid_events_event_lot ON live_bid_events (live_session_event_id, lot_id, created_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_live_bid_events_bidder ON live_bid_events (bidder_user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_conversations_participant_a ON conversations (participant_a_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_conversations_participant_b ON conversations (participant_b_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages (conversation_id, created_at ASC);

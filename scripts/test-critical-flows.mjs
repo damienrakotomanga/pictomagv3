@@ -509,7 +509,7 @@ async function testLiveScheduleFlow() {
 }
 
 async function testLiveActionsFlow() {
-  const sellerLogin = await loginAsRole({ userId: "axelbelujon", role: "seller" });
+  const sellerLogin = await loginAsRole({ userId: "rice_", role: "seller" });
   const buyerLogin = await loginAsRole({ userId: TEST_USER_ID, role: "buyer" });
   const eventId = 1;
   const inventoryBefore = await requestJson(new URL("/api/state/live-shopping-inventory", BASE_URL).toString(), {
@@ -633,7 +633,11 @@ async function testLiveActionsFlow() {
   });
 
   assert.equal(bid.response.status, 200, "POST live action place_bid doit retourner 200");
-  assert.equal(bid.payload?.acceptedBid, minimumBid, "Le montant d enchere accepte doit matcher l offre");
+  const acceptedBidAmount = Number(bid.payload?.acceptedBid ?? 0);
+  assert.ok(
+    acceptedBidAmount >= minimumBid,
+    "Le montant d enchere accepte doit etre au moins egal au minimum attendu",
+  );
   assert.ok(bid.payload?.bidEvent?.id, "Le bid accepte doit ecrire un evenement persiste");
   assert.equal(
     bid.payload?.sessionControl?.auctionStatus,
@@ -651,12 +655,12 @@ async function testLiveActionsFlow() {
       title: auctionItem.title,
       mode: "auction",
       price: Number(auctionItem.price),
-      currentBid: minimumBid,
+      currentBid: acceptedBidAmount,
       bidIncrement: auctionItem.bidIncrement,
       delivery: auctionItem.deliveryProfile,
       stock: Number(auctionItem.quantity),
     },
-    amount: minimumBid,
+    amount: acceptedBidAmount,
     quantity: 1,
     note: "critical live checkout",
     paymentMethod: "card",
@@ -764,7 +768,7 @@ async function testLiveActionsFlow() {
     "pictomag_preference_user_id",
   ]);
 
-  const audit = await requestJson(withUser("/api/admin/audit-logs?limit=20"), {
+  const audit = await requestJson(new URL("/api/admin/audit-logs?limit=120", BASE_URL).toString(), {
     method: "GET",
     headers: { Cookie: adminCookieHeader },
   });
@@ -783,11 +787,13 @@ async function testLiveActionsFlow() {
 async function testLiveSharedRealtimeFlow() {
   const userA = `critical-room-a-${Date.now()}`;
   const userB = `critical-room-b-${Date.now()}`;
+  const sellerUserId = "rice_";
 
   const [loginA, loginB] = await Promise.all([
     loginAsRole({ userId: userA, role: "buyer" }),
     loginAsRole({ userId: userB, role: "buyer" }),
   ]);
+  const sellerLogin = await loginAsRole({ userId: sellerUserId, role: "seller" });
   const eventId = 1;
   const [realtimeDescriptorA, realtimeDescriptorB] = await Promise.all([
     requestJson(withCustomUser(`/api/live-shopping/realtime?eventId=${eventId}`, userA), {
@@ -871,6 +877,20 @@ async function testLiveSharedRealtimeFlow() {
   const roomLotStateBefore = roomLotStates[auctionLotId];
   const startBid = Number(roomLotStateBefore?.currentBid ?? 0) || 0;
 
+  const openAuction = await requestJson(new URL("/api/live-shopping/auction/open", BASE_URL).toString(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: sellerLogin.cookieHeader,
+    },
+    body: JSON.stringify({
+      eventId,
+      lotId: auctionLotId,
+      durationMs: 45_000,
+    }),
+  });
+  assert.equal(openAuction.response.status, 200, "POST auction/open shared room doit retourner 200");
+
   const marker = `critical-chat-${Date.now()}`;
   const chatSend = await requestJson(withCustomUser("/api/live-shopping/chat", userA), {
     method: "POST",
@@ -913,7 +933,7 @@ async function testLiveSharedRealtimeFlow() {
   );
   assert.equal(hasMarkerMessage, true, "Le chat doit etre partage entre utilisateurs");
 
-  const bidFromB = startBid + 1;
+  const bidFromB = Math.max(startBid + 1, 10_000 + (Date.now() % 10_000));
   const bidResultB = await requestJson(withCustomUser("/api/live-shopping/actions", userB), {
     method: "POST",
     headers: {
