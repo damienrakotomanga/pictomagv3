@@ -22,6 +22,9 @@ export type LiveInventoryProduct = {
   dangerousGoods: string;
   costPerItem: string;
   sku: string;
+  gigId?: number | null;
+  liveSessionEventId?: number | null;
+  lotOrder?: number | null;
   createdAt: number;
 };
 

@@ -16,6 +16,7 @@ import { normalizePreferenceUserId } from "@/lib/server/preferences-store";
 import {
   createGigRow,
   createOrderRow,
+  getGigRowById,
   getGigRowBySlug,
   getLiveInventoryStorageId,
   getLiveInventoryRowById,
@@ -110,6 +111,7 @@ function fallbackInventoryProductFromLot({
     acceptOffers: true,
     cover: lot.cover,
     deliveryProfile: lot.delivery,
+    liveSessionEventId: event.id,
     dangerousGoods: "Pas de matieres dangereuses",
     costPerItem: "",
     sku: `LIVE-${lot.id}`,
@@ -161,6 +163,18 @@ function normalizePersistedInventoryRow({
         typeof parsed.deliveryProfile === "string"
           ? parsed.deliveryProfile
           : "Expedition 48h",
+      gigId:
+        typeof parsed.gigId === "number"
+          ? parsed.gigId
+          : row.gig_id,
+      liveSessionEventId:
+        typeof parsed.liveSessionEventId === "number"
+          ? parsed.liveSessionEventId
+          : row.live_session_event_id,
+      lotOrder:
+        typeof parsed.lotOrder === "number"
+          ? parsed.lotOrder
+          : row.lot_order,
       dangerousGoods:
         typeof parsed.dangerousGoods === "string"
           ? parsed.dangerousGoods
@@ -199,6 +213,9 @@ function normalizePersistedInventoryRow({
     acceptOffers: true,
     cover: fallbackEvent?.cover ?? "/figma-assets/photo-feed/photo-grid-6.jpg",
     deliveryProfile: "Expedition 48h",
+    gigId: row.gig_id,
+    liveSessionEventId: row.live_session_event_id,
+    lotOrder: row.lot_order,
     dangerousGoods: "Pas de matieres dangereuses",
     costPerItem: "",
     sku: `LIVE-${row.id}`,
@@ -298,6 +315,9 @@ export function replacePersistedLiveInventoryForOwner({
       status: item.status,
       reserveForLive: item.reserveForLive,
       liveSlug: item.liveSlug,
+      gigId: item.gigId ?? null,
+      liveSessionEventId: item.liveSessionEventId ?? null,
+      lotOrder: item.lotOrder ?? null,
       payloadJson: JSON.stringify(item),
       createdAt: item.createdAt,
     })),
@@ -448,7 +468,9 @@ export function createLiveShoppingOrderRecord({
 }) {
   const sellerUserId = getLiveShoppingOwnerUserId(event);
   const liveGigSlug = `live-${event.slug}-${normalizePreferenceUserId(lot.id)}`;
-  let gig = getGigRowBySlug(liveGigSlug);
+  let gig =
+    (typeof lot.gigId === "number" && lot.gigId > 0 ? getGigRowById(lot.gigId) : null) ??
+    getGigRowBySlug(liveGigSlug);
 
   if (!gig) {
     gig = createGigRow({

@@ -29,6 +29,9 @@ import {
   getActionIdempotencyRecord,
   insertActionIdempotencyRecord,
   insertAuditLog,
+  getLiveSessionRowByEventId,
+  insertLiveBidEventRow,
+  updateLiveSessionControlRow,
 } from "@/lib/server/sqlite-store";
 
 export const runtime = "nodejs";
@@ -126,6 +129,26 @@ function parsePayload(value: unknown): LiveActionPayload | null {
     quantity: asPositiveInteger(value.quantity, 1),
     note: asString(value.note) ?? "",
     paymentMethod: asString(value.paymentMethod) ?? undefined,
+  };
+}
+
+function buildAuctionSessionPayload(session: ReturnType<typeof getLiveSessionRowByEventId>) {
+  if (!session) {
+    return null;
+  }
+
+  return {
+    eventId: session.event_id,
+    liveState: session.live_state,
+    currentLotId: session.current_lot_id,
+    auctionStatus: session.auction_status,
+    auctionEndsAt: session.auction_ends_at,
+    mediaProvider: session.media_provider,
+    mediaRoomName: session.media_room_name,
+    mediaStatus: session.media_status,
+    publishMode: session.publish_mode,
+    startedAt: session.started_at,
+    endedAt: session.ended_at,
   };
 }
 
@@ -366,6 +389,7 @@ export async function POST(request: NextRequest) {
     liveSlug: event.slug,
     event,
   });
+  let liveSession = getLiveSessionRowByEventId(event.id);
   const inventoryProduct = inventory.find((product) => product.id === payload.lot.id) ?? null;
   const roomState = await readLiveShoppingRoomStateServer(event.id);
   const orders = listPersistedLiveOrdersForUser(authenticatedUser.user.id, {
@@ -395,6 +419,72 @@ export async function POST(request: NextRequest) {
           resolvedUser,
         },
       );
+    }
+
+    const now = Date.now();
+    const officialAuctionConfigured =
+      liveSession?.auction_status !== null ||
+      liveSession?.current_lot_id !== null ||
+      liveSession?.auction_ends_at !== null;
+
+    if (officialAuctionConfigured) {
+      if (liveSession?.current_lot_id !== payload.lot.id) {
+        return jsonWithPreferenceCookie(
+          {
+            message: "Ce lot n est pas celui actuellement ouvert a l enchere.",
+            sessionControl: buildAuctionSessionPayload(liveSession),
+          },
+          {
+            status: 409,
+            resolvedUser,
+          },
+        );
+      }
+
+      if (liveSession?.auction_status !== "open") {
+        return jsonWithPreferenceCookie(
+          {
+            message: "L enchere n est pas ouverte pour ce lot.",
+            sessionControl: buildAuctionSessionPayload(liveSession),
+          },
+          {
+            status: 409,
+            resolvedUser,
+          },
+        );
+      }
+
+      if (typeof liveSession?.auction_ends_at === "number" && liveSession.auction_ends_at <= now) {
+        liveSession = updateLiveSessionControlRow({
+          eventId: payload.eventId,
+          auctionStatus: "closed",
+          auctionEndsAt: liveSession.auction_ends_at,
+        });
+
+        publishLiveShoppingEvent({
+          type: "live.sync",
+          userId: "__global__",
+          eventId: payload.eventId,
+          actorUserId: authenticatedUser.user.id,
+          payload: {
+            action: "auction_close",
+            lotId: payload.lot.id,
+            reason: "expired",
+            sessionControl: buildAuctionSessionPayload(liveSession),
+          },
+        });
+
+        return jsonWithPreferenceCookie(
+          {
+            message: "L enchere est terminee.",
+            sessionControl: buildAuctionSessionPayload(liveSession),
+          },
+          {
+            status: 409,
+            resolvedUser,
+          },
+        );
+      }
     }
 
     const increment = Math.max(1, inventoryProduct.bidIncrement ?? payload.lot.bidIncrement ?? 1);
@@ -430,15 +520,25 @@ export async function POST(request: NextRequest) {
         bidder: authenticatedUser.profile.username,
       }),
     );
+    const bidEvent = insertLiveBidEventRow({
+      liveSessionEventId: payload.eventId,
+      lotId: payload.lot.id,
+      bidderUserId: authenticatedUser.user.id,
+      amount: offeredAmount,
+      status: "accepted",
+    });
+    liveSession = getLiveSessionRowByEventId(payload.eventId);
 
     const responsePayload = {
       ok: true,
       action: payload.action,
       acceptedBid: offeredAmount,
       minimumBid,
+      bidEvent,
       inventory: nextInventory,
       orders,
       roomState: nextRoomState,
+      sessionControl: buildAuctionSessionPayload(liveSession),
       userId: authenticatedUser.user.id,
       role,
     } satisfies Record<string, unknown>;
@@ -476,9 +576,11 @@ export async function POST(request: NextRequest) {
         action: "place_bid",
         acceptedBid: offeredAmount,
         minimumBid,
+        bidEvent,
         inventory: nextInventory,
         orders,
         roomState: nextRoomState,
+        sessionControl: buildAuctionSessionPayload(liveSession),
       },
     });
 
@@ -492,8 +594,10 @@ export async function POST(request: NextRequest) {
         acceptedBid: offeredAmount,
         minimumBid,
         lotId: payload.lot.id,
+        bidEvent,
         inventory: nextInventory,
         roomState: nextRoomState,
+        sessionControl: buildAuctionSessionPayload(liveSession),
       },
     });
 
@@ -606,6 +710,7 @@ export async function POST(request: NextRequest) {
   const nextOrders = listPersistedLiveOrdersForUser(authenticatedUser.user.id, {
     eventId: event.id,
   });
+  liveSession = getLiveSessionRowByEventId(payload.eventId);
 
   const responsePayload = {
     ok: true,
@@ -615,6 +720,7 @@ export async function POST(request: NextRequest) {
     inventory: nextInventory,
     remainingStock,
     roomState: nextRoomState,
+    sessionControl: buildAuctionSessionPayload(liveSession),
     userId: authenticatedUser.user.id,
     role,
   } satisfies Record<string, unknown>;
@@ -658,6 +764,7 @@ export async function POST(request: NextRequest) {
       inventory: nextInventory,
       remainingStock,
       roomState: nextRoomState,
+      sessionControl: buildAuctionSessionPayload(liveSession),
     },
   });
 
@@ -671,6 +778,7 @@ export async function POST(request: NextRequest) {
       lotId: payload.lot.id,
       inventory: nextInventory,
       roomState: nextRoomState,
+      sessionControl: buildAuctionSessionPayload(liveSession),
     },
   });
 

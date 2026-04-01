@@ -18,6 +18,10 @@ import {
   listPersistedLiveInventoryForRoom,
   listPersistedLiveOrdersForUser,
 } from "@/lib/server/live-shopping-records";
+import {
+  getLiveSessionRowByEventId,
+  listLiveMediaStreamRowsForSession,
+} from "@/lib/server/sqlite-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,9 +49,10 @@ export async function GET(request: NextRequest) {
     : compatibilityUser;
   const eventId = parseEventId(request.nextUrl.searchParams.get("eventId"));
   const event = eventId ? getPersistedLiveSessionEventById(eventId) : null;
+  const liveSession = eventId ? getLiveSessionRowByEventId(eventId) : null;
   const liveSlug = event?.slug ?? null;
 
-  const [orders, inventory, roomState] = await Promise.all([
+  const [orders, inventory, roomState, mediaStreams] = await Promise.all([
     authenticatedUser
       ? Promise.resolve(
           listPersistedLiveOrdersForUser(authenticatedUser.user.id, {
@@ -64,6 +69,7 @@ export async function GET(request: NextRequest) {
         )
       : Promise.resolve([]),
     eventId ? readLiveShoppingRoomStateServer(eventId) : Promise.resolve(null),
+    eventId ? Promise.resolve(listLiveMediaStreamRowsForSession(eventId)) : Promise.resolve([]),
   ]);
   const initialPresence = getLiveShoppingPresenceSnapshot(eventId);
 
@@ -116,6 +122,8 @@ export async function GET(request: NextRequest) {
           orders,
           inventory,
           roomState,
+          sessionControl: liveSession,
+          mediaStreams,
           presence: initialPresence,
           connected: true,
         },

@@ -511,6 +511,7 @@ async function testLiveScheduleFlow() {
 async function testLiveActionsFlow() {
   const sellerLogin = await loginAsRole({ userId: "axelbelujon", role: "seller" });
   const buyerLogin = await loginAsRole({ userId: TEST_USER_ID, role: "buyer" });
+  const eventId = 1;
   const inventoryBefore = await requestJson(new URL("/api/state/live-shopping-inventory", BASE_URL).toString(), {
     method: "GET",
     headers: { Cookie: sellerLogin.cookieHeader },
@@ -520,6 +521,89 @@ async function testLiveActionsFlow() {
   const inventoryList = Array.isArray(inventoryBefore.payload?.inventory) ? inventoryBefore.payload.inventory : [];
   const auctionItem = inventoryList.find((item) => item?.mode === "auction" && Number(item?.quantity) > 0);
   assert.ok(auctionItem, "Il faut au moins un produit auction en stock pour tester les actions live");
+
+  const openAuction = await requestJson(new URL("/api/live-shopping/auction/open", BASE_URL).toString(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: sellerLogin.cookieHeader,
+    },
+    body: JSON.stringify({
+      eventId,
+      lotId: auctionItem.id,
+      durationMs: 45_000,
+    }),
+  });
+
+  assert.equal(openAuction.response.status, 200, "POST live-shopping/auction/open doit retourner 200");
+  assert.equal(
+    openAuction.payload?.sessionControl?.auctionStatus,
+    "open",
+    "L ouverture d enchere doit marquer la session en open",
+  );
+  assert.equal(
+    openAuction.payload?.sessionControl?.currentLotId,
+    auctionItem.id,
+    "L ouverture d enchere doit cibler le bon lot",
+  );
+
+  const createIngest = await requestJson(new URL("/api/live-shopping/media/ingest", BASE_URL).toString(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: sellerLogin.cookieHeader,
+    },
+    body: JSON.stringify({
+      eventId,
+      ingestProtocol: "rtmp",
+      publishMode: "desktop",
+    }),
+  });
+
+  assert.equal(createIngest.response.status, 200, "POST live-shopping/media/ingest doit retourner 200");
+  assert.equal(
+    typeof createIngest.payload?.roomName,
+    "string",
+    "Le contrat d ingest doit retourner un roomName",
+  );
+  assert.equal(
+    createIngest.payload?.integrationReady,
+    false,
+    "Le control plane media ne doit pas pretendre que l integration provider est complete",
+  );
+
+  const viewerToken = await requestJson(
+    new URL(`/api/live-shopping/media/viewer-token?eventId=${eventId}`, BASE_URL).toString(),
+    {
+      method: "GET",
+      headers: { Cookie: buyerLogin.cookieHeader },
+    },
+  );
+
+  assert.equal(viewerToken.response.status, 200, "GET live-shopping/media/viewer-token doit retourner 200");
+  assert.equal(viewerToken.payload?.integrationReady, false, "Le viewer token doit rester en mode contractuel");
+  assert.equal(viewerToken.payload?.guest, false, "Le viewer connecte ne doit pas etre considere comme guest");
+
+  const mediaWebhook = await requestJson(new URL("/api/live-shopping/media/webhook", BASE_URL).toString(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      eventId,
+      provider: "livekit",
+      state: "running",
+      ingestProtocol: "rtmp",
+      publishMode: "desktop",
+    }),
+  });
+
+  assert.equal(mediaWebhook.response.status, 200, "POST live-shopping/media/webhook doit retourner 200");
+  assert.equal(
+    mediaWebhook.payload?.sessionControl?.mediaStatus,
+    "running",
+    "Le webhook media doit mettre a jour le statut du flux",
+  );
 
   const minimumBid = (Number(auctionItem.currentBid ?? auctionItem.price) || 0) + (Number(auctionItem.bidIncrement) || 1);
 
@@ -532,7 +616,7 @@ async function testLiveActionsFlow() {
     },
     body: JSON.stringify({
       action: "place_bid",
-      eventId: 1,
+      eventId,
       eventSeller: "Test Seller",
       lot: {
         id: auctionItem.id,
@@ -550,11 +634,17 @@ async function testLiveActionsFlow() {
 
   assert.equal(bid.response.status, 200, "POST live action place_bid doit retourner 200");
   assert.equal(bid.payload?.acceptedBid, minimumBid, "Le montant d enchere accepte doit matcher l offre");
+  assert.ok(bid.payload?.bidEvent?.id, "Le bid accepte doit ecrire un evenement persiste");
+  assert.equal(
+    bid.payload?.sessionControl?.auctionStatus,
+    "open",
+    "L etat officiel d enchere doit rester ouvert apres un bid accepte",
+  );
 
   const checkoutKey = `critical-checkout-${Date.now()}`;
   const checkoutBody = {
     action: "checkout",
-    eventId: 1,
+    eventId,
     eventSeller: "Test Seller",
     lot: {
       id: auctionItem.id,
@@ -613,6 +703,52 @@ async function testLiveActionsFlow() {
     "Le replay idempotent ne doit pas redecrementer le stock",
   );
 
+  const closeAuction = await requestJson(new URL("/api/live-shopping/auction/close", BASE_URL).toString(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: sellerLogin.cookieHeader,
+    },
+    body: JSON.stringify({
+      eventId,
+      lotId: auctionItem.id,
+    }),
+  });
+
+  assert.equal(closeAuction.response.status, 200, "POST live-shopping/auction/close doit retourner 200");
+  assert.equal(
+    closeAuction.payload?.sessionControl?.auctionStatus,
+    "closed",
+    "La cloture doit marquer la session en closed",
+  );
+
+  const rejectedAfterClose = await requestJson(new URL("/api/live-shopping/actions", BASE_URL).toString(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-idempotency-key": `critical-bid-after-close-${Date.now()}`,
+      Cookie: buyerLogin.cookieHeader,
+    },
+    body: JSON.stringify({
+      action: "place_bid",
+      eventId,
+      eventSeller: "Test Seller",
+      lot: {
+        id: auctionItem.id,
+        title: auctionItem.title,
+        mode: "auction",
+        price: Number(auctionItem.price),
+        currentBid: bid.payload?.acceptedBid,
+        bidIncrement: auctionItem.bidIncrement,
+        delivery: auctionItem.deliveryProfile,
+        stock: Math.max(0, Number(auctionItem.quantity) - 1),
+      },
+      amount: Number(bid.payload?.acceptedBid ?? minimumBid) + (Number(auctionItem.bidIncrement) || 1),
+    }),
+  });
+
+  assert.equal(rejectedAfterClose.response.status, 409, "Un bid apres cloture officielle doit etre refuse");
+
   const adminLogin = await requestJson(new URL("/api/auth/session", BASE_URL).toString(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -636,8 +772,12 @@ async function testLiveActionsFlow() {
   assert.equal(audit.response.status, 200, "GET admin/audit-logs doit retourner 200 pour un role admin");
   assert.equal(Array.isArray(audit.payload?.logs), true, "admin/audit-logs doit retourner logs[]");
   const actions = new Set((audit.payload?.logs ?? []).map((entry) => entry?.action_type));
+  assert.equal(actions.has("create_ingest"), true, "Les logs d audit doivent inclure create_ingest");
+  assert.equal(actions.has("media_webhook"), true, "Les logs d audit doivent inclure media_webhook");
+  assert.equal(actions.has("open_auction"), true, "Les logs d audit doivent inclure open_auction");
   assert.equal(actions.has("place_bid"), true, "Les logs d audit doivent inclure place_bid");
   assert.equal(actions.has("checkout"), true, "Les logs d audit doivent inclure checkout");
+  assert.equal(actions.has("close_auction"), true, "Les logs d audit doivent inclure close_auction");
 }
 
 async function testLiveSharedRealtimeFlow() {

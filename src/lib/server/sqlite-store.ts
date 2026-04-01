@@ -136,6 +136,16 @@ export type StoredLiveSessionRow = {
   title: string;
   category_id: string;
   live_state: string;
+  media_provider: string | null;
+  media_room_name: string | null;
+  media_stream_id: string | null;
+  media_status: string | null;
+  publish_mode: string | null;
+  current_lot_id: string | null;
+  auction_status: string | null;
+  auction_ends_at: number | null;
+  started_at: number | null;
+  ended_at: number | null;
   payload_json: string;
   created_at: number;
   updated_at: number;
@@ -149,9 +159,37 @@ export type StoredLiveInventoryRow = {
   status: string;
   reserve_for_live: number;
   live_slug: string | null;
+  gig_id: number | null;
+  live_session_event_id: number | null;
+  lot_order: number | null;
   payload_json: string;
   created_at: number;
   updated_at: number;
+};
+
+export type StoredLiveMediaStreamRow = {
+  id: string;
+  live_session_event_id: number;
+  provider: string;
+  room_name: string;
+  ingest_protocol: string;
+  provider_stream_id: string | null;
+  publisher_identity: string | null;
+  playback_hint: string | null;
+  state: string;
+  created_at: number;
+  updated_at: number;
+};
+
+export type StoredLiveBidEventRow = {
+  id: number;
+  live_session_event_id: number;
+  lot_id: string;
+  bidder_user_id: string;
+  amount: number;
+  max_proxy_amount: number | null;
+  status: string;
+  created_at: number;
 };
 
 export type StoredLiveScheduleRow = {
@@ -301,6 +339,64 @@ function ensureOrdersSchema(db: DatabaseSync) {
   }
 }
 
+function ensureLiveStreamingPhase5Schema(db: DatabaseSync) {
+  const liveSessionColumns = listTableColumns(db, "live_sessions");
+
+  if (!liveSessionColumns.includes("media_provider")) {
+    db.exec("ALTER TABLE live_sessions ADD COLUMN media_provider TEXT");
+  }
+
+  if (!liveSessionColumns.includes("media_room_name")) {
+    db.exec("ALTER TABLE live_sessions ADD COLUMN media_room_name TEXT");
+  }
+
+  if (!liveSessionColumns.includes("media_stream_id")) {
+    db.exec("ALTER TABLE live_sessions ADD COLUMN media_stream_id TEXT");
+  }
+
+  if (!liveSessionColumns.includes("media_status")) {
+    db.exec("ALTER TABLE live_sessions ADD COLUMN media_status TEXT");
+  }
+
+  if (!liveSessionColumns.includes("publish_mode")) {
+    db.exec("ALTER TABLE live_sessions ADD COLUMN publish_mode TEXT");
+  }
+
+  if (!liveSessionColumns.includes("current_lot_id")) {
+    db.exec("ALTER TABLE live_sessions ADD COLUMN current_lot_id TEXT");
+  }
+
+  if (!liveSessionColumns.includes("auction_status")) {
+    db.exec("ALTER TABLE live_sessions ADD COLUMN auction_status TEXT");
+  }
+
+  if (!liveSessionColumns.includes("auction_ends_at")) {
+    db.exec("ALTER TABLE live_sessions ADD COLUMN auction_ends_at INTEGER");
+  }
+
+  if (!liveSessionColumns.includes("started_at")) {
+    db.exec("ALTER TABLE live_sessions ADD COLUMN started_at INTEGER");
+  }
+
+  if (!liveSessionColumns.includes("ended_at")) {
+    db.exec("ALTER TABLE live_sessions ADD COLUMN ended_at INTEGER");
+  }
+
+  const liveInventoryColumns = listTableColumns(db, "live_inventory_products");
+
+  if (!liveInventoryColumns.includes("gig_id")) {
+    db.exec("ALTER TABLE live_inventory_products ADD COLUMN gig_id INTEGER");
+  }
+
+  if (!liveInventoryColumns.includes("live_session_event_id")) {
+    db.exec("ALTER TABLE live_inventory_products ADD COLUMN live_session_event_id INTEGER");
+  }
+
+  if (!liveInventoryColumns.includes("lot_order")) {
+    db.exec("ALTER TABLE live_inventory_products ADD COLUMN lot_order INTEGER");
+  }
+}
+
 function ensureDatabase() {
   if (database) {
     return database;
@@ -428,6 +524,16 @@ function ensureDatabase() {
       title TEXT NOT NULL,
       category_id TEXT NOT NULL,
       live_state TEXT NOT NULL,
+      media_provider TEXT,
+      media_room_name TEXT,
+      media_stream_id TEXT,
+      media_status TEXT,
+      publish_mode TEXT,
+      current_lot_id TEXT,
+      auction_status TEXT,
+      auction_ends_at INTEGER,
+      started_at INTEGER,
+      ended_at INTEGER,
       payload_json TEXT NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
@@ -441,6 +547,9 @@ function ensureDatabase() {
       status TEXT NOT NULL,
       reserve_for_live INTEGER NOT NULL DEFAULT 0,
       live_slug TEXT,
+      gig_id INTEGER,
+      live_session_event_id INTEGER,
+      lot_order INTEGER,
       payload_json TEXT NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
@@ -486,6 +595,31 @@ function ensureDatabase() {
       updated_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS live_media_streams (
+      id TEXT PRIMARY KEY,
+      live_session_event_id INTEGER NOT NULL,
+      provider TEXT NOT NULL,
+      room_name TEXT NOT NULL,
+      ingest_protocol TEXT NOT NULL,
+      provider_stream_id TEXT,
+      publisher_identity TEXT,
+      playback_hint TEXT,
+      state TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS live_bid_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      live_session_event_id INTEGER NOT NULL,
+      lot_id TEXT NOT NULL,
+      bidder_user_id TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      max_proxy_amount INTEGER,
+      status TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS action_idempotency (
       user_id TEXT NOT NULL,
       key TEXT NOT NULL,
@@ -523,10 +657,16 @@ function ensureDatabase() {
     CREATE INDEX IF NOT EXISTS idx_orders_gig_id ON orders (gig_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_live_sessions_owner_user_id ON live_sessions (owner_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_live_sessions_slug ON live_sessions (slug);
+    CREATE INDEX IF NOT EXISTS idx_live_sessions_auction_state ON live_sessions (auction_status, auction_ends_at);
     CREATE INDEX IF NOT EXISTS idx_live_inventory_owner_user_id ON live_inventory_products (owner_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_live_inventory_live_slug ON live_inventory_products (live_slug, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_live_inventory_gig_id ON live_inventory_products (gig_id);
+    CREATE INDEX IF NOT EXISTS idx_live_inventory_event_id ON live_inventory_products (live_session_event_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_live_schedule_owner_user_id ON live_schedule_entries (owner_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_live_schedule_live_slug ON live_schedule_entries (live_slug, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_live_media_streams_event_id ON live_media_streams (live_session_event_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_live_bid_events_event_lot ON live_bid_events (live_session_event_id, lot_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_live_bid_events_bidder ON live_bid_events (bidder_user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_conversations_participant_a ON conversations (participant_a_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_conversations_participant_b ON conversations (participant_b_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages (conversation_id, created_at ASC);
@@ -534,6 +674,7 @@ function ensureDatabase() {
 
   ensureRuntimeStateSchema(db);
   ensureOrdersSchema(db);
+  ensureLiveStreamingPhase5Schema(db);
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_orders_source ON orders (source, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_orders_live_session_event_id ON orders (live_session_event_id, updated_at DESC);
@@ -931,6 +1072,16 @@ function asStoredLiveSessionRow(value: unknown): StoredLiveSessionRow | null {
     title: row.title,
     category_id: row.category_id,
     live_state: row.live_state,
+    media_provider: asNullableString(row.media_provider),
+    media_room_name: asNullableString(row.media_room_name),
+    media_stream_id: asNullableString(row.media_stream_id),
+    media_status: asNullableString(row.media_status),
+    publish_mode: asNullableString(row.publish_mode),
+    current_lot_id: asNullableString(row.current_lot_id),
+    auction_status: asNullableString(row.auction_status),
+    auction_ends_at: asNullableNumber(row.auction_ends_at),
+    started_at: asNullableNumber(row.started_at),
+    ended_at: asNullableNumber(row.ended_at),
     payload_json: row.payload_json,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -965,9 +1116,76 @@ function asStoredLiveInventoryRow(value: unknown): StoredLiveInventoryRow | null
     status: row.status,
     reserve_for_live: row.reserve_for_live,
     live_slug: asNullableString(row.live_slug),
+    gig_id: asNullableNumber(row.gig_id),
+    live_session_event_id: asNullableNumber(row.live_session_event_id),
+    lot_order: asNullableNumber(row.lot_order),
     payload_json: row.payload_json,
     created_at: row.created_at,
     updated_at: row.updated_at,
+  };
+}
+
+function asStoredLiveMediaStreamRow(value: unknown): StoredLiveMediaStreamRow | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.id !== "string" ||
+    typeof row.live_session_event_id !== "number" ||
+    typeof row.provider !== "string" ||
+    typeof row.room_name !== "string" ||
+    typeof row.ingest_protocol !== "string" ||
+    typeof row.state !== "string" ||
+    typeof row.created_at !== "number" ||
+    typeof row.updated_at !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    live_session_event_id: row.live_session_event_id,
+    provider: row.provider,
+    room_name: row.room_name,
+    ingest_protocol: row.ingest_protocol,
+    provider_stream_id: asNullableString(row.provider_stream_id),
+    publisher_identity: asNullableString(row.publisher_identity),
+    playback_hint: asNullableString(row.playback_hint),
+    state: row.state,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function asStoredLiveBidEventRow(value: unknown): StoredLiveBidEventRow | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.id !== "number" ||
+    typeof row.live_session_event_id !== "number" ||
+    typeof row.lot_id !== "string" ||
+    typeof row.bidder_user_id !== "string" ||
+    typeof row.amount !== "number" ||
+    typeof row.status !== "string" ||
+    typeof row.created_at !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    live_session_event_id: row.live_session_event_id,
+    lot_id: row.lot_id,
+    bidder_user_id: row.bidder_user_id,
+    amount: row.amount,
+    max_proxy_amount: asNullableNumber(row.max_proxy_amount),
+    status: row.status,
+    created_at: row.created_at,
   };
 }
 
@@ -997,6 +1215,105 @@ function asStoredLiveScheduleRow(value: unknown): StoredLiveScheduleRow | null {
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
+}
+
+function buildLiveLotGigSlug(event: Pick<LiveShoppingEvent, "slug">, lotId: string) {
+  return `live-${event.slug}-${normalizePreferenceUserId(lotId)}`.slice(0, 200);
+}
+
+function ensureLiveLotGigRow(
+  db: DatabaseSync,
+  {
+    event,
+    ownerUserId,
+    lotId,
+    title,
+    subtitle,
+    category,
+    cover,
+    priceFrom,
+    deliveryLabel,
+    tags,
+  }: {
+    event: Pick<LiveShoppingEvent, "slug" | "title">;
+    ownerUserId: string;
+    lotId: string;
+    title: string;
+    subtitle: string;
+    category: string;
+    cover: string;
+    priceFrom: number;
+    deliveryLabel: string;
+    tags: string[];
+  },
+) {
+  const slug = buildLiveLotGigSlug(event, lotId);
+  const existing = getGigRowBySlug(slug);
+  if (existing) {
+    return existing;
+  }
+
+  const now = Date.now();
+  const result = db
+    .prepare(`
+      INSERT INTO gigs (
+        seller_user_id,
+        slug,
+        title,
+        subtitle,
+        category,
+        cover,
+        price_from,
+        delivery_label,
+        response_label,
+        timelike_trust,
+        completed_orders,
+        queue_size,
+        status,
+        packages_json,
+        deliverables_json,
+        tags_json,
+        created_at,
+        updated_at,
+        published_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    .run(
+      ownerUserId,
+      slug,
+      title,
+      subtitle,
+      category,
+      cover,
+      Math.max(1, priceFrom),
+      deliveryLabel,
+      "Live instantane",
+      96,
+      0,
+      0,
+      "active",
+      JSON.stringify([
+        {
+          id: "live",
+          name: "Lot live",
+          price: Math.max(1, priceFrom),
+          deliveryDays: 3,
+          revisions: "0 revision",
+          description: subtitle,
+          features: [event.title, "Commande issue du live", deliveryLabel],
+          recommended: true,
+        },
+      ]),
+      JSON.stringify(["Lot reserve pendant le live"]),
+      JSON.stringify(tags.slice(0, 6)),
+      now,
+      now,
+      now,
+    ) as { lastInsertRowid?: number | bigint };
+
+  const gigId = Number(result.lastInsertRowid ?? 0);
+  return gigId > 0 ? getGigRowById(gigId) : null;
 }
 
 function asStoredConversationRow(value: unknown): StoredConversationRow | null {
@@ -2184,11 +2501,14 @@ function ensureSeedLiveShopping() {
       status,
       reserve_for_live,
       live_slug,
+      gig_id,
+      live_session_event_id,
+      lot_order,
       payload_json,
       created_at,
       updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id)
     DO UPDATE SET
       owner_user_id = excluded.owner_user_id,
@@ -2197,6 +2517,9 @@ function ensureSeedLiveShopping() {
       status = excluded.status,
       reserve_for_live = excluded.reserve_for_live,
       live_slug = excluded.live_slug,
+      gig_id = excluded.gig_id,
+      live_session_event_id = excluded.live_session_event_id,
+      lot_order = excluded.lot_order,
       payload_json = excluded.payload_json,
       updated_at = excluded.updated_at
   `);
@@ -2237,7 +2560,7 @@ function ensureSeedLiveShopping() {
         payloadJson: JSON.stringify(event),
       });
 
-      for (const lot of event.items) {
+      for (const [lotIndex, lot] of event.items.entries()) {
         const normalizedProduct = normalizeLiveInventoryProduct({
           id: lot.id,
           title: lot.title,
@@ -2261,6 +2584,24 @@ function ensureSeedLiveShopping() {
           sku: `${event.id}-${lot.id}`.slice(0, 80),
           createdAt: Date.now() - event.id * 1_000,
         });
+        const gig = ensureLiveLotGigRow(db, {
+          event,
+          ownerUserId,
+          lotId: lot.id,
+          title: normalizedProduct.title,
+          subtitle: normalizedProduct.description || event.subtitle,
+          category: event.category,
+          cover: normalizedProduct.cover,
+          priceFrom: normalizedProduct.price,
+          deliveryLabel: normalizedProduct.deliveryProfile || "48h",
+          tags: event.tags,
+        });
+        const normalizedProductWithGig = normalizeLiveInventoryProduct({
+          ...normalizedProduct,
+          gigId: gig?.id ?? null,
+          liveSessionEventId: event.id,
+          lotOrder: lotIndex,
+        });
 
         upsertLiveInventoryStatement.run(
           getLiveInventoryStorageId({
@@ -2269,13 +2610,16 @@ function ensureSeedLiveShopping() {
             productId: lot.id,
           }),
           ownerUserId,
-          normalizedProduct.title,
-          normalizedProduct.categoryId,
-          normalizedProduct.status,
-          normalizedProduct.reserveForLive ? 1 : 0,
-          normalizedProduct.liveSlug ?? null,
-          JSON.stringify(normalizedProduct),
-          normalizedProduct.createdAt,
+          normalizedProductWithGig.title,
+          normalizedProductWithGig.categoryId,
+          normalizedProductWithGig.status,
+          normalizedProductWithGig.reserveForLive ? 1 : 0,
+          normalizedProductWithGig.liveSlug ?? null,
+          normalizedProductWithGig.gigId ?? null,
+          normalizedProductWithGig.liveSessionEventId ?? event.id,
+          normalizedProductWithGig.lotOrder ?? lotIndex,
+          JSON.stringify(normalizedProductWithGig),
+          normalizedProductWithGig.createdAt,
           Date.now(),
         );
       }
@@ -2295,6 +2639,9 @@ function ensureSeedLiveShopping() {
         normalizedItem.status,
         normalizedItem.reserveForLive ? 1 : 0,
         normalizedItem.liveSlug ?? null,
+        normalizedItem.gigId ?? null,
+        normalizedItem.liveSessionEventId ?? null,
+        normalizedItem.lotOrder ?? null,
         JSON.stringify(normalizedItem),
         normalizedItem.createdAt,
         Date.now(),
@@ -2817,6 +3164,16 @@ export function getLiveSessionRowByEventId(eventId: number) {
         title,
         category_id,
         live_state,
+        media_provider,
+        media_room_name,
+        media_stream_id,
+        media_status,
+        publish_mode,
+        current_lot_id,
+        auction_status,
+        auction_ends_at,
+        started_at,
+        ended_at,
         payload_json,
         created_at,
         updated_at
@@ -2838,6 +3195,16 @@ export function getLiveSessionRowBySlug(slug: string) {
         title,
         category_id,
         live_state,
+        media_provider,
+        media_room_name,
+        media_stream_id,
+        media_status,
+        publish_mode,
+        current_lot_id,
+        auction_status,
+        auction_ends_at,
+        started_at,
+        ended_at,
         payload_json,
         created_at,
         updated_at
@@ -2868,6 +3235,16 @@ export function listLiveSessionRows({
       title,
       category_id,
       live_state,
+      media_provider,
+      media_room_name,
+      media_stream_id,
+      media_status,
+      publish_mode,
+      current_lot_id,
+      auction_status,
+      auction_ends_at,
+      started_at,
+      ended_at,
       payload_json,
       created_at,
       updated_at
@@ -2904,6 +3281,16 @@ export function upsertLiveSessionRow({
   title,
   categoryId,
   liveState,
+  mediaProvider,
+  mediaRoomName,
+  mediaStreamId,
+  mediaStatus,
+  publishMode,
+  currentLotId,
+  auctionStatus,
+  auctionEndsAt,
+  startedAt,
+  endedAt,
   payloadJson,
 }: {
   eventId: number;
@@ -2912,6 +3299,16 @@ export function upsertLiveSessionRow({
   title: string;
   categoryId: string;
   liveState: string;
+  mediaProvider?: string | null;
+  mediaRoomName?: string | null;
+  mediaStreamId?: string | null;
+  mediaStatus?: string | null;
+  publishMode?: string | null;
+  currentLotId?: string | null;
+  auctionStatus?: string | null;
+  auctionEndsAt?: number | null;
+  startedAt?: number | null;
+  endedAt?: number | null;
   payloadJson: string;
 }) {
   const db = ensureDatabase();
@@ -2925,11 +3322,21 @@ export function upsertLiveSessionRow({
       title,
       category_id,
       live_state,
+      media_provider,
+      media_room_name,
+      media_stream_id,
+      media_status,
+      publish_mode,
+      current_lot_id,
+      auction_status,
+      auction_ends_at,
+      started_at,
+      ended_at,
       payload_json,
       created_at,
       updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(event_id)
     DO UPDATE SET
       owner_user_id = excluded.owner_user_id,
@@ -2937,9 +3344,39 @@ export function upsertLiveSessionRow({
       title = excluded.title,
       category_id = excluded.category_id,
       live_state = excluded.live_state,
+      media_provider = COALESCE(excluded.media_provider, live_sessions.media_provider),
+      media_room_name = COALESCE(excluded.media_room_name, live_sessions.media_room_name),
+      media_stream_id = COALESCE(excluded.media_stream_id, live_sessions.media_stream_id),
+      media_status = COALESCE(excluded.media_status, live_sessions.media_status),
+      publish_mode = COALESCE(excluded.publish_mode, live_sessions.publish_mode),
+      current_lot_id = COALESCE(excluded.current_lot_id, live_sessions.current_lot_id),
+      auction_status = COALESCE(excluded.auction_status, live_sessions.auction_status),
+      auction_ends_at = COALESCE(excluded.auction_ends_at, live_sessions.auction_ends_at),
+      started_at = COALESCE(excluded.started_at, live_sessions.started_at),
+      ended_at = COALESCE(excluded.ended_at, live_sessions.ended_at),
       payload_json = excluded.payload_json,
       updated_at = excluded.updated_at
-  `).run(eventId, ownerUserId, slug, title, categoryId, liveState, payloadJson, now, now);
+  `).run(
+    eventId,
+    ownerUserId,
+    slug,
+    title,
+    categoryId,
+    liveState,
+    mediaProvider ?? null,
+    mediaRoomName ?? null,
+    mediaStreamId ?? null,
+    mediaStatus ?? null,
+    publishMode ?? null,
+    currentLotId ?? null,
+    auctionStatus ?? null,
+    auctionEndsAt ?? null,
+    startedAt ?? null,
+    endedAt ?? null,
+    payloadJson,
+    now,
+    now,
+  );
 
   return getLiveSessionRowByEventId(eventId);
 }
@@ -2964,6 +3401,9 @@ export function listLiveInventoryRows({
       status,
       reserve_for_live,
       live_slug,
+      gig_id,
+      live_session_event_id,
+      lot_order,
       payload_json,
       created_at,
       updated_at
@@ -3000,15 +3440,18 @@ export function getLiveInventoryRowById(id: string) {
       SELECT
         id,
         owner_user_id,
-        title,
-        category_id,
-        status,
-        reserve_for_live,
-        live_slug,
-        payload_json,
-        created_at,
-        updated_at
-      FROM live_inventory_products
+      title,
+      category_id,
+      status,
+      reserve_for_live,
+      live_slug,
+      gig_id,
+      live_session_event_id,
+      lot_order,
+      payload_json,
+      created_at,
+      updated_at
+    FROM live_inventory_products
       WHERE id = ?
     `)
     .get(id);
@@ -3027,6 +3470,9 @@ export function replaceLiveInventoryRowsForOwner({
     status: string;
     reserveForLive: boolean;
     liveSlug: string | null;
+    gigId?: number | null;
+    liveSessionEventId?: number | null;
+    lotOrder?: number | null;
     payloadJson: string;
     createdAt?: number;
   }>;
@@ -3048,11 +3494,14 @@ export function replaceLiveInventoryRowsForOwner({
         status,
         reserve_for_live,
         live_slug,
+        gig_id,
+        live_session_event_id,
+        lot_order,
         payload_json,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const item of inventory) {
@@ -3064,6 +3513,9 @@ export function replaceLiveInventoryRowsForOwner({
         item.status,
         item.reserveForLive ? 1 : 0,
         item.liveSlug ?? null,
+        item.gigId ?? null,
+        item.liveSessionEventId ?? null,
+        item.lotOrder ?? null,
         item.payloadJson,
         item.createdAt ?? now,
         now,
@@ -3077,6 +3529,318 @@ export function replaceLiveInventoryRowsForOwner({
   }
 
   return listLiveInventoryRows({ ownerUserId });
+}
+
+export function updateLiveSessionControlRow({
+  eventId,
+  liveState,
+  mediaProvider,
+  mediaRoomName,
+  mediaStreamId,
+  mediaStatus,
+  publishMode,
+  currentLotId,
+  auctionStatus,
+  auctionEndsAt,
+  startedAt,
+  endedAt,
+}: {
+  eventId: number;
+  liveState?: string | null;
+  mediaProvider?: string | null;
+  mediaRoomName?: string | null;
+  mediaStreamId?: string | null;
+  mediaStatus?: string | null;
+  publishMode?: string | null;
+  currentLotId?: string | null;
+  auctionStatus?: string | null;
+  auctionEndsAt?: number | null;
+  startedAt?: number | null;
+  endedAt?: number | null;
+}) {
+  const db = ensureDatabase();
+  const now = Date.now();
+  const assignments: string[] = ["updated_at = ?"];
+  const params: Array<string | number | null> = [now];
+
+  if (liveState !== undefined) {
+    assignments.push("live_state = ?");
+    params.push(liveState);
+  }
+
+  if (mediaProvider !== undefined) {
+    assignments.push("media_provider = ?");
+    params.push(mediaProvider);
+  }
+
+  if (mediaRoomName !== undefined) {
+    assignments.push("media_room_name = ?");
+    params.push(mediaRoomName);
+  }
+
+  if (mediaStreamId !== undefined) {
+    assignments.push("media_stream_id = ?");
+    params.push(mediaStreamId);
+  }
+
+  if (mediaStatus !== undefined) {
+    assignments.push("media_status = ?");
+    params.push(mediaStatus);
+  }
+
+  if (publishMode !== undefined) {
+    assignments.push("publish_mode = ?");
+    params.push(publishMode);
+  }
+
+  if (currentLotId !== undefined) {
+    assignments.push("current_lot_id = ?");
+    params.push(currentLotId);
+  }
+
+  if (auctionStatus !== undefined) {
+    assignments.push("auction_status = ?");
+    params.push(auctionStatus);
+  }
+
+  if (auctionEndsAt !== undefined) {
+    assignments.push("auction_ends_at = ?");
+    params.push(auctionEndsAt);
+  }
+
+  if (startedAt !== undefined) {
+    assignments.push("started_at = ?");
+    params.push(startedAt);
+  }
+
+  if (endedAt !== undefined) {
+    assignments.push("ended_at = ?");
+    params.push(endedAt);
+  }
+
+  if (assignments.length === 1) {
+    return getLiveSessionRowByEventId(eventId);
+  }
+
+  params.push(eventId);
+  db.prepare(`
+    UPDATE live_sessions
+    SET ${assignments.join(", ")}
+    WHERE event_id = ?
+  `).run(...params);
+
+  return getLiveSessionRowByEventId(eventId);
+}
+
+export function upsertLiveMediaStreamRow({
+  id,
+  liveSessionEventId,
+  provider,
+  roomName,
+  ingestProtocol,
+  providerStreamId,
+  publisherIdentity,
+  playbackHint,
+  state,
+}: {
+  id: string;
+  liveSessionEventId: number;
+  provider: string;
+  roomName: string;
+  ingestProtocol: string;
+  providerStreamId?: string | null;
+  publisherIdentity?: string | null;
+  playbackHint?: string | null;
+  state: string;
+}) {
+  const db = ensureDatabase();
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO live_media_streams (
+      id,
+      live_session_event_id,
+      provider,
+      room_name,
+      ingest_protocol,
+      provider_stream_id,
+      publisher_identity,
+      playback_hint,
+      state,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id)
+    DO UPDATE SET
+      live_session_event_id = excluded.live_session_event_id,
+      provider = excluded.provider,
+      room_name = excluded.room_name,
+      ingest_protocol = excluded.ingest_protocol,
+      provider_stream_id = excluded.provider_stream_id,
+      publisher_identity = excluded.publisher_identity,
+      playback_hint = excluded.playback_hint,
+      state = excluded.state,
+      updated_at = excluded.updated_at
+  `).run(
+    id,
+    liveSessionEventId,
+    provider,
+    roomName,
+    ingestProtocol,
+    providerStreamId ?? null,
+    publisherIdentity ?? null,
+    playbackHint ?? null,
+    state,
+    now,
+    now,
+  );
+
+  const row = db
+    .prepare(`
+      SELECT
+        id,
+        live_session_event_id,
+        provider,
+        room_name,
+        ingest_protocol,
+        provider_stream_id,
+        publisher_identity,
+        playback_hint,
+        state,
+        created_at,
+        updated_at
+      FROM live_media_streams
+      WHERE id = ?
+    `)
+    .get(id);
+
+  return asStoredLiveMediaStreamRow(row);
+}
+
+export function listLiveMediaStreamRowsForSession(eventId: number) {
+  const db = ensureDatabase();
+  const rows = db
+    .prepare(`
+      SELECT
+        id,
+        live_session_event_id,
+        provider,
+        room_name,
+        ingest_protocol,
+        provider_stream_id,
+        publisher_identity,
+        playback_hint,
+        state,
+        created_at,
+        updated_at
+      FROM live_media_streams
+      WHERE live_session_event_id = ?
+      ORDER BY updated_at DESC, created_at DESC
+    `)
+    .all(eventId);
+
+  return rows
+    .map((row) => asStoredLiveMediaStreamRow(row))
+    .filter((row): row is StoredLiveMediaStreamRow => row !== null);
+}
+
+export function insertLiveBidEventRow({
+  liveSessionEventId,
+  lotId,
+  bidderUserId,
+  amount,
+  maxProxyAmount,
+  status,
+}: {
+  liveSessionEventId: number;
+  lotId: string;
+  bidderUserId: string;
+  amount: number;
+  maxProxyAmount?: number | null;
+  status: string;
+}) {
+  const db = ensureDatabase();
+  const now = Date.now();
+  const result = db
+    .prepare(`
+      INSERT INTO live_bid_events (
+        live_session_event_id,
+        lot_id,
+        bidder_user_id,
+        amount,
+        max_proxy_amount,
+        status,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `)
+    .run(
+      liveSessionEventId,
+      lotId,
+      bidderUserId,
+      amount,
+      maxProxyAmount ?? null,
+      status,
+      now,
+    ) as { lastInsertRowid?: number | bigint };
+
+  const row = db
+    .prepare(`
+      SELECT
+        id,
+        live_session_event_id,
+        lot_id,
+        bidder_user_id,
+        amount,
+        max_proxy_amount,
+        status,
+        created_at
+      FROM live_bid_events
+      WHERE id = ?
+    `)
+    .get(Number(result.lastInsertRowid ?? 0));
+
+  return asStoredLiveBidEventRow(row);
+}
+
+export function listLiveBidEventRows({
+  liveSessionEventId,
+  lotId,
+  limit,
+}: {
+  liveSessionEventId: number;
+  lotId?: string;
+  limit?: number;
+}) {
+  const db = ensureDatabase();
+  const normalizedLimit = limit ? Math.max(1, Math.min(500, Math.trunc(limit))) : 100;
+  let query = `
+    SELECT
+      id,
+      live_session_event_id,
+      lot_id,
+      bidder_user_id,
+      amount,
+      max_proxy_amount,
+      status,
+      created_at
+    FROM live_bid_events
+    WHERE live_session_event_id = ?
+  `;
+  const params: Array<string | number> = [liveSessionEventId];
+
+  if (lotId) {
+    query += " AND lot_id = ?";
+    params.push(lotId);
+  }
+
+  query += " ORDER BY created_at DESC, id DESC LIMIT ?";
+  params.push(normalizedLimit);
+
+  const rows = db.prepare(query).all(...params);
+  return rows
+    .map((row) => asStoredLiveBidEventRow(row))
+    .filter((row): row is StoredLiveBidEventRow => row !== null);
 }
 
 export function listLiveScheduleRows({
