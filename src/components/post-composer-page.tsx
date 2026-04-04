@@ -3,11 +3,12 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import type { ChangeEvent, CSSProperties, DragEvent, FormEvent } from "react";
+import type { ChangeEvent, CSSProperties, DragEvent, FormEvent, PointerEvent as ReactPointerEvent } from "react";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeft,
+  ArrowRight,
   Check,
   ChevronDown,
   Crop,
@@ -15,6 +16,7 @@ import {
   Images,
   LoaderCircle,
   Plus,
+  Trash2,
   Type,
   Video,
   X,
@@ -427,12 +429,21 @@ export function PostComposerPage() {
   const router = useRouter();
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const addMoreInputRef = useRef<HTMLInputElement | null>(null);
+  const previewSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const cropDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startOffsetX: number;
+    startOffsetY: number;
+  } | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profile, setProfile] = useState<ProfileMePayload["profile"] | null>(null);
   const [mode, setMode] = useState<ComposerMode>("photo");
   const [photoStep, setPhotoStep] = useState<PhotoStep>("select");
   const [editorTab, setEditorTab] = useState<EditorTab>("filters");
   const [dragActive, setDragActive] = useState(false);
+  const [cropDragging, setCropDragging] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [photoDrafts, setPhotoDrafts] = useState<PhotoDraft[]>([]);
@@ -613,6 +624,102 @@ export function PostComposerPage() {
     setPhotoDrafts((current) => current.map((draft) => (draft.id === activeDraft.id ? updater(draft) : draft)));
   };
 
+  const moveActiveDraft = (direction: -1 | 1) => {
+    if (!activeDraft) {
+      return;
+    }
+
+    setPhotoDrafts((current) => {
+      const currentIndex = current.findIndex((draft) => draft.id === activeDraft.id);
+      if (currentIndex === -1) {
+        return current;
+      }
+
+      const nextIndex = clamp(currentIndex + direction, 0, current.length - 1);
+      if (nextIndex === currentIndex) {
+        return current;
+      }
+
+      const nextDrafts = [...current];
+      const [draft] = nextDrafts.splice(currentIndex, 1);
+      nextDrafts.splice(nextIndex, 0, draft);
+      return nextDrafts;
+    });
+  };
+
+  const removeDraft = (draftId: string) => {
+    let nextActiveId: string | null = null;
+
+    setPhotoDrafts((current) => {
+      const currentIndex = current.findIndex((draft) => draft.id === draftId);
+      if (currentIndex === -1) {
+        nextActiveId = activeDraftId;
+        return current;
+      }
+
+      const nextDrafts = current.filter((draft) => draft.id !== draftId);
+      nextActiveId = nextDrafts[Math.min(currentIndex, nextDrafts.length - 1)]?.id ?? null;
+      return nextDrafts;
+    });
+
+    setActiveDraftId((current) => (current === draftId ? nextActiveId : current));
+  };
+
+  const handleCropPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!activeDraft || photoStep !== "crop") {
+      return;
+    }
+
+    event.preventDefault();
+    cropDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startOffsetX: activeDraft.offsetX,
+      startOffsetY: activeDraft.offsetY,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setCropDragging(true);
+  };
+
+  const handleCropPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!activeDraft || photoStep !== "crop" || !cropDragRef.current || cropDragRef.current.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const bounds = previewSurfaceRef.current?.getBoundingClientRect();
+    if (!bounds) {
+      return;
+    }
+
+    const deltaX = (event.clientX - cropDragRef.current.startX) / bounds.width;
+    const deltaY = (event.clientY - cropDragRef.current.startY) / bounds.height;
+
+    setPhotoDrafts((current) =>
+      current.map((draft) =>
+        draft.id === activeDraft.id
+          ? {
+              ...draft,
+              offsetX: clamp(cropDragRef.current!.startOffsetX + deltaX * 2, -1, 1),
+              offsetY: clamp(cropDragRef.current!.startOffsetY + deltaY * 2, -1, 1),
+            }
+          : draft,
+      ),
+    );
+  };
+
+  const handleCropPointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (cropDragRef.current?.pointerId !== event.pointerId) {
+      return;
+    }
+
+    cropDragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setCropDragging(false);
+  };
+
   const moveToPreviousStep = () => {
     if (photoStep === "sharing" || photoStep === "success") {
       return;
@@ -750,6 +857,9 @@ export function PostComposerPage() {
   const headerTitle = getModalTitle(mode, photoStep);
   const isDetailsStep = photoStep === "details";
   const headerActionLabel = isDetailsStep ? "Partager" : photoStep === "select" || photoStep === "crop" || photoStep === "edit" ? "Suivant" : "";
+  const activeDraftIndex = activeDraft ? photoDrafts.findIndex((draft) => draft.id === activeDraft.id) : -1;
+  const canMoveDraftBackward = activeDraftIndex > 0;
+  const canMoveDraftForward = activeDraftIndex !== -1 && activeDraftIndex < photoDrafts.length - 1;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0f1625] px-6 pb-10 pt-[102px] text-[#101522]">
@@ -895,11 +1005,35 @@ export function PostComposerPage() {
                         <div className="relative flex w-full max-w-[640px] flex-col items-center justify-center">
                           {activeDraft ? (
                             <>
-                              <div className="relative w-full max-w-[640px] overflow-hidden rounded-[28px] bg-[#dfe5ee] shadow-[0_30px_70px_rgba(0,0,0,0.28)]" style={{ aspectRatio: `${previewFrameRatio}` }}>
-                                <img src={activeDraft.src} alt={activeDraft.altText || title || "Apercu"} className="absolute inset-0 h-full w-full object-cover" style={previewImageStyle} />
+                              <div
+                                ref={previewSurfaceRef}
+                                onPointerDown={handleCropPointerDown}
+                                onPointerMove={handleCropPointerMove}
+                                onPointerUp={handleCropPointerEnd}
+                                onPointerCancel={handleCropPointerEnd}
+                                className={cx(
+                                  "relative w-full max-w-[640px] overflow-hidden rounded-[28px] bg-[#dfe5ee] shadow-[0_30px_70px_rgba(0,0,0,0.28)]",
+                                  photoStep === "crop" ? (cropDragging ? "cursor-grabbing" : "cursor-grab") : "",
+                                )}
+                                style={{ aspectRatio: `${previewFrameRatio}` }}
+                              >
+                                <img
+                                  src={activeDraft.src}
+                                  alt={activeDraft.altText || title || "Apercu"}
+                                  draggable={false}
+                                  className="absolute inset-0 h-full w-full object-cover"
+                                  style={previewImageStyle}
+                                />
                                 <div className="pointer-events-none absolute inset-0" style={getTintOverlayStyle(effectivePreviewAdjustments)} />
                                 <div className="pointer-events-none absolute inset-0 bg-white" style={{ opacity: getFadeOverlayOpacity(effectivePreviewAdjustments) }} />
                                 <div className="pointer-events-none absolute inset-0" style={{ background: getVignetteOverlay(effectivePreviewAdjustments) }} />
+                                {photoStep === "crop" ? (
+                                  <div className="pointer-events-none absolute inset-x-4 bottom-4 flex justify-center">
+                                    <div className="rounded-full bg-black/26 px-4 py-2 text-[12px] font-medium text-white/92 backdrop-blur-md">
+                                      Glisse pour repositionner le cadrage
+                                    </div>
+                                  </div>
+                                ) : null}
                               </div>
 
                               <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -911,8 +1045,35 @@ export function PostComposerPage() {
                                   <Plus className="h-4 w-4" />
                                   Ajouter des medias
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={() => moveActiveDraft(-1)}
+                                  disabled={!canMoveDraftBackward}
+                                  className="inline-flex h-10 items-center gap-2 rounded-full bg-white/12 px-4 text-[13px] font-medium text-white backdrop-blur-md transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-45"
+                                >
+                                  <ArrowLeft className="h-4 w-4" />
+                                  Avant
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => moveActiveDraft(1)}
+                                  disabled={!canMoveDraftForward}
+                                  className="inline-flex h-10 items-center gap-2 rounded-full bg-white/12 px-4 text-[13px] font-medium text-white backdrop-blur-md transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-45"
+                                >
+                                  Apres
+                                  <ArrowRight className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => activeDraft && removeDraft(activeDraft.id)}
+                                  disabled={photoDrafts.length === 0}
+                                  className="inline-flex h-10 items-center gap-2 rounded-full bg-white/12 px-4 text-[13px] font-medium text-white backdrop-blur-md transition hover:bg-[rgba(255,102,132,0.28)] disabled:cursor-not-allowed disabled:opacity-45"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Retirer
+                                </button>
                                 <div className="inline-flex h-10 items-center rounded-full bg-white/12 px-4 text-[13px] font-medium text-white/88 backdrop-blur-md">
-                                  {photoDrafts.length} media{photoDrafts.length > 1 ? "s" : ""}
+                                  {activeDraftIndex + 1}/{photoDrafts.length} media{photoDrafts.length > 1 ? "s" : ""}
                                 </div>
                               </div>
                             </>
@@ -961,17 +1122,26 @@ export function PostComposerPage() {
                       <div className="absolute bottom-6 left-6 right-6">
                         <div className="mx-auto flex max-w-[720px] items-center gap-3 overflow-x-auto rounded-full bg-white/12 px-4 py-3 backdrop-blur-md">
                           {photoDrafts.map((draft) => (
-                            <button
-                              key={draft.id}
-                              type="button"
-                              onClick={() => setActiveDraftId(draft.id)}
-                              className={cx(
-                                "relative h-16 w-16 shrink-0 overflow-hidden rounded-[18px] transition",
-                                draft.id === activeDraft?.id ? "ring-2 ring-white" : "opacity-72 hover:opacity-100",
-                              )}
-                            >
-                              <img src={draft.src} alt={draft.altText || draft.fileName} className="h-full w-full object-cover" />
-                            </button>
+                            <div key={draft.id} className="relative h-16 w-16 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setActiveDraftId(draft.id)}
+                                className={cx(
+                                  "relative h-16 w-16 overflow-hidden rounded-[18px] transition",
+                                  draft.id === activeDraft?.id ? "ring-2 ring-white" : "opacity-72 hover:opacity-100",
+                                )}
+                              >
+                                <img src={draft.src} alt={draft.altText || draft.fileName} className="h-full w-full object-cover" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeDraft(draft.id)}
+                                className="absolute -right-1 -top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#101522] text-white shadow-[0_10px_24px_rgba(0,0,0,0.24)] transition hover:bg-[#ff4c78]"
+                                aria-label={`Retirer ${draft.fileName}`}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           ))}
                           <button
                             type="button"

@@ -79,7 +79,7 @@ export async function PATCH(request: NextRequest) {
   const bio = typeof payload?.bio === "string" ? payload.bio.trim().slice(0, 280) : authenticatedUser.profile.bio;
   const avatarUrl =
     typeof payload?.avatarUrl === "string"
-      ? payload.avatarUrl.trim().slice(0, 2048) || null
+      ? payload.avatarUrl.trim().slice(0, 600_000) || null
       : authenticatedUser.profile.avatar_url;
   const websiteUrl =
     typeof payload?.websiteUrl === "string"
