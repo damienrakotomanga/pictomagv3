@@ -65,10 +65,10 @@ test.describe("Sprint 1 auth guards", () => {
     await registerOnboardedUser(request, onboardedUser);
 
     await page.goto("/profile");
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login\?next=%2Fprofile$/);
 
     await page.goto("/compose");
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login\?next=%2Fcompose$/);
 
     await page.getByPlaceholder("toi@pictomag.com").fill(pendingUser.email);
     await page.getByPlaceholder("8 caracteres minimum").fill(pendingUser.password);

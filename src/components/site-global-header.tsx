@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback } from "react";
 import { AnimatedHeaderNav, type HeaderNavItemId } from "@/components/animated-header-nav";
 import { SiteAccountMenu } from "@/components/site-account-menu";
@@ -16,6 +16,7 @@ type HeaderTopActionId = (typeof headerTopActions)[number]["id"];
 
 export function SiteGlobalHeader() {
   const router = useRouter();
+  const pathname = usePathname();
 
   const handleNavClick = useCallback(
     (itemId: HeaderNavItemId) => {
@@ -52,6 +53,15 @@ export function SiteGlobalHeader() {
     },
     [router],
   );
+
+  const hideHeader =
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname === "/forgot-password";
+
+  if (hideHeader) {
+    return null;
+  }
 
   return (
     <header className="fixed inset-x-0 top-0 z-[200] h-[73px]" data-app-header="global">

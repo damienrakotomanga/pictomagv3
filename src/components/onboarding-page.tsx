@@ -17,13 +17,12 @@ import {
 } from "lucide-react";
 import { formatDisplayName } from "@/lib/display-name";
 import type { PublicProfileBundle } from "@/lib/posts";
-import { DEFAULT_AVATAR, resolveProfileAvatarSrc } from "@/lib/profile-avatar";
+import { resolveProfileAvatarSrc } from "@/lib/profile-avatar";
 
 type ProfileMePayload = {
   authenticated?: boolean;
   user?: {
     id?: string;
-    email?: string | null;
   };
   profile?: PublicProfileBundle["profile"];
 };
@@ -78,6 +77,37 @@ function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
+function NeutralAvatar({
+  src,
+  alt,
+  size,
+  iconSize,
+}: {
+  src: string | null;
+  alt: string;
+  size: string;
+  iconSize: string;
+}) {
+  return (
+    <div className={cx("relative overflow-hidden rounded-full bg-[#f3f6fa]", size)}>
+      {src ? (
+        <Image
+          src={src}
+          alt={alt}
+          fill
+          sizes="96px"
+          className="object-cover"
+          unoptimized={src.startsWith("data:image/")}
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,#eef3ff,transparent_55%),#f3f6fa] text-[#7a879b]">
+          <UserRound className={iconSize} strokeWidth={1.8} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function OnboardingPage() {
   return <ProfileEditorPage mode="onboarding" />;
 }
@@ -91,7 +121,6 @@ function ProfileEditorPage({ mode }: { mode: "onboarding" | "edit" }) {
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [email, setEmail] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
@@ -125,7 +154,6 @@ function ProfileEditorPage({ mode }: { mode: "onboarding" | "edit" }) {
           return;
         }
 
-        setEmail(payload.user?.email?.trim() || null);
         setDisplayName(payload.profile?.displayName ?? "");
         setUsername(payload.profile?.username ?? "");
         setBio(payload.profile?.bio ?? "");
@@ -154,13 +182,8 @@ function ProfileEditorPage({ mode }: { mode: "onboarding" | "edit" }) {
     [displayName, loadingProfile, saving, username],
   );
 
-  const safeAvatarSrc = resolveProfileAvatarSrc(avatarUrl, DEFAULT_AVATAR);
+  const safeAvatarSrc = resolveProfileAvatarSrc(avatarUrl, "") || null;
   const previewDisplayName = formatDisplayName(displayName, "Votre nom");
-  const previewUsername = username.trim() || "username";
-  const previewBio =
-    bio.trim() ||
-    "Ajoute une bio courte pour expliquer qui tu es, ce que tu publies et ce que les autres vont trouver ici.";
-  const websiteHostname = websiteUrl.trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
   const onboardingProgress = Math.round(
     ((displayName.trim().length > 1 ? 1 : 0) +
       (username.trim().length > 1 ? 1 : 0) +
@@ -170,30 +193,19 @@ function ProfileEditorPage({ mode }: { mode: "onboarding" | "edit" }) {
       100,
   );
   const isEditMode = mode === "edit";
-  const shellTitle = isEditMode ? "Modifier le profil" : "Finaliser le profil";
-  const shellSubtitle = isEditMode
-    ? "Edition directe, sans rechargement, puis retour propre vers ton profil."
-    : "Edition directe, sans rechargement, puis retour propre vers ton profil.";
-  const heroKicker = isEditMode ? "Edition du profil" : "Onboarding";
+  const heroKicker = isEditMode ? "Edition" : "Onboarding";
   const heroTitle = isEditMode
-    ? "Mets ton profil a jour dans un shell propre, blanc et fluide."
-    : "On prepare ton profil pour qu'il ressemble enfin a ton compte, pas a un prototype.";
+    ? "Mets ton profil a jour dans une interface simple."
+    : "On prepare ton profil avant ton premier post.";
   const heroDescription = isEditMode
-    ? "Avatar, nom visible, identifiant, bio et lien se mettent a jour ici en direct. Tu sauvegardes, et ton profil refletera immediatement les changements."
-    : "Nom visible, identifiant, bio, avatar et lien. Tout se met a jour ici en direct, puis on te renvoie sur ton vrai profil sans changer brutalement d'experience.";
-  const sideTitle = isEditMode ? "Ce que tu peux mettre a jour" : "Ce que tu finalises";
-  const sideItems = isEditMode
-    ? ["Avatar recadre automatiquement", "Nom visible propre partout", "Identifiant public stable", "Bio et lien mis a jour en direct"]
-    : ["Avatar recadre automatiquement", "Nom visible propre partout", "Identifiant public stable", "Bio lisible avant ton premier post"];
-  const resultTitle = isEditMode ? "Profil mis a jour partout" : "Resultat attendu";
-  const resultCopy = isEditMode
-    ? "Tes changements seront visibles directement sur ton profil et dans les surfaces publiques."
-    : "Un profil pret a publier, avec une sensation d'edition fluide et propre.";
-  const footerTitle = isEditMode ? "Pret a enregistrer" : "Tu es presque pret";
+    ? "Change ta photo, ton nom affiche, ton identifiant, ta bio ou ton lien. Enregistre et ton profil est mis a jour tout de suite."
+    : "Ajoute une photo ou garde l'icone neutre, choisis ton nom visible, ton identifiant public et une bio courte.";
+  const footerTitle = isEditMode ? "Pret a enregistrer" : "Pret a continuer";
   const footerCopy = isEditMode
-    ? "Enregistre les changements et reviens immediatement sur ton profil sans rupture visuelle."
-    : "Enregistre ce profil et on te renvoie directement vers ton espace reel.";
+    ? "Enregistre tes changements et reviens immediatement sur ton profil."
+    : "Enregistre ton profil et continue vers ton espace personnel.";
   const submitLabel = isEditMode ? "Enregistrer les changements" : "Enregistrer et continuer";
+  const avatarInputId = isEditMode ? "profile-edit-avatar-input" : "onboarding-avatar-input";
 
   const handleAvatarSelection = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -219,17 +231,17 @@ function ProfileEditorPage({ mode }: { mode: "onboarding" | "edit" }) {
     }
   };
 
-  const handleAvatarDragOver = (event: DragEvent<HTMLButtonElement>) => {
+  const handleAvatarDragOver = (event: DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
     setAvatarDragActive(true);
   };
 
-  const handleAvatarDragLeave = (event: DragEvent<HTMLButtonElement>) => {
+  const handleAvatarDragLeave = (event: DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
     setAvatarDragActive(false);
   };
 
-  const handleAvatarDrop = async (event: DragEvent<HTMLButtonElement>) => {
+  const handleAvatarDrop = async (event: DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
     setAvatarDragActive(false);
     const file = event.dataTransfer.files?.[0];
@@ -296,262 +308,188 @@ function ProfileEditorPage({ mode }: { mode: "onboarding" | "edit" }) {
   };
 
   return (
-    <main className="min-h-screen bg-white px-5 pb-8 pt-[106px] text-[#101522]">
-      <div className="mx-auto flex min-h-[calc(100vh-138px)] max-w-[1220px] items-center justify-center">
-        <div className="w-full max-w-[1130px] overflow-hidden rounded-[34px] bg-white shadow-[0_28px_80px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.04]">
-          <header className="flex flex-wrap items-center justify-between gap-4 px-7 py-5">
-            <div className="flex items-center gap-3">
-              <Image src="/figma-assets/logo-mark.png" alt="Pictomag" width={28} height={28} priority />
-              <Image
-                src="/figma-assets/pictomag-logo.svg"
-                alt="Pictomag"
-                width={94}
-                height={34}
+    <main className="min-h-screen bg-white px-4 pb-12 pt-[106px] text-[#101522]">
+      <div className="mx-auto flex min-h-[calc(100vh-138px)] max-w-[960px] items-center justify-center">
+        <div className="w-full max-w-[520px] rounded-[32px] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.04]">
+          <header className="px-6 pb-5 pt-6 text-center sm:px-8">
+              <div className="flex items-center justify-center">
+                <Image
+                  src="/figma-assets/pictomag-logo.svg"
+                  alt="Pictomag"
+                width={92}
+                height={32}
                 priority
-                className="h-[30px] w-auto"
+                className="h-[28px] w-auto"
               />
             </div>
 
-            <div className="text-center">
-              <p className="text-[15px] font-semibold text-[#101522]">{shellTitle}</p>
-              <p className="mt-1 text-[12px] text-[#8ea2bc]">{shellSubtitle}</p>
+            <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#f5f7fb] px-3 py-2 text-[12px] font-medium text-[#64748b]">
+              <Sparkles className="h-3.5 w-3.5 text-[#4f46ff]" />
+              {onboardingProgress}% termine
             </div>
 
-            <div className="inline-flex items-center gap-2 rounded-full bg-[#f4f7fb] px-4 py-2 text-[13px] font-medium text-[#637488]">
-              <Sparkles className="h-4 w-4 text-[#4f46ff]" />
-              {onboardingProgress}% complete
-            </div>
+            <p className="mt-5 type-kicker-tight text-[#9aa8bc]">{heroKicker}</p>
+            <h1 className="mt-3 text-[34px] font-semibold leading-[1.03] tracking-[-0.05em] text-[#101522] sm:text-[42px]">
+              {heroTitle}
+            </h1>
+            <p className="mt-4 text-[15px] leading-7 text-[#64748b]">{heroDescription}</p>
           </header>
 
-          <div className="grid gap-5 px-5 pb-5 lg:grid-cols-[minmax(0,1fr)_392px]">
-            <section className="rounded-[30px] bg-[#fbfcff] px-8 py-8">
-              <div className="max-w-[560px]">
-                <p className="type-kicker text-[#9fb2cf]">{heroKicker}</p>
-                <h1 className="mt-4 text-[56px] font-semibold leading-[0.94] tracking-[-0.05em] text-[#101522]">
-                  {heroTitle}
-                </h1>
-                <p className="mt-6 max-w-[520px] text-[18px] leading-8 text-[#637488]">
-                  {heroDescription}
-                </p>
-              </div>
+          <div className="border-t border-black/[0.04] px-6 py-6 sm:px-8">
+            <form className="space-y-5" onSubmit={handleSubmit}>
 
-              <div className="mt-10 grid gap-5 xl:grid-cols-[minmax(0,1fr)_220px]">
-                <div className="rounded-[28px] bg-white px-6 py-6 shadow-[0_18px_54px_rgba(15,23,42,0.06)]">
-                  <div className="flex items-start gap-5">
-                    <div className="relative h-24 w-24 overflow-hidden rounded-full ring-2 ring-black/5">
-                      <Image
-                        src={safeAvatarSrc}
-                        alt={previewDisplayName}
-                        fill
-                        sizes="96px"
-                        className="object-cover"
-                        unoptimized={safeAvatarSrc.startsWith("data:image/")}
-                      />
-                    </div>
-
-                    <div className="min-w-0">
-                      <p className="text-[30px] font-semibold tracking-[-0.05em] text-[#101522]">{previewDisplayName}</p>
-                      <p className="mt-1 text-[15px] text-[#7f8fa6]">@{previewUsername}</p>
-                      <div className="mt-4 flex flex-wrap gap-5 text-[13px] text-[#637488]">
-                        <span>12 posts</span>
-                        <span>38 followers</span>
-                        <span>11 following</span>
-                      </div>
-                    </div>
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[16px] font-semibold text-[#101522]">Photo de profil</p>
+                    <p className="mt-1 text-[13px] leading-6 text-[#8b97a8]">
+                      Choisis une image locale, ou garde l&apos;icone neutre pour commencer.
+                    </p>
                   </div>
-
-                  <p className="mt-6 max-w-[520px] text-[15px] leading-7 text-[#4f5f73]">{previewBio}</p>
-
-                  <div className="mt-6 flex flex-wrap gap-3">
-                    <div className="rounded-full bg-[#f5f8fc] px-4 py-2 text-[13px] font-medium text-[#101522]">
-                      {email ?? "Utilisateur Pictomag"}
-                    </div>
-                    <div className="rounded-full bg-[#f5f8fc] px-4 py-2 text-[13px] font-medium text-[#101522]">
-                      {websiteHostname ? websiteHostname : `pictomag.com/u/${previewUsername}`}
-                    </div>
-                  </div>
+                  <NeutralAvatar
+                    src={safeAvatarSrc}
+                    alt={previewDisplayName}
+                    size="h-14 w-14"
+                    iconSize="h-6 w-6"
+                  />
                 </div>
 
-                <div className="space-y-4">
-                  <div className="rounded-[24px] bg-white px-5 py-5 shadow-[0_14px_36px_rgba(15,23,42,0.05)]">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#9aa8bc]">{sideTitle}</p>
-                    <ul className="mt-4 space-y-3 text-[14px] leading-6 text-[#506174]">
-                      {sideItems.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="rounded-[24px] bg-white px-5 py-5 shadow-[0_14px_36px_rgba(15,23,42,0.05)]">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eef3ff] text-[#4f46ff]">
-                        <UserRound className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <p className="text-[15px] font-semibold text-[#101522]">{resultTitle}</p>
-                        <p className="mt-1 text-[13px] leading-6 text-[#8ea2bc]">{resultCopy}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <aside className="max-h-[calc(100vh-190px)] overflow-y-auto rounded-[30px] bg-[#fcfdff] px-6 py-6 shadow-[0_18px_52px_rgba(15,23,42,0.05)]">
-              <form className="space-y-5" onSubmit={handleSubmit}>
-                <div className="rounded-[24px] bg-white px-5 py-5 shadow-[0_14px_36px_rgba(16,21,34,0.05)]">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-[#8ea2bc]">Compte connecte</p>
-                      <p className="mt-3 text-[15px] font-medium text-[#101522]">{email ?? "Utilisateur Pictomag"}</p>
-                    </div>
-                    <div className="rounded-full bg-[#f5f8fc] px-3 py-2 text-[12px] font-medium text-[#637488]">AJAX</div>
-                  </div>
-                </div>
-
-                <div className="rounded-[24px] bg-white px-5 py-5 shadow-[0_14px_36px_rgba(16,21,34,0.05)]">
-                  <div className="flex items-center gap-4">
-                    <div className="relative h-16 w-16 overflow-hidden rounded-full bg-[#eef3f8]">
-                      <Image
-                        src={safeAvatarSrc}
-                        alt={previewDisplayName}
-                        fill
-                        sizes="64px"
-                        className="object-cover"
-                        unoptimized={safeAvatarSrc.startsWith("data:image/")}
-                      />
+                <label
+                  htmlFor={avatarInputId}
+                  onDragOver={handleAvatarDragOver}
+                  onDragLeave={handleAvatarDragLeave}
+                  onDrop={handleAvatarDrop}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      avatarInputRef.current?.click();
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  className={cx(
+                    "mt-4 flex w-full cursor-pointer items-center justify-between rounded-[22px] bg-[#fafbfe] px-4 py-4 text-left transition",
+                    avatarDragActive && "bg-[#eef4ff]",
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#101522] ring-1 ring-black/[0.04]">
+                      {avatarUrl ? <Camera className="h-4 w-4" /> : <ImagePlus className="h-4 w-4" />}
                     </div>
                     <div>
-                      <p className="text-[16px] font-semibold text-[#101522]">Photo de profil</p>
-                      <p className="mt-1 text-[13px] leading-6 text-[#8ea2bc]">
-                        Choisis une image locale. On la recadre en carre automatiquement.
+                      <p className="text-[14px] font-medium text-[#101522]">
+                        {avatarFileName ? "Changer la photo de profil" : "Choisir une image"}
+                      </p>
+                      <p className="mt-1 text-[12px] text-[#8ea2bc]">
+                        {avatarFileName || "Glisse une image ici ou clique pour selectionner."}
                       </p>
                     </div>
                   </div>
+                  <ArrowRight className="h-4 w-4 text-[#8ea2bc]" />
+                </label>
 
+                {avatarUrl ? (
                   <button
                     type="button"
-                    onClick={() => avatarInputRef.current?.click()}
-                    onDragOver={handleAvatarDragOver}
-                    onDragLeave={handleAvatarDragLeave}
-                    onDrop={handleAvatarDrop}
-                    className={cx(
-                      "mt-5 flex w-full items-center justify-between rounded-[24px] px-4 py-4 text-left transition",
-                      avatarDragActive ? "bg-[#eef4ff] shadow-[0_18px_44px_rgba(79,70,255,0.12)]" : "bg-[#f6f8fc]",
-                    )}
+                    onClick={clearAvatar}
+                    className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#f5f7fb] px-4 py-2 text-[13px] font-medium text-[#64748b] transition hover:bg-[#eef3f8]"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#101522] shadow-[0_8px_24px_rgba(16,21,34,0.08)]">
-                        {avatarUrl ? <Camera className="h-4 w-4" /> : <ImagePlus className="h-4 w-4" />}
-                      </div>
-                      <div>
-                        <p className="text-[14px] font-medium text-[#101522]">
-                          {avatarFileName ? "Changer la photo de profil" : "Parcourir la machine"}
-                        </p>
-                        <p className="mt-1 text-[12px] text-[#8ea2bc]">
-                          {avatarFileName || "Glisse une image ici ou clique pour selectionner."}
-                        </p>
-                      </div>
-                    </div>
-                    <ArrowRight className="h-4 w-4 text-[#8ea2bc]" />
+                    <X className="h-4 w-4" />
+                    Retirer l&apos;image
                   </button>
+                ) : null}
+              </div>
 
-                  {avatarUrl ? (
-                    <button
-                      type="button"
-                      onClick={clearAvatar}
-                      className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#f4f6fb] px-4 py-2 text-[13px] font-medium text-[#637488] transition hover:bg-[#ecf1f8]"
-                    >
-                      <X className="h-4 w-4" />
-                      Retirer l&apos;image
-                    </button>
-                  ) : null}
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-[13px] font-medium text-[#101522]">Nom affiche</label>
+                  <input
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    placeholder="Damien Rakotomanga"
+                    className="h-12 w-full rounded-[18px] bg-[#fafbfe] px-4 text-[15px] text-[#101522] outline-none transition focus:ring-2 focus:ring-[#4f46ff]"
+                  />
                 </div>
 
-                <div className="space-y-4 rounded-[24px] bg-white px-5 py-5 shadow-[0_14px_36px_rgba(16,21,34,0.05)]">
-                  <div>
-                    <label className="mb-2 block text-[13px] font-medium text-[#101522]">Nom affiche</label>
+                <div>
+                  <label className="mb-2 block text-[13px] font-medium text-[#101522]">@username</label>
+                  <input
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value.replace(/\s+/g, "").toLowerCase())}
+                    placeholder="damien"
+                    className="h-12 w-full rounded-[18px] bg-[#fafbfe] px-4 text-[15px] text-[#101522] outline-none transition focus:ring-2 focus:ring-[#4f46ff]"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[13px] font-medium text-[#101522]">Bio</label>
+                  <textarea
+                    value={bio}
+                    onChange={(event) => setBio(event.target.value.slice(0, 280))}
+                    rows={4}
+                    placeholder="Creatif, stories, visuels, videos, editions, projets."
+                    className="w-full rounded-[20px] bg-[#fafbfe] px-4 py-4 text-[15px] leading-7 text-[#101522] outline-none transition focus:ring-2 focus:ring-[#4f46ff]"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[13px] font-medium text-[#101522]">Site web (optionnel)</label>
+                  <div className="flex items-center rounded-[18px] bg-[#fafbfe] px-4 transition focus-within:ring-2 focus-within:ring-[#4f46ff]">
+                    <Link2 className="h-4 w-4 text-[#8ea2bc]" />
                     <input
-                      value={displayName}
-                      onChange={(event) => setDisplayName(event.target.value)}
-                      placeholder="Damien Rakotomanga"
-                      className="h-12 w-full rounded-[18px] bg-[#f6f8fc] px-4 text-[15px] text-[#101522] outline-none transition focus:bg-white focus:ring-2 focus:ring-[#4f46ff]"
+                      value={websiteUrl}
+                      onChange={(event) => setWebsiteUrl(event.target.value)}
+                      placeholder="https://www.votresite.com"
+                      className="h-12 w-full bg-transparent px-3 text-[15px] text-[#101522] outline-none"
                     />
                   </div>
+                </div>
+              </div>
 
-                  <div>
-                    <label className="mb-2 block text-[13px] font-medium text-[#101522]">@username</label>
-                    <input
-                      value={username}
-                      onChange={(event) => setUsername(event.target.value.replace(/\s+/g, "").toLowerCase())}
-                      placeholder="damien"
-                      className="h-12 w-full rounded-[18px] bg-[#f6f8fc] px-4 text-[15px] text-[#101522] outline-none transition focus:bg-white focus:ring-2 focus:ring-[#4f46ff]"
-                    />
+              {errorMessage ? <p className="text-[13px] font-medium text-[#d21d49]">{errorMessage}</p> : null}
+
+              <div className="rounded-[24px] bg-[#fafbfe] px-5 py-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#4f46ff] ring-1 ring-black/[0.04]">
+                    <Check className="h-4 w-4" />
                   </div>
-
                   <div>
-                    <label className="mb-2 block text-[13px] font-medium text-[#101522]">Bio</label>
-                    <textarea
-                      value={bio}
-                      onChange={(event) => setBio(event.target.value.slice(0, 280))}
-                      rows={4}
-                      placeholder="Creatif, stories, visuels, videos, editions, projets."
-                      className="w-full rounded-[20px] bg-[#f6f8fc] px-4 py-4 text-[15px] leading-7 text-[#101522] outline-none transition focus:bg-white focus:ring-2 focus:ring-[#4f46ff]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-[13px] font-medium text-[#101522]">Site web (optionnel)</label>
-                    <div className="flex items-center rounded-[18px] bg-[#f6f8fc] px-4 transition focus-within:bg-white focus-within:ring-2 focus-within:ring-[#4f46ff]">
-                      <Link2 className="h-4 w-4 text-[#8ea2bc]" />
-                      <input
-                        value={websiteUrl}
-                        onChange={(event) => setWebsiteUrl(event.target.value)}
-                        placeholder="https://www.votresite.com"
-                        className="h-12 w-full bg-transparent px-3 text-[15px] text-[#101522] outline-none"
-                      />
-                    </div>
+                    <p className="text-[15px] font-semibold text-[#101522]">{footerTitle}</p>
+                    <p className="mt-1 text-[13px] leading-6 text-[#8ea2bc]">{footerCopy}</p>
                   </div>
                 </div>
 
-                {errorMessage ? <p className="text-[13px] font-medium text-[#d21d49]">{errorMessage}</p> : null}
-
-                <div className="rounded-[24px] bg-white px-5 py-5 shadow-[0_14px_36px_rgba(16,21,34,0.05)]">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef3ff] text-[#4f46ff]">
-                      <Check className="h-4 w-4" />
-                    </div>
-                      <div>
-                        <p className="text-[15px] font-semibold text-[#101522]">{footerTitle}</p>
-                        <p className="mt-1 text-[13px] leading-6 text-[#8ea2bc]">{footerCopy}</p>
-                      </div>
-                    </div>
-
-                  <div className="mt-5 flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => router.push("/profile")}
-                      className="inline-flex h-12 flex-1 items-center justify-center rounded-full bg-[#f4f6fb] px-4 text-[14px] font-medium text-[#101522] transition hover:bg-[#ecf1f8]"
-                    >
-                      Voir mon profil
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={!canSubmit}
-                      className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-[#101522] px-4 text-[14px] font-semibold text-white transition hover:bg-[#1b2433] disabled:cursor-not-allowed disabled:bg-[#b9c0d4]"
-                    >
-                      {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                      {saving ? "Enregistrement..." : submitLabel}
-                    </button>
-                  </div>
+                <div className="mt-5 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => router.push("/profile")}
+                    className="inline-flex h-12 flex-1 items-center justify-center rounded-full bg-white px-4 text-[14px] font-medium text-[#101522] ring-1 ring-black/[0.05] transition hover:bg-[#f8fafc]"
+                  >
+                    Voir mon profil
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!canSubmit}
+                    className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-[#101522] px-4 text-[14px] font-semibold text-white transition hover:bg-[#1b2433] disabled:cursor-not-allowed disabled:bg-[#b9c0d4]"
+                  >
+                    {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    {saving ? "Enregistrement..." : submitLabel}
+                  </button>
                 </div>
-              </form>
-            </aside>
+              </div>
+            </form>
           </div>
         </div>
       </div>
 
-      <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarSelection} className="hidden" />
+      <input
+        id={avatarInputId}
+        ref={avatarInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleAvatarSelection}
+        className="hidden"
+      />
     </main>
   );
 }

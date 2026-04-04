@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { BadgeCheck, ChevronLeft, Clapperboard, Image as ImageIcon, LayoutList, Link2 } from "lucide-react";
+import { AuthRequiredModal } from "@/components/auth-required-modal";
 import { AnimatedHeaderNav, type HeaderNavItemId } from "@/components/animated-header-nav";
 import { ClassicFeedStream } from "@/components/classic-feed-view";
 import {
@@ -36,9 +37,18 @@ type PublicProfileView = "feed" | "videos" | "albums";
 
 type PublicSessionPayload = {
   authenticated?: boolean;
+  user?: {
+    id?: string;
+  };
   profile?: {
     username?: string;
+    onboardingCompletedAt?: number | null;
   };
+};
+
+type AuthPromptContent = {
+  title: string;
+  description: string;
 };
 
 function toDrawerVideo(item: ClassicFeedCardItem): MockVideo | null {
@@ -105,12 +115,40 @@ function PublicProfileTabButton({
   );
 }
 
+function LockedPublicProfileSection({
+  locked,
+  onUnlockRequest,
+  children,
+}: {
+  locked: boolean;
+  onUnlockRequest: () => void;
+  children: ReactNode;
+}) {
+  if (!locked) {
+    return <>{children}</>;
+  }
+
+  return (
+    <div className="relative">
+      <div className="pointer-events-none select-none opacity-[0.48]">{children}</div>
+      <button
+        type="button"
+        onClick={onUnlockRequest}
+        className="absolute inset-0 z-10 rounded-[18px]"
+        aria-label="Ouvrir le portail de connexion"
+      />
+      <div className="pointer-events-none absolute inset-0 rounded-[18px] bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.22)_35%,rgba(243,245,246,0.65)_100%)]" />
+    </div>
+  );
+}
+
 export function PublicProfilePage({ username }: PublicProfilePageProps) {
   const router = useRouter();
   const [bundle, setBundle] = useState<PublicProfileBundle | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [viewerSession, setViewerSession] = useState<PublicSessionPayload | null>(null);
+  const [authPrompt, setAuthPrompt] = useState<AuthPromptContent | null>(null);
   const [profileView, setProfileView] = useState<PublicProfileView>("feed");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [commentsVideoId, setCommentsVideoId] = useState<number | null>(null);
@@ -172,10 +210,17 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
 
     const loadViewerSession = async () => {
       try {
-        const response = await fetch("/api/auth/session", {
+        const response = await fetch("/api/profile/me", {
           cache: "no-store",
           credentials: "same-origin",
         });
+
+        if (response.status === 401) {
+          if (!cancelled) {
+            setViewerSession(null);
+          }
+          return;
+        }
 
         if (!response.ok) {
           return;
@@ -198,6 +243,10 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
       cancelled = true;
     };
   }, []);
+
+  const publicProfileHref = useMemo(() => `/u/${encodeURIComponent(username)}`, [username]);
+  const signupHref = useMemo(() => `/signup?next=${encodeURIComponent(publicProfileHref)}`, [publicProfileHref]);
+  const loginHref = useMemo(() => `/login?next=${encodeURIComponent(publicProfileHref)}`, [publicProfileHref]);
 
   const profilePosts = useMemo(() => bundle?.posts ?? [], [bundle]);
   const classicItems = useMemo(
@@ -263,6 +312,15 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
   };
 
   const handleCopyProfile = async () => {
+    if (
+      requireViewerAuth({
+        title: "Copier le profil",
+        description: `Connecte-toi pour copier le profil public de ${profile?.username ?? username}.`,
+      })
+    ) {
+      return;
+    }
+
     try {
       const slug = bundle?.profile.username ?? username;
       await navigator.clipboard.writeText(`${window.location.origin}/u/${encodeURIComponent(slug)}`);
@@ -273,6 +331,15 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
   };
 
   const handleOpenWebsite = () => {
+    if (
+      requireViewerAuth({
+        title: "Ouvrir le site",
+        description: `Connecte-toi pour ouvrir les liens publics de ${profile?.username ?? username}.`,
+      })
+    ) {
+      return;
+    }
+
     const rawWebsite = bundle?.profile.websiteUrl?.trim();
 
     if (!rawWebsite) {
@@ -286,10 +353,51 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
 
   const profile = bundle?.profile;
   const profileDisplayName = formatDisplayName(profile?.displayName, "Profil");
+  const openAuthPrompt = useCallback(
+    (content?: Partial<AuthPromptContent>) => {
+      const profileHandle = profile?.username ?? username;
+
+      setAuthPrompt({
+        title: content?.title ?? "Ouvrir le profil complet",
+        description:
+          content?.description ??
+          `Cree ton compte ou connecte-toi pour ouvrir les contenus de ${profileHandle}.`,
+      });
+    },
+    [profile?.username, username],
+  );
+  const closeAuthPrompt = useCallback(() => setAuthPrompt(null), []);
+  const requireViewerAuth = useCallback(
+    (content?: Partial<AuthPromptContent>) => {
+      if (viewerSession?.authenticated) {
+        return false;
+      }
+
+      openAuthPrompt(content);
+      return true;
+    },
+    [openAuthPrompt, viewerSession?.authenticated],
+  );
 
   const isOwnPublicProfile =
     Boolean(viewerSession?.authenticated) &&
     viewerSession?.profile?.username?.trim().toLowerCase() === profile?.username.trim().toLowerCase();
+
+  const handleProfileViewChange = useCallback(
+    (nextView: PublicProfileView) => {
+      if (
+        requireViewerAuth({
+          title: "Ouvrir le profil complet",
+          description: `Connecte-toi pour ouvrir les autres contenus de ${profile?.username ?? username}.`,
+        })
+      ) {
+        return;
+      }
+
+      setProfileView(nextView);
+    },
+    [profile?.username, requireViewerAuth, username],
+  );
 
   const handleMessageProfile = () => {
     if (!profile) {
@@ -301,8 +409,12 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
       return;
     }
 
-    if (!viewerSession?.authenticated) {
-      router.push("/login");
+    if (
+      requireViewerAuth({
+        title: "Demarrer la conversation",
+        description: `Connecte-toi pour envoyer un message a ${profile.username}.`,
+      })
+    ) {
       return;
     }
 
@@ -492,13 +604,13 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
               </div>
 
               <div className="mt-8 flex flex-wrap items-center gap-3 border-t border-black/6 pt-6">
-                <PublicProfileTabButton active={profileView === "feed"} label="Feed public" onClick={() => setProfileView("feed")}>
+                <PublicProfileTabButton active={profileView === "feed"} label="Feed public" onClick={() => handleProfileViewChange("feed")}>
                   <LayoutList className="h-4 w-4" />
                 </PublicProfileTabButton>
-                <PublicProfileTabButton active={profileView === "videos"} label="Videos" onClick={() => setProfileView("videos")}>
+                <PublicProfileTabButton active={profileView === "videos"} label="Videos" onClick={() => handleProfileViewChange("videos")}>
                   <Clapperboard className="h-4 w-4" />
                 </PublicProfileTabButton>
-                <PublicProfileTabButton active={profileView === "albums"} label="Albums" onClick={() => setProfileView("albums")}>
+                <PublicProfileTabButton active={profileView === "albums"} label="Albums" onClick={() => handleProfileViewChange("albums")}>
                   <ImageIcon className="h-4 w-4" />
                 </PublicProfileTabButton>
               </div>
@@ -507,17 +619,27 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
             {profileView === "feed" ? (
               classicItems.length > 0 ? (
                 <div className="mx-auto w-full max-w-[880px]">
-                  <ClassicFeedStream
-                    className="mt-6 space-y-16"
-                    trackingEnabled
-                    flatCards
-                    items={classicItems}
-                    onOpenComments={handleOpenComments}
-                    onOpenShare={handleOpenShare}
-                    onOpenTimeLike={handleOpenTimeLike}
-                    onOpenMore={handleOpenMore}
-                    onTimeLikeStateChange={handleTimeLikeStateChange}
-                  />
+                  <LockedPublicProfileSection
+                    locked={!viewerSession?.authenticated}
+                    onUnlockRequest={() =>
+                      openAuthPrompt({
+                        title: "Voir cette publication",
+                        description: `Connecte-toi pour ouvrir les publications de ${profile.username}.`,
+                      })
+                    }
+                  >
+                    <ClassicFeedStream
+                      className="mt-6 space-y-16"
+                      trackingEnabled={Boolean(viewerSession?.authenticated)}
+                      flatCards
+                      items={classicItems}
+                      onOpenComments={handleOpenComments}
+                      onOpenShare={handleOpenShare}
+                      onOpenTimeLike={handleOpenTimeLike}
+                      onOpenMore={handleOpenMore}
+                      onTimeLikeStateChange={handleTimeLikeStateChange}
+                    />
+                  </LockedPublicProfileSection>
                 </div>
               ) : (
                 <section className="mt-6 rounded-[10px] border border-black/7 bg-white px-8 py-8 text-[15px] leading-7 text-[#637488]">
@@ -528,28 +650,38 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
 
             {profileView === "videos" ? (
               videoItems.length > 0 ? (
-                <section className="mt-6 grid grid-cols-4 gap-[5px]">
-                  {videoItems.map((item) => (
-                    <article key={item.id} className="group relative h-[498px] overflow-hidden rounded-[5px] bg-black">
-                      <video
-                        src={item.src}
-                        poster={item.poster}
-                        muted
-                        loop
-                        autoPlay
-                        playsInline
-                        className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.015]"
-                      />
-                      <div className="absolute left-4 top-4 rounded-full bg-[rgba(15,23,42,0.72)] px-3 py-1 text-[12px] font-medium text-white">
-                        {item.duration}
-                      </div>
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/18 to-transparent px-4 pb-4 pt-10">
-                        <p className="text-[18px] font-medium tracking-[-0.03em] text-white">{item.title}</p>
-                        <p className="mt-1 text-[14px] text-white/80">{item.caption}</p>
-                      </div>
-                    </article>
-                  ))}
-                </section>
+                <LockedPublicProfileSection
+                  locked={!viewerSession?.authenticated}
+                    onUnlockRequest={() =>
+                      openAuthPrompt({
+                        title: "Voir les videos",
+                        description: `Connecte-toi pour lancer les videos de ${profile.username}.`,
+                      })
+                    }
+                  >
+                  <section className="mt-6 grid grid-cols-4 gap-[5px]">
+                    {videoItems.map((item) => (
+                      <article key={item.id} className="group relative h-[498px] overflow-hidden rounded-[5px] bg-black">
+                        <video
+                          src={item.src}
+                          poster={item.poster}
+                          muted
+                          loop
+                          autoPlay
+                          playsInline
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.015]"
+                        />
+                        <div className="absolute left-4 top-4 rounded-full bg-[rgba(15,23,42,0.72)] px-3 py-1 text-[12px] font-medium text-white">
+                          {item.duration}
+                        </div>
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/18 to-transparent px-4 pb-4 pt-10">
+                          <p className="text-[18px] font-medium tracking-[-0.03em] text-white">{item.title}</p>
+                          <p className="mt-1 text-[14px] text-white/80">{item.caption}</p>
+                        </div>
+                      </article>
+                    ))}
+                  </section>
+                </LockedPublicProfileSection>
               ) : (
                 <section className="mt-6 rounded-[10px] border border-black/7 bg-white px-8 py-8 text-[15px] leading-7 text-[#637488]">
                   Aucune video publique pour l&apos;instant sur ce profil.
@@ -559,25 +691,35 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
 
             {profileView === "albums" ? (
               albumItems.length > 0 ? (
-                <section className="mt-6 grid grid-cols-3 gap-4">
-                  {albumItems.map((item) => (
-                    <article key={item.id} className="group text-left">
-                      <div className="relative h-[260px] overflow-hidden rounded-[10px] bg-[#f4f6f8]">
-                        <Image
-                          src={item.src}
-                          alt={item.alt}
-                          fill
-                          sizes="320px"
-                          className="object-cover transition duration-300 group-hover:scale-[1.015]"
-                        />
-                      </div>
-                      <div className="mt-3 flex items-center justify-between gap-3">
-                        <p className="line-clamp-1 text-[15px] font-medium tracking-[-0.02em] text-[#101522]">{item.title}</p>
-                        <span className="shrink-0 text-[12px] text-[#7b8798]">{item.photoCount} photo{item.photoCount > 1 ? "s" : ""}</span>
-                      </div>
-                    </article>
-                  ))}
-                </section>
+                <LockedPublicProfileSection
+                  locked={!viewerSession?.authenticated}
+                    onUnlockRequest={() =>
+                      openAuthPrompt({
+                        title: "Voir les albums",
+                        description: `Connecte-toi pour parcourir les albums de ${profile.username}.`,
+                      })
+                    }
+                  >
+                  <section className="mt-6 grid grid-cols-3 gap-4">
+                    {albumItems.map((item) => (
+                      <article key={item.id} className="group text-left">
+                        <div className="relative h-[260px] overflow-hidden rounded-[10px] bg-[#f4f6f8]">
+                          <Image
+                            src={item.src}
+                            alt={item.alt}
+                            fill
+                            sizes="320px"
+                            className="object-cover transition duration-300 group-hover:scale-[1.015]"
+                          />
+                        </div>
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                          <p className="line-clamp-1 text-[15px] font-medium tracking-[-0.02em] text-[#101522]">{item.title}</p>
+                          <span className="shrink-0 text-[12px] text-[#7b8798]">{item.photoCount} photo{item.photoCount > 1 ? "s" : ""}</span>
+                        </div>
+                      </article>
+                    ))}
+                  </section>
+                </LockedPublicProfileSection>
               ) : (
                 <section className="mt-6 rounded-[10px] border border-black/7 bg-white px-8 py-8 text-[15px] leading-7 text-[#637488]">
                   Aucun album photo public pour l&apos;instant sur ce profil.
@@ -616,6 +758,17 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
           {toastMessage}
         </div>
       ) : null}
+
+      <AuthRequiredModal
+        open={authPrompt !== null}
+        onClose={closeAuthPrompt}
+        title={authPrompt?.title ?? "Ouvrir ce contenu"}
+        description={authPrompt?.description ?? "Connecte-toi pour continuer sur Pictomag."}
+        signupHref={signupHref}
+        loginHref={loginHref}
+        avatarSrc={profile?.avatarUrl ?? null}
+        avatarAlt={profileDisplayName}
+      />
     </div>
   );
 }
