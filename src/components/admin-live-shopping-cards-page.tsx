@@ -374,7 +374,7 @@ export function AdminLiveShoppingCardsPage() {
                   {elevatingRole ? "Activation..." : "Activer mode admin demo"}
                 </button>
                 <Link
-                  href="/auth"
+                  href="/debug/auth"
                   className="inline-flex h-11 items-center rounded-[10px] border border-[#d8e2f1] px-4 text-[14px] font-medium tracking-[-0.01em] text-[#101522] transition hover:bg-[#f7fbff]"
                 >
                   Ouvrir auth

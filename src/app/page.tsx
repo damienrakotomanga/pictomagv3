@@ -1,5 +1,13 @@
 import { FeedPage } from "@/components/feed-page";
 
-export default function Home() {
-  return <FeedPage />;
+type HomePageProps = {
+  searchParams: Promise<{
+    mode?: string;
+  }>;
+};
+
+export default async function Home({ searchParams }: HomePageProps) {
+  const { mode } = await searchParams;
+
+  return <FeedPage initialMode={mode === "classic" ? "classic" : undefined} />;
 }

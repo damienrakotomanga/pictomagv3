@@ -80,7 +80,7 @@ const topActions = [
 
 const createMenuItems = [
   { title: "Nouveau post", copy: "Publier un texte, une photo ou une video", href: "/compose" },
-  { title: "Completer mon profil", copy: "Mettre a jour photo, bio et username", href: "/onboarding" },
+  { title: "Modifier mon profil", copy: "Mettre a jour photo, bio et username", href: "/profile/edit" },
   { title: "Retour au feed", copy: "Revenir au fil principal", href: "/" },
 ];
 
@@ -100,7 +100,7 @@ const searchSeedItems = [
   { title: "Feed video", copy: "Revenir au fil principal", href: "/" },
   { title: "Galerie photo", copy: "Ouvrir la vue photo", href: "/photos" },
   { title: "Nouveau post", copy: "Publier un texte, une photo ou une video", href: "/compose" },
-  { title: "Completer mon profil", copy: "Renseigner bio, photo et site", href: "/onboarding" },
+  { title: "Modifier mon profil", copy: "Renseigner bio, photo et site", href: "/profile/edit" },
   { title: "Mon profil", copy: "Rester sur cette page", href: "/profile" },
 ];
 
@@ -298,26 +298,15 @@ export function ProfilePage() {
 
     const loadProfile = async () => {
       try {
-        const sessionResponse = await fetch("/api/auth/session", {
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-
-        if (!sessionResponse.ok) {
-          router.replace("/login");
-          return;
-        }
-
-        const sessionPayload = (await sessionResponse.json()) as { authenticated?: boolean };
-        if (!sessionPayload.authenticated) {
-          router.replace("/login");
-          return;
-        }
-
         const meResponse = await fetch("/api/profile/me", {
           credentials: "same-origin",
           cache: "no-store",
         });
+
+        if (meResponse.status === 401) {
+          router.replace("/login");
+          return;
+        }
 
         if (!meResponse.ok) {
           throw new Error("Impossible de charger la session du profil.");
@@ -375,7 +364,6 @@ export function ProfilePage() {
       } catch {
         if (!cancelled) {
           setProfileBundle(null);
-          router.replace("/login");
         }
       } finally {
         if (!cancelled) {
@@ -638,7 +626,7 @@ export function ProfilePage() {
 
   const handleOpenProfileWebsite = () => {
     if (!profileData.websiteUrl) {
-      router.push("/onboarding");
+      router.push("/profile/edit");
       return;
     }
 
@@ -914,7 +902,7 @@ export function ProfilePage() {
 
                 <button
                   type="button"
-                  onClick={() => router.push("/onboarding")}
+                  onClick={() => router.push("/profile/edit")}
                   className="mt-7 w-full rounded-[8px] bg-[#2b8fff] px-5 py-3 text-[16px] font-medium text-white transition hover:bg-[#247fe5]"
                 >
                   Edit profile
@@ -1002,7 +990,7 @@ export function ProfilePage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => router.push("/onboarding")}
+                      onClick={() => router.push("/profile/edit")}
                       className="rounded-[10px] border border-black/7 px-5 py-3 text-[14px] font-medium tracking-[-0.01em] text-[#101522] transition hover:bg-[#f8fbff]"
                     >
                       Completer mon profil
@@ -1035,7 +1023,7 @@ export function ProfilePage() {
               profile={profileData}
               followersLabel={metrics.followers}
               description="Albums photo du profil. Chaque album regroupe les images que tu as choisi d'organiser ensemble."
-              onPrimaryAction={() => router.push("/onboarding")}
+              onPrimaryAction={() => router.push("/profile/edit")}
               primaryLabel="Edit profile"
               onSecondaryAction={handleCopyProfile}
               secondaryLabel="Share profile"

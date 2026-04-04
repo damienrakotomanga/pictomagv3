@@ -48,6 +48,7 @@ type ProfileMePayload = {
     displayName?: string;
     username?: string;
     avatarUrl?: string | null;
+    onboardingCompletedAt?: number | null;
   };
 };
 
@@ -488,8 +489,13 @@ export function PostComposerPage() {
         }
 
         const payload = (await response.json()) as ProfileMePayload;
+        if (!payload.profile?.onboardingCompletedAt) {
+          router.replace("/onboarding");
+          return;
+        }
+
         if (!cancelled) {
-          setProfile(payload.profile ?? null);
+          setProfile(payload.profile);
         }
       } catch (error) {
         if (!cancelled) {
@@ -828,7 +834,7 @@ export function PostComposerPage() {
       setPhotoStep("success");
       window.setTimeout(() => {
         startTransition(() => {
-          router.push("/profile");
+          router.push("/?mode=classic");
           router.refresh();
         });
       }, 900);

@@ -14,6 +14,9 @@ type AuthEntryPageProps = {
 type AuthPayload = {
   message?: string;
   authenticated?: boolean;
+  user?: {
+    id?: string;
+  };
   profile?: {
     onboardingCompletedAt?: number | null;
   };
@@ -69,21 +72,25 @@ export function AuthEntryPage({ mode }: AuthEntryPageProps) {
 
     const loadSession = async () => {
       try {
-        const response = await fetch("/api/auth/session", {
+        const response = await fetch("/api/profile/me", {
           credentials: "same-origin",
           cache: "no-store",
         });
+
+        if (response.status === 401) {
+          return;
+        }
 
         if (!response.ok) {
           return;
         }
 
         const payload = (await response.json()) as AuthPayload;
-        if (cancelled || payload.authenticated !== true) {
+        if (cancelled || payload.authenticated !== true || !payload.user?.id) {
           return;
         }
 
-        router.replace(payload.profile?.onboardingCompletedAt ? "/" : "/onboarding");
+        router.replace(payload.profile?.onboardingCompletedAt ? "/profile" : "/onboarding");
       } catch {
         // Ignore session preload errors and let the user use the form normally.
       }
@@ -168,7 +175,9 @@ export function AuthEntryPage({ mode }: AuthEntryPageProps) {
         return;
       }
 
-      router.push(mode === "signup" ? "/onboarding" : responsePayload?.profile?.onboardingCompletedAt ? "/" : "/onboarding");
+      router.push(
+        mode === "signup" ? "/onboarding" : responsePayload?.profile?.onboardingCompletedAt ? "/profile" : "/onboarding",
+      );
       router.refresh();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Action impossible pour le moment.");
