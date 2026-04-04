@@ -12,7 +12,6 @@ import {
   CircleAlert,
   ChevronDown,
   CreditCard,
-  Eye,
   MapPin,
   Search,
   Share2,
@@ -62,6 +61,12 @@ import {
   readLiveShoppingScheduleFromApi,
   writeLiveShoppingScheduleToApi,
 } from "@/lib/state-api";
+import { SiteAccountMenu } from "@/components/site-account-menu";
+import { LiveShoppingSvgCategoryCard } from "@/components/live-shopping-svg-category-card";
+import {
+  getLiveShoppingCategoryCardDefaultArtSettings,
+  type LiveShoppingCategoryCardArtSettings,
+} from "@/lib/live-shopping-category-card-art";
 
 type SortMode = "recommended" | "viewers-desc" | "viewers-asc";
 
@@ -72,14 +77,90 @@ const topActions = [
 ] as const;
 
 const categoryTileThemes = [
-  { base: "#f4f8ff", edge: "#dce8ff", glow: "rgba(70,130,255,0.18)", orbA: "#8cc0ff", orbB: "#d9e7ff", accent: "#2b6fff", accentSoft: "#eff5ff" },
-  { base: "#fff7ef", edge: "#ffe5c6", glow: "rgba(255,172,58,0.16)", orbA: "#ffc96c", orbB: "#fff1cf", accent: "#ff9d1b", accentSoft: "#fff7e8" },
-  { base: "#f5fbff", edge: "#dcecff", glow: "rgba(45,111,255,0.16)", orbA: "#5ba2ff", orbB: "#d8ebff", accent: "#2070ff", accentSoft: "#edf5ff" },
-  { base: "#f8f6ff", edge: "#e9e1ff", glow: "rgba(130,111,255,0.16)", orbA: "#8f7bff", orbB: "#eee8ff", accent: "#6b58ff", accentSoft: "#f2efff" },
-  { base: "#f1fcf8", edge: "#d7f1e8", glow: "rgba(46,177,130,0.16)", orbA: "#4fd2a2", orbB: "#ddf7ee", accent: "#19a978", accentSoft: "#ebfaf4" },
-  { base: "#fff4f7", edge: "#ffe0e9", glow: "rgba(255,111,145,0.16)", orbA: "#ff8fb0", orbB: "#ffebf1", accent: "#ff5f87", accentSoft: "#fff0f5" },
-  { base: "#f6f8ff", edge: "#e7ebff", glow: "rgba(83,96,255,0.16)", orbA: "#8b96ff", orbB: "#edf0ff", accent: "#4a5eff", accentSoft: "#eff2ff" },
-  { base: "#f8fbf3", edge: "#e9f2dc", glow: "rgba(122,171,52,0.16)", orbA: "#a8cf63", orbB: "#f0f8e1", accent: "#7ea42a", accentSoft: "#f3f8e9" },
+  {
+    base: "#eef8ff",
+    edge: "#dfefff",
+    glow: "rgba(69, 128, 255, 0.14)",
+    orbA: "#a8d8ff",
+    orbB: "#ffffff",
+    accent: "#2b6fff",
+    accentSoft: "#eef5ff",
+    canvas: "linear-gradient(180deg, #eaf8ff 0%, #f8fcff 56%, #eff8ff 100%)",
+    halo:
+      "radial-gradient(circle at 16% 16%, rgba(161, 219, 255, 0.95) 0%, rgba(161, 219, 255, 0) 40%), radial-gradient(circle at 84% 8%, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0) 28%), linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 100%)",
+    frameTint: "rgba(255, 255, 255, 0.72)",
+    imageGlow: "rgba(57, 113, 213, 0.12)",
+  },
+  {
+    base: "#f3fbff",
+    edge: "#e7f6ff",
+    glow: "rgba(57, 143, 255, 0.14)",
+    orbA: "#c4ebff",
+    orbB: "#ffffff",
+    accent: "#2b6fff",
+    accentSoft: "#f3f9ff",
+    canvas: "linear-gradient(180deg, #effaff 0%, #fbfdff 58%, #eef8ff 100%)",
+    halo:
+      "radial-gradient(circle at 18% 18%, rgba(186, 231, 255, 0.92) 0%, rgba(186, 231, 255, 0) 42%), radial-gradient(circle at 82% 10%, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0) 30%), linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 100%)",
+    frameTint: "rgba(255, 255, 255, 0.74)",
+    imageGlow: "rgba(70, 132, 221, 0.1)",
+  },
+  {
+    base: "#f4fbf5",
+    edge: "#e4f6e8",
+    glow: "rgba(66, 177, 132, 0.12)",
+    orbA: "#c3efd1",
+    orbB: "#ffffff",
+    accent: "#2b6fff",
+    accentSoft: "#effaf1",
+    canvas: "linear-gradient(180deg, #effbf3 0%, #fbfdfb 58%, #edf9f0 100%)",
+    halo:
+      "radial-gradient(circle at 18% 16%, rgba(198, 239, 209, 0.94) 0%, rgba(198, 239, 209, 0) 42%), radial-gradient(circle at 84% 10%, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0) 28%), linear-gradient(180deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0) 100%)",
+    frameTint: "rgba(255, 255, 255, 0.76)",
+    imageGlow: "rgba(78, 143, 113, 0.09)",
+  },
+  {
+    base: "#fff9f1",
+    edge: "#fff1dd",
+    glow: "rgba(233, 174, 78, 0.11)",
+    orbA: "#ffe5b6",
+    orbB: "#ffffff",
+    accent: "#2b6fff",
+    accentSoft: "#fff8ee",
+    canvas: "linear-gradient(180deg, #fff8ee 0%, #fffdf9 60%, #fff4e3 100%)",
+    halo:
+      "radial-gradient(circle at 18% 16%, rgba(255, 230, 186, 0.95) 0%, rgba(255, 230, 186, 0) 42%), radial-gradient(circle at 82% 10%, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0) 30%), linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 100%)",
+    frameTint: "rgba(255, 255, 255, 0.8)",
+    imageGlow: "rgba(177, 131, 47, 0.08)",
+  },
+  {
+    base: "#fff6f8",
+    edge: "#ffe8ef",
+    glow: "rgba(255, 137, 176, 0.11)",
+    orbA: "#ffd1de",
+    orbB: "#ffffff",
+    accent: "#2b6fff",
+    accentSoft: "#fff2f6",
+    canvas: "linear-gradient(180deg, #fff5f8 0%, #fffdfd 60%, #fff0f4 100%)",
+    halo:
+      "radial-gradient(circle at 18% 16%, rgba(255, 214, 228, 0.94) 0%, rgba(255, 214, 228, 0) 42%), radial-gradient(circle at 84% 10%, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0) 28%), linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 100%)",
+    frameTint: "rgba(255, 255, 255, 0.76)",
+    imageGlow: "rgba(199, 119, 154, 0.08)",
+  },
+  {
+    base: "#f7f9ff",
+    edge: "#ecf0ff",
+    glow: "rgba(118, 128, 255, 0.11)",
+    orbA: "#d7dcff",
+    orbB: "#ffffff",
+    accent: "#2b6fff",
+    accentSoft: "#f1f4ff",
+    canvas: "linear-gradient(180deg, #f4f7ff 0%, #fbfcff 58%, #eef2ff 100%)",
+    halo:
+      "radial-gradient(circle at 16% 16%, rgba(219, 224, 255, 0.94) 0%, rgba(219, 224, 255, 0) 40%), radial-gradient(circle at 84% 10%, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0) 28%), linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 100%)",
+    frameTint: "rgba(255, 255, 255, 0.76)",
+    imageGlow: "rgba(94, 110, 221, 0.08)",
+  },
 ] as const;
 
 type CategoryCoverPreset = {
@@ -120,109 +201,12 @@ const categoryCoverPresets: Record<string, CategoryCoverPreset> = {
   pets: { layout: "single", items: ["🐶", "🦴", "✨"] },
 };
 
-type CategoryLoopingMediaAsset = {
-  type: "image" | "video";
-  src: string;
-  objectPosition?: string;
-  poster?: string;
-};
-
-const categoryLoopingMediaById: Record<string, CategoryLoopingMediaAsset> = {
-  "trading-card-games": {
-    type: "video",
-    src: "/live-shopping/categories/trading-card-games.mp4",
-    poster: "/live-shopping/categories/trading-card-games-v2.jpg",
-    objectPosition: "center center",
-  },
-  "finds-and-thrifts": {
-    type: "image",
-    src: "/live-shopping/categories/finds-and-thrifts-v2.jpg",
-    objectPosition: "center center",
-  },
-  "bags-and-accessories": {
-    type: "image",
-    src: "/live-shopping/categories/bags-and-accessories-v2.jpg",
-    objectPosition: "center center",
-  },
-  "books-and-films": {
-    type: "image",
-    src: "/live-shopping/categories/books-and-films-v2.jpg",
-    objectPosition: "center center",
-  },
-  "mens-fashion": {
-    type: "image",
-    src: "/live-shopping/categories/mens-fashion-v2.jpg",
-    objectPosition: "center 18%",
-  },
-  "womens-fashion": {
-    type: "image",
-    src: "/live-shopping/categories/womens-fashion-v2.jpg",
-    objectPosition: "center 16%",
-  },
-  collectibles: {
-    type: "image",
-    src: "/live-shopping/categories/collectibles-v2.jpg",
-    objectPosition: "center 24%",
-  },
-  "sneakers-and-shoes": {
-    type: "image",
-    src: "/live-shopping/categories/sneakers-and-shoes-v2.jpg",
-    objectPosition: "center center",
-  },
-  "toys-and-hobbies": {
-    type: "image",
-    src: "/live-shopping/categories/toys-and-hobbies-v2.jpg",
-    objectPosition: "center 18%",
-  },
-  "sports-cards": {
-    type: "image",
-    src: "/live-shopping/categories/sports-cards-v2.jpg",
-    objectPosition: "center center",
-  },
-  comics: {
-    type: "image",
-    src: "/live-shopping/categories/comics-v2.jpg",
-    objectPosition: "center center",
-  },
-  beauty: {
-    type: "image",
-    src: "/live-shopping/categories/beauty-v2.jpg",
-    objectPosition: "center center",
-  },
-  "art-craft": {
-    type: "image",
-    src: "/live-shopping/categories/art-craft-v2.jpg",
-    objectPosition: "center center",
-  },
-  "anime-manga": {
-    type: "image",
-    src: "/live-shopping/categories/anime-manga-v2.jpg",
-    objectPosition: "center center",
-  },
-};
-
-function getCategoryLoopingMedia(categoryId: string): CategoryLoopingMediaAsset {
-  return categoryLoopingMediaById[categoryId] ?? {
-    type: "image",
-    src: `/live-shopping/categories/${categoryId}-v2.jpg`,
-    objectPosition: "center center",
-  };
-}
-
 function euros(value: number) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
 }
 
 function count(value: number) {
   return new Intl.NumberFormat("fr-FR").format(value);
-}
-
-function viewers(value: number) {
-  return value >= 1000 ? `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(value / 1000)} k` : count(value);
-}
-
-function audiencePrimary(label: string) {
-  return label.replace(/\s*Spectateurs?$/i, "");
 }
 
 function inventoryProductToLot(product: LiveInventoryProduct): LiveShoppingLot {
@@ -242,48 +226,22 @@ function inventoryProductToLot(product: LiveInventoryProduct): LiveShoppingLot {
 
 function CategoryLoopingMediaPreview({
   categoryId,
-  theme,
-  delay,
+  label,
+  art,
 }: {
   categoryId: string;
-  theme: (typeof categoryTileThemes)[number];
-  delay: string;
+  label: string;
+  art: LiveShoppingCategoryCardArtSettings;
 }) {
-  const media = getCategoryLoopingMedia(categoryId);
-
   return (
-    <div
-      className="live-shopping-category-image-shell absolute inset-[10px]"
-      style={{
-        boxShadow: `0 18px 34px ${theme.glow}, inset 0 1px 0 rgba(255,255,255,0.78)`,
-      }}
-    >
-      {media.type === "video" ? (
-        <video
-          key={media.src}
-          className="live-shopping-category-video"
-          src={media.src}
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="metadata"
-          poster={media.poster}
-        />
-      ) : (
-        <Image
-          src={media.src}
-          alt=""
-          fill
-          sizes="240px"
-          className="live-shopping-category-image object-cover"
-          style={{ objectPosition: media.objectPosition }}
-        />
-      )}
-      <div className="live-shopping-category-overlay absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 50%, rgba(8,12,20,0.1) 100%)" }} />
-      <div className="live-shopping-category-frame absolute inset-0 rounded-[6px]" />
-      <div className="live-shopping-category-shine absolute -left-[34%] top-0 h-full w-[42%]" style={{ animationDelay: delay }} />
-    </div>
+    <LiveShoppingSvgCategoryCard
+      categoryId={categoryId}
+      label={label}
+      imageSrc={art.imageSrc}
+      offsetX={art.offsetX}
+      offsetY={art.offsetY}
+      zoom={art.zoom}
+    />
   );
 }
 
@@ -745,21 +703,20 @@ function createActionIdempotencyKey(action: "place_bid" | "checkout", lotId: str
 
 export function LiveHeader({
   onNavClick,
-  onProfileClick,
   onCreateClick,
   onNotificationsClick,
   onMessagesClick,
-  onMenuClick,
 }: {
   onNavClick: (item: HeaderNavItemId) => void;
-  onProfileClick: () => void;
   onCreateClick?: () => void;
   onNotificationsClick?: () => void;
   onMessagesClick?: () => void;
-  onMenuClick?: () => void;
 }) {
   return (
-    <header className="fixed left-1/2 top-0 z-[120] h-[73px] w-[1440px] -translate-x-1/2">
+    <header
+      className="fixed left-1/2 top-0 z-[120] h-[73px] w-[1440px] -translate-x-1/2"
+      data-legacy-site-header="true"
+    >
       <div className="absolute left-0 top-0 h-[61px] w-[1440px] bg-[rgba(255,255,255,0.92)] backdrop-blur-[13px]" />
       <div className="relative h-full">
         <Image src="/figma-assets/logo-mark.png" alt="Pictomag" width={30} height={29} className="absolute left-[54px] top-[23px]" />
@@ -786,22 +743,15 @@ export function LiveHeader({
           ))}
         </div>
         <div className="absolute left-[1315px] top-[21px] h-8 w-px bg-[rgba(16,21,34,0.18)]" />
-        <button
-          type="button"
-          aria-label="Menu"
-          onClick={onMenuClick}
-          className="absolute left-[1342px] top-6 h-6 w-6"
-        >
-          <Image src="/figma-assets/top-menu.svg" alt="" width={24} height={24} unoptimized className="h-6 w-6" />
-        </button>
-        <button
-          type="button"
-          aria-label="Profil"
-          onClick={onProfileClick}
-          className="absolute left-[1392px] top-[20px] h-8 w-8 overflow-hidden rounded-full"
-        >
-          <Image src="/figma-assets/avatar-story.png" alt="Profil" fill sizes="32px" className="object-cover" />
-        </button>
+        <div className="absolute left-[1330px] top-5">
+          <SiteAccountMenu
+            className="flex h-8 w-[69px] items-center gap-[13px]"
+            menuButtonClassName="h-6 w-6"
+            avatarButtonClassName="relative h-8 w-8 overflow-hidden rounded-full"
+            avatarImageClassName="object-cover"
+            avatarSize="32px"
+          />
+        </div>
       </div>
     </header>
   );
@@ -848,8 +798,8 @@ function CheckoutModal({
       <div data-testid="live-checkout-modal" className="absolute left-1/2 top-1/2 w-[720px] -translate-x-1/2 -translate-y-1/2 rounded-[10px] border border-black/10 bg-white shadow-[0_38px_90px_rgba(8,12,24,0.18)]">
         <div className="flex items-center justify-between border-b border-black/8 px-7 py-5">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#70829a]">Checkout live</p>
-            <h3 className="mt-2 text-[28px] font-semibold tracking-[-0.05em] text-[#101522]">{lot.title}</h3>
+            <p className="type-kicker text-[#70829a]">Checkout live</p>
+            <h3 className="mt-2 text-[28px] font-medium tracking-[-0.04em] text-[#101522]">{lot.title}</h3>
           </div>
           <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-full border border-black/8"><X className="h-4 w-4" /></button>
         </div>
@@ -858,28 +808,28 @@ function CheckoutModal({
             <div className="flex gap-4 rounded-[10px] border border-black/8 p-4">
               <div className="relative h-24 w-24 overflow-hidden rounded-[8px] bg-black"><Image src={lot.cover} alt={lot.title} fill sizes="96px" className="object-cover" /></div>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#70829a]">{event.seller}</p>
-                <p className="mt-2 text-[22px] font-semibold leading-[1.05] tracking-[-0.04em] text-[#101522]">{lot.title}</p>
+            <p className="type-kicker text-[#70829a]">{event.seller}</p>
+                <p className="mt-2 text-[22px] font-medium leading-[1.05] tracking-[-0.03em] text-[#101522]">{lot.title}</p>
                 <p className="mt-2 text-[13px] leading-6 text-[#556477]">{lot.subtitle}</p>
               </div>
             </div>
             <textarea data-testid="live-checkout-note" value={note} onChange={(e) => onNote(e.target.value)} placeholder="Ajoute une note au vendeur..." className="mt-5 h-28 w-full resize-none rounded-[10px] border border-black/8 px-4 py-3 text-[14px] leading-6 text-[#101522] outline-none placeholder:text-[#9aa6b7]" />
           </div>
           <div className="px-7 py-6">
-            <p className="text-[14px] font-semibold text-[#101522]">Paiement</p>
+            <p className="text-[14px] font-medium tracking-[-0.01em] text-[#101522]">Paiement</p>
             <div className="mt-4 grid grid-cols-3 gap-3">
               {(["card", "wallet", "bank"] as LiveShoppingPaymentMethod[]).map((item) => (
-                <button key={item} data-testid={`live-checkout-payment-${item}`} type="button" onClick={() => onMethod(item)} className={`rounded-[10px] border px-3 py-3 text-[13px] font-semibold ${method === item ? "border-[#2b6fff] bg-[#eef4ff] text-[#2b6fff]" : "border-black/8 text-[#101522]"}`}>
+                <button key={item} data-testid={`live-checkout-payment-${item}`} type="button" onClick={() => onMethod(item)} className={`rounded-[10px] border px-3 py-3 text-[13px] font-medium tracking-[-0.01em] ${method === item ? "border-[#2b6fff] bg-[#eef4ff] text-[#2b6fff]" : "border-black/8 text-[#101522]"}`}>
                   {item === "card" ? "Carte" : item === "wallet" ? "Wallet" : "Virement"}
                 </button>
               ))}
             </div>
             <div className="mt-6 space-y-3 border-t border-black/8 pt-4 text-[13px] text-[#556477]">
-              <div className="flex items-center justify-between"><span>Lot</span><span className="font-semibold text-[#101522]">{euros(lot.price)}</span></div>
-              <div className="flex items-center justify-between"><span>Frais live</span><span className="font-semibold text-[#101522]">{euros(fees)}</span></div>
-              <div className="flex items-center justify-between pt-1 text-[18px]"><span className="font-semibold text-[#101522]">Total</span><span className="font-semibold text-[#101522]">{euros(total)}</span></div>
+              <div className="flex items-center justify-between"><span>Lot</span><span className="font-medium tracking-[-0.01em] text-[#101522]">{euros(lot.price)}</span></div>
+              <div className="flex items-center justify-between"><span>Frais live</span><span className="font-medium tracking-[-0.01em] text-[#101522]">{euros(fees)}</span></div>
+              <div className="flex items-center justify-between pt-1 text-[18px]"><span className="font-medium tracking-[-0.02em] text-[#101522]">Total</span><span className="font-medium tracking-[-0.02em] text-[#101522]">{euros(total)}</span></div>
             </div>
-            <button data-testid="live-checkout-confirm" type="button" onClick={onConfirm} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-[10px] bg-[#2b6fff] px-5 py-3 text-[14px] font-semibold text-white">Confirmer <ArrowRight className="h-4 w-4" /></button>
+            <button data-testid="live-checkout-confirm" type="button" onClick={onConfirm} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-[10px] bg-[#2b6fff] px-5 py-3 text-[14px] font-medium tracking-[-0.01em] text-white">Confirmer <ArrowRight className="h-4 w-4" /></button>
           </div>
         </div>
       </div>
@@ -944,7 +894,7 @@ function BidModal({
       <div className="absolute left-1/2 top-1/2 w-[940px] max-w-[calc(100vw-48px)] -translate-x-1/2 -translate-y-1/2 rounded-[10px] border border-black/10 bg-white p-7 shadow-[0_38px_90px_rgba(8,12,24,0.18)]">
         <div className="flex items-start justify-between gap-6">
           <div>
-            <p className="text-[32px] font-semibold tracking-[-0.05em] text-[#101522]">
+            <p className="text-[32px] font-medium tracking-[-0.04em] text-[#101522]">
               {variant === "custom" ? "Enchere personnalisee" : "Saisis ton enchere"}
             </p>
             <p className="mt-2 text-[14px] text-[#7c889c]">
@@ -963,7 +913,7 @@ function BidModal({
                 <Image src={lot.cover} alt={lot.title} fill sizes="112px" className="object-cover" />
               </div>
               <div className="min-w-0 pt-1">
-                <p className="text-[28px] font-semibold tracking-[-0.04em] text-[#101522]">{lot.title}</p>
+                <p className="text-[28px] font-medium tracking-[-0.03em] text-[#101522]">{lot.title}</p>
                 <p className="mt-2 text-[15px] leading-6 text-[#7c889c]">{lot.subtitle}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <span className="rounded-full border border-[#e3e8f2] px-3 py-1.5 text-[13px] font-medium text-[#101522]">
@@ -982,7 +932,7 @@ function BidModal({
             <div className={`mt-4 flex items-start gap-3 rounded-[10px] border px-4 py-3 text-[14px] ${statusTone}`}>
               <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
               <div>
-                <p className="font-semibold">{statusTitle}</p>
+                <p className="font-medium tracking-[-0.01em]">{statusTitle}</p>
                 <p className="mt-1 text-[13px] opacity-80">
                   {variant === "custom"
                     ? "Le live pourra surencherir pour toi automatiquement jusqu a ce plafond."
@@ -1001,7 +951,7 @@ function BidModal({
                       key={choice}
                       type="button"
                       onClick={() => onValue(String(choice))}
-                      className={`rounded-[8px] border px-4 py-3 text-[18px] font-semibold transition ${
+                      className={`rounded-[8px] border px-4 py-3 text-[18px] font-medium tracking-[-0.02em] transition ${
                         active
                           ? "border-[#101522] bg-[#3b3b3b] text-white"
                           : "border-[#e3e8f2] bg-white text-[#101522] hover:border-[#cfd8e8]"
@@ -1018,13 +968,13 @@ function BidModal({
                   {variant === "custom" ? "Saisir l enchere maximale" : "Saisir ton montant"}
                 </label>
                 <div className="mt-3 flex h-[58px] items-center rounded-[8px] border border-[#dfe6f1] px-4">
-                  <span className="mr-3 text-[18px] font-semibold text-[#7c889c]">EUR</span>
+                  <span className="mr-3 text-[18px] font-medium tracking-[-0.01em] text-[#7c889c]">EUR</span>
                   <input
                     value={value}
                     onChange={(e) => onValue(e.target.value.replace(/[^\d]/g, ""))}
                     inputMode="numeric"
                     placeholder={String(minimum)}
-                    className="h-full w-full bg-transparent text-[28px] font-semibold text-[#101522] outline-none placeholder:text-[#b5bfce]"
+                    className="h-full w-full bg-transparent text-[28px] font-medium tracking-[-0.03em] text-[#101522] outline-none placeholder:text-[#b5bfce]"
                   />
                 </div>
                 <div className="mt-3 flex items-start gap-2 text-[14px] leading-6 text-[#7c889c]">
@@ -1038,11 +988,11 @@ function BidModal({
           </div>
 
           <aside className="rounded-[10px] border border-[#edf1f7] bg-[#fafbfd] p-5">
-            <p className="text-[13px] font-semibold uppercase tracking-[0.18em] text-[#8aa0bd]">Resume live</p>
+            <p className="type-kicker-tight text-[#8aa0bd]">Resume live</p>
             <div className="mt-4 space-y-3">
               <div className="rounded-[10px] border border-[#edf1f7] bg-white p-4">
                 <p className="text-[13px] text-[#7c889c]">Enchere actuelle</p>
-                <p className="mt-2 text-[30px] font-semibold tracking-[-0.05em] text-[#101522]">{lotPrice(lot)}</p>
+                <p className="mt-2 text-[30px] font-medium tracking-[-0.04em] text-[#101522]">{lotPrice(lot)}</p>
               </div>
               <div className="rounded-[10px] border border-[#edf1f7] bg-white p-4">
                 <div className="flex items-center gap-2 text-[14px] font-medium text-[#101522]">
@@ -1050,14 +1000,14 @@ function BidModal({
                   Livraison et frais
                 </div>
                 <p className="mt-3 text-[14px] text-[#7c889c]">Livraison {lot.delivery}</p>
-                <p className="mt-1 text-[18px] font-semibold text-[#101522]">{euros(liveFees(lot))} + taxes</p>
+                <p className="mt-1 text-[18px] font-medium tracking-[-0.01em] text-[#101522]">{euros(liveFees(lot))} + taxes</p>
               </div>
               <div className="rounded-[10px] border border-[#edf1f7] bg-white p-4">
                 <div className="flex items-center gap-2 text-[14px] font-medium text-[#101522]">
                   <ShieldCheck className="h-4 w-4 text-[#2b6fff]" />
                   Estimation totale
                 </div>
-                <p className="mt-3 text-[30px] font-semibold tracking-[-0.05em] text-[#101522]">{euros(totalEstimate)}</p>
+                <p className="mt-3 text-[30px] font-medium tracking-[-0.04em] text-[#101522]">{euros(totalEstimate)}</p>
                 <p className="mt-2 text-[13px] leading-6 text-[#7c889c]">
                   {variant === "custom"
                     ? "Le montant bloque correspond a ta limite max, pas forcement au prix final paye."
@@ -1076,7 +1026,7 @@ function BidModal({
             type="button"
             onClick={onConfirm}
             disabled={validBid == null}
-            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-full px-6 py-4 text-[18px] font-semibold ${
+            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-full px-6 py-4 text-[18px] font-medium tracking-[-0.02em] ${
               validBid == null
                 ? "cursor-not-allowed bg-[#f5efb9] text-[#9b9354]"
                 : "bg-[#f6dd1f] text-[#101522]"
@@ -1121,7 +1071,7 @@ function WalletModal({
       <button type="button" aria-label="Fermer" className="absolute inset-0 bg-[rgba(7,10,18,0.44)] backdrop-blur-[4px]" onClick={onClose} />
       <div className="absolute left-1/2 top-1/2 w-[520px] max-w-[calc(100vw-40px)] -translate-x-1/2 -translate-y-1/2 rounded-[10px] border border-black/10 bg-white p-5 shadow-[0_28px_72px_rgba(8,12,24,0.16)]">
         <div className="flex items-center justify-between">
-          <h3 className="text-[20px] font-semibold tracking-[-0.04em] text-[#101522]">Portefeuille</h3>
+            <h3 className="text-[20px] font-medium tracking-[-0.03em] text-[#101522]">Portefeuille</h3>
           <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full border border-black/8"><X className="h-4 w-4" /></button>
         </div>
         <div className="mt-4 rounded-[10px] border border-[#dce8ff] bg-[#f6faff] px-4 py-3 text-[14px] text-[#2b6fff]">
@@ -1138,7 +1088,7 @@ function WalletModal({
                 <CreditCard className="h-5 w-5 text-[#101522]" />
               </span>
               <div>
-                <p className="text-[15px] font-semibold text-[#101522]">Moyen de paiement</p>
+              <p className="type-title-card text-[#101522]">Moyen de paiement</p>
                 <p className="text-[13px] text-[#7c889c]">{paymentMethod === "card" ? "Carte Visa •••• 2145" : paymentMethod === "wallet" ? "Wallet Pictomag" : "Virement bancaire"}</p>
               </div>
             </div>
@@ -1154,7 +1104,7 @@ function WalletModal({
                 <MapPin className="h-5 w-5 text-[#101522]" />
               </span>
               <div>
-                <p className="text-[15px] font-semibold text-[#101522]">Adresse de livraison</p>
+              <p className="type-title-card text-[#101522]">Adresse de livraison</p>
                 <p className="text-[13px] text-[#7c889c]">22 Av. des Calanques, 13600 La Ciotat, FR</p>
               </div>
             </div>
@@ -1166,7 +1116,7 @@ function WalletModal({
             <span>Produit selectionne</span>
             <span className="font-semibold text-[#101522]">{lotPrice(lot)}</span>
           </div>
-          <p className="mt-2 text-[15px] font-semibold text-[#101522]">{lot.title}</p>
+              <p className="type-title-card mt-2 text-[#101522]">{lot.title}</p>
           <div className="mt-4 flex items-center justify-between text-[14px] text-[#7c889c]">
             <span>Estimation avec frais</span>
             <span className="font-semibold text-[#101522]">{euros(estimatedTotal)}</span>
@@ -1237,7 +1187,7 @@ function LiveBidModal({
       >
         <div className="flex items-start justify-between gap-6">
           <div>
-            <p className="text-[30px] font-semibold tracking-[-0.05em] text-[#101522]">{title}</p>
+            <p className="text-[30px] font-medium tracking-[-0.04em] text-[#101522]">{title}</p>
             <p className="mt-2 max-w-[560px] text-[14px] leading-6 text-[#7c889c]">{helper}</p>
           </div>
           <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-full border border-black/8">
@@ -1259,7 +1209,7 @@ function LiveBidModal({
                   Increment {euros(increment)}
                 </span>
               </div>
-              <p className="mt-3 text-[22px] font-semibold tracking-[-0.04em] text-[#101522]">{lot.title}</p>
+              <p className="mt-3 text-[22px] font-medium tracking-[-0.03em] text-[#101522]">{lot.title}</p>
               <p className="mt-2 text-[14px] leading-6 text-[#7c889c]">{lot.subtitle}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <span className="rounded-full border border-[#e3e8f2] px-3 py-1.5 text-[13px] font-medium text-[#101522]">
@@ -1300,7 +1250,7 @@ function LiveBidModal({
                   type="button"
                   data-testid={`live-bid-choice-${choice}`}
                   onClick={() => onValue(String(choice))}
-                  className={`rounded-[8px] border px-4 py-3 text-[18px] font-semibold transition ${
+                  className={`rounded-[8px] border px-4 py-3 text-[18px] font-medium tracking-[-0.02em] transition ${
                     active
                       ? "border-[#101522] bg-[#3b3b3b] text-white"
                       : "border-[#e3e8f2] bg-white text-[#101522] hover:border-[#cfd8e8]"
@@ -1318,14 +1268,14 @@ function LiveBidModal({
         <div className="rounded-[10px] border border-[#edf1f7] p-5">
           <label className="block text-[15px] font-medium text-[#101522]">Saisir l enchere maximale</label>
           <div className="mt-3 flex h-[58px] items-center rounded-[8px] border border-[#dfe6f1] px-4">
-            <span className="mr-3 text-[18px] font-semibold text-[#7c889c]">EUR</span>
+            <span className="mr-3 text-[18px] font-medium tracking-[-0.01em] text-[#7c889c]">EUR</span>
             <input
               value={value}
               onChange={(e) => onValue(e.target.value.replace(/[^\d]/g, ""))}
               inputMode="numeric"
               placeholder={String(minimum)}
               data-testid={variant === "custom" ? "live-bid-input-custom" : "live-bid-input"}
-              className="h-full w-full bg-transparent text-[28px] font-semibold text-[#101522] outline-none placeholder:text-[#b5bfce]"
+              className="h-full w-full bg-transparent text-[28px] font-medium tracking-[-0.03em] text-[#101522] outline-none placeholder:text-[#b5bfce]"
             />
           </div>
           <p className="mt-3 text-[13px] leading-6 text-[#7c889c]">
@@ -1336,15 +1286,15 @@ function LiveBidModal({
         <div className="mt-5 grid grid-cols-3 gap-3 rounded-[10px] border border-[#edf1f7] bg-[#fafbfd] p-4">
           <div>
             <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8aa0bd]">Enchere</p>
-            <p className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">{euros(displayBid)}</p>
+            <p className="mt-2 text-[24px] font-medium tracking-[-0.03em] text-[#101522]">{euros(displayBid)}</p>
           </div>
           <div>
             <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8aa0bd]">Livraison</p>
-            <p className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">{euros(shippingFees)}</p>
+            <p className="mt-2 text-[24px] font-medium tracking-[-0.03em] text-[#101522]">{euros(shippingFees)}</p>
           </div>
           <div>
             <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8aa0bd]">Total estime</p>
-            <p className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">{euros(totalEstimate)}</p>
+            <p className="mt-2 text-[24px] font-medium tracking-[-0.03em] text-[#101522]">{euros(totalEstimate)}</p>
           </div>
         </div>
 
@@ -1357,7 +1307,7 @@ function LiveBidModal({
             onClick={onConfirm}
             data-testid={variant === "custom" ? "live-bid-confirm-custom" : "live-bid-confirm"}
             disabled={validBid == null}
-            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-full px-6 py-4 text-[18px] font-semibold ${
+            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-full px-6 py-4 text-[18px] font-medium tracking-[-0.02em] ${
               validBid == null
                 ? "cursor-not-allowed bg-[#f5efb9] text-[#9b9354]"
                 : "bg-[#f6dd1f] text-[#101522]"
@@ -1381,7 +1331,7 @@ function LiveBidModal({
         </div>
         {showAuctionGuide ? (
           <div className="mt-3 rounded-[10px] border border-[#dce8ff] bg-[#f5f9ff] p-4 text-left">
-            <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-[#5d7fae]">Guide express</p>
+              <p className="type-kicker-tight text-[#5d7fae]">Guide express</p>
             <ul className="mt-2 space-y-1 text-[13px] leading-6 text-[#4c637f]">
               <li>1. Ta limite max reste privee pendant le live.</li>
               <li>2. Le systeme surenchérit seulement si quelqu un passe devant toi.</li>
@@ -1445,7 +1395,7 @@ function LiveWalletModal({
       />
       <div data-testid="live-wallet-modal" className="absolute left-1/2 top-1/2 w-[520px] max-w-[calc(100vw-40px)] -translate-x-1/2 -translate-y-1/2 rounded-[10px] border border-black/10 bg-white p-5 shadow-[0_28px_72px_rgba(8,12,24,0.16)]">
         <div className="flex items-center justify-between">
-          <h3 className="text-[20px] font-semibold tracking-[-0.04em] text-[#101522]">Portefeuille</h3>
+            <h3 className="text-[20px] font-medium tracking-[-0.03em] text-[#101522]">Portefeuille</h3>
           <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full border border-black/8">
             <X className="h-4 w-4" />
           </button>
@@ -1463,7 +1413,7 @@ function LiveWalletModal({
                 <CreditCard className="h-5 w-5 text-[#101522]" />
               </span>
               <div>
-                <p className="text-[15px] font-semibold text-[#101522]">Moyen de paiement</p>
+              <p className="type-title-card text-[#101522]">Moyen de paiement</p>
                 <p className="text-[13px] text-[#7c889c]">{paymentLabel}</p>
               </div>
             </div>
@@ -1512,7 +1462,7 @@ function LiveWalletModal({
                 <MapPin className="h-5 w-5 text-[#101522]" />
               </span>
               <div>
-                <p className="text-[15px] font-semibold text-[#101522]">Adresse de livraison</p>
+              <p className="type-title-card text-[#101522]">Adresse de livraison</p>
                 <p className="text-[13px] text-[#7c889c]">{shippingAddress}</p>
               </div>
             </div>
@@ -1541,7 +1491,7 @@ function LiveWalletModal({
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-3">
-                <p className="line-clamp-2 text-[15px] font-semibold text-[#101522]">{lot.title}</p>
+                  <p className="type-title-card line-clamp-2 text-[#101522]">{lot.title}</p>
                 <span className="text-[15px] font-semibold text-[#101522]">{lotPrice(lot)}</span>
               </div>
               <p className="mt-1 text-[13px] text-[#7c889c]">{lot.mode === "auction" ? "Enchere live" : "Achat direct"}</p>
@@ -1568,10 +1518,12 @@ export function LiveShoppingPage({
   initialSlug = null,
   initialCategoryId = null,
   initialStartLiveId = null,
+  initialCategoryCardOverrides = {},
 }: {
   initialSlug?: string | null;
   initialCategoryId?: string | null;
   initialStartLiveId?: string | null;
+  initialCategoryCardOverrides?: Record<string, LiveShoppingCategoryCardArtSettings>;
 }) {
   const router = useRouter();
   const [events, setEvents] = useState(liveShoppingEvents);
@@ -1823,9 +1775,8 @@ export function LiveShoppingPage({
   useEffect(() => { if (!toast) return; const t = window.setTimeout(() => setToast(null), 2200); return () => window.clearTimeout(t); }, [toast]);
   useEffect(() => { if (!copied) return; const t = window.setTimeout(() => setCopied(false), 1400); return () => window.clearTimeout(t); }, [copied]);
   const activeRoomId = activeRoom?.id ?? null;
-  const activeRoomRealtimeState = activeRoomId ? roomStateByEventId[activeRoomId] ?? null : null;
   const activeRoomPresence = activeRoomId ? presenceByEventId[activeRoomId] ?? null : null;
-
+  const activeRoomRealtimeState = activeRoomId ? roomStateByEventId[activeRoomId] ?? null : null;
   const mergeRoomStateSnapshot = useCallback((candidate: LiveShoppingRoomState | null | undefined) => {
     if (!candidate || typeof candidate.eventId !== "number" || candidate.eventId <= 0) {
       return;
@@ -2282,13 +2233,6 @@ export function LiveShoppingPage({
     if (!activeRoom) return null;
     return activeRoomChat.find((message) => !message.mod)?.author ?? activeRoom.seller;
   }, [activeRoom, activeRoomChat]);
-  const activeRoomViewerCount = useMemo(() => {
-    if (!activeRoom) {
-      return 0;
-    }
-
-    return activeRoomPresence?.totalUsers ?? activeRoom.viewers;
-  }, [activeRoom, activeRoomPresence]);
   useEffect(() => {
     setChatDraft("");
   }, [activeRoomId]);
@@ -2316,7 +2260,6 @@ export function LiveShoppingPage({
   };
   const handleHeaderNotificationClick = () => setToast("Notifications live ouvertes.");
   const handleHeaderMessageClick = () => setToast("Messagerie live ouverte.");
-  const handleHeaderMenuClick = () => setToast("Menu du compte ouvert.");
   const handleEditScheduledLive = (id: string) => {
     router.push(`/live-shopping/schedule?edit=${encodeURIComponent(id)}`);
   };
@@ -2580,21 +2523,19 @@ export function LiveShoppingPage({
     <div className="min-h-screen bg-white">
       <LiveHeader
         onNavClick={handleNav}
-        onProfileClick={() => router.push("/profile")}
         onCreateClick={() => router.push("/live-shopping/schedule")}
         onNotificationsClick={handleHeaderNotificationClick}
         onMessagesClick={handleHeaderMessageClick}
-        onMenuClick={handleHeaderMenuClick}
       />
 
       {!activeRoom ? (
         <section className="pt-[120px]">
-          <div className="mx-auto w-[1440px] px-8 pb-20">
+          <div className="w-full px-8 pb-20">
             {!activeCategory ? (
               <>
                 <div className="flex items-end justify-between gap-8">
                   <div>
-                    <h1 className="text-[44px] font-semibold tracking-[-0.06em] text-[#101522]">Parcourir par categorie</h1>
+                    <h1 className="text-[44px] font-medium tracking-[-0.045em] text-[#101522]">Parcourir par categorie</h1>
                     <p className="mt-3 max-w-[620px] text-[15px] leading-7 text-[#66768c]">Choisis une categorie, regarde les lives ouverts, puis entre dans la salle sans friction.</p>
                   </div>
                 <div className="flex items-center gap-3">
@@ -2627,16 +2568,16 @@ export function LiveShoppingPage({
                       key={tab.id}
                       type="button"
                       onClick={() => setBrowseTab(tab.id)}
-                      className={`rounded-[10px] px-4 py-2 text-[14px] font-semibold ${tab.id === browseTab ? "bg-[#101522] text-white" : "border border-[#e2e8f4] bg-white text-[#101522]"}`}
+                      className={`rounded-[10px] px-4 py-2 text-[14px] font-medium tracking-[-0.01em] ${tab.id === browseTab ? "bg-[#101522] text-white" : "border border-[#e2e8f4] bg-white text-[#101522]"}`}
                     >
                       {tab.label}
                     </button>
                   ))}
                 </div>
-                <div className="mt-8 rounded-[10px] border border-black/8 bg-white p-5">
+                <div className="mt-8 rounded-[28px] border border-[#e3ebf5] bg-white px-6 py-6 shadow-[0_18px_40px_rgba(16,21,34,0.05)]">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-[20px] font-semibold tracking-[-0.03em] text-[#101522]">Mes lives</p>
+                      <p className="text-[20px] font-medium tracking-[-0.02em] text-[#101522]">Mes lives</p>
                       <p className="mt-1 text-[13px] text-[#66768c]">
                         Garde la main sur ton planning et lance un live en un clic.
                       </p>
@@ -2647,11 +2588,11 @@ export function LiveShoppingPage({
                   </div>
 
                   {!scheduleHydrated ? (
-                    <div className="mt-4 rounded-[10px] border border-dashed border-[#d9e3f2] bg-[#fbfdff] px-4 py-4 text-[14px] text-[#7a889b]">
+                    <div className="mt-4 rounded-[18px] border border-dashed border-[#d9e3f2] bg-[#fbfdff] px-4 py-4 text-[14px] text-[#7a889b]">
                       Chargement de ton planning...
                     </div>
                   ) : myScheduledLives.length === 0 ? (
-                    <div className="mt-4 rounded-[10px] border border-dashed border-[#d9e3f2] bg-[#fbfdff] px-4 py-4 text-[14px] text-[#7a889b]">
+                    <div className="mt-4 rounded-[18px] border border-dashed border-[#d9e3f2] bg-[#fbfdff] px-4 py-4 text-[14px] text-[#7a889b]">
                       Aucun live programme. Clique sur &quot;Programmer un live&quot; pour ajouter ta prochaine session.
                     </div>
                   ) : (
@@ -2665,10 +2606,10 @@ export function LiveShoppingPage({
                         return (
                           <div
                             key={item.id}
-                            className="flex items-center justify-between gap-4 rounded-[10px] border border-black/8 bg-white px-4 py-3"
+                            className="flex items-center justify-between gap-4 rounded-[18px] border border-[#e3ebf5] bg-[#fbfdff] px-4 py-3"
                           >
                             <div className="min-w-0">
-                            <p className="truncate text-[14px] font-semibold text-[#101522]">{item.title}</p>
+                <p className="type-title-card truncate text-[#101522]">{item.title}</p>
                             <p className="mt-1 text-[13px] text-[#6a788c]">
                               {formatScheduledLiveDate(item)} · {item.categoryLabel} · {item.saleFormat}
                             </p>
@@ -2727,34 +2668,23 @@ export function LiveShoppingPage({
                     </div>
                   )}
                 </div>
-                <div className="mt-10 grid grid-cols-7 gap-x-4 gap-y-5">
-                  {categories.map((category: LiveShoppingCategory, index) => {
-                    const theme = categoryTileThemes[index % categoryTileThemes.length];
-
+                <div className="mt-10 grid grid-cols-[repeat(auto-fill,minmax(228px,1fr))] gap-6">
+                  {categories.map((category: LiveShoppingCategory) => {
                     return (
                       <button
                         key={category.id}
                         type="button"
                         onClick={() => router.push(`/live-shopping?category=${category.id}`)}
-                        className="group live-shopping-category-card rounded-[10px] border border-[#edf1f7] bg-white p-3 text-left transition hover:-translate-y-[2px] hover:border-[#cfe0ff] hover:shadow-[0_22px_44px_rgba(16,21,34,0.08)]"
-                        style={{ animationDelay: `${(index % 9) * 0.12}s` }}
+                        className="group live-shopping-category-card text-left"
                       >
-                        <p className="min-h-[44px] text-center text-[13px] font-medium leading-5 tracking-[-0.02em] text-[#101522]">{category.label}</p>
-
-                        <div
-                          className="live-shopping-category-stage relative mt-3 h-[198px] overflow-hidden rounded-[8px] border border-[#eef2f8]"
-                          style={{
-                            background: `linear-gradient(180deg, ${theme.base} 0%, ${theme.edge} 100%)`,
-                            boxShadow: `inset 0 1px 0 rgba(255,255,255,0.88), 0 16px 28px ${theme.glow}`,
-                          }}
-                        >
-                          <div className="live-shopping-category-backdrop absolute inset-0" style={{ background: `radial-gradient(circle at 18% 18%, ${theme.orbA} 0%, rgba(255,255,255,0) 34%), radial-gradient(circle at 84% 82%, ${theme.orbB} 0%, rgba(255,255,255,0) 38%)` }} />
-                          <CategoryLoopingMediaPreview categoryId={category.id} theme={theme} delay={`${(index % 7) * 0.16}s`} />
-                        </div>
-                        <div className="mt-3 text-[13px] leading-[1.08] text-[#101522]">
-                          <p className="font-medium">{audiencePrimary(category.audienceLabel)}</p>
-                          <p className="mt-1 font-medium">Spectateurs</p>
-                        </div>
+                        <CategoryLoopingMediaPreview
+                          categoryId={category.id}
+                          label={category.label}
+                          art={
+                            initialCategoryCardOverrides[category.id] ??
+                            getLiveShoppingCategoryCardDefaultArtSettings(category.id)
+                          }
+                        />
                       </button>
                     );
                   })}
@@ -2777,7 +2707,7 @@ export function LiveShoppingPage({
                     {shelves.map((item) => (
                       <div key={item.id} className="w-[180px] rounded-[10px] border border-[#edf1f7] bg-[#f7faff] p-3">
                         <div className="relative h-[86px] overflow-hidden rounded-[8px] bg-[#dfe9ff]"><Image src={item.cover} alt={item.label} fill sizes="180px" className="object-cover" /></div>
-                        <p className="mt-3 text-[14px] font-semibold text-[#101522]">{item.label}</p>
+                <p className="type-title-card mt-3 text-[#101522]">{item.label}</p>
                         <div className="mt-2 flex items-center gap-2 text-[12px] text-[#66768c]"><span className="h-2.5 w-2.5 rounded-full bg-[#ff465f]" />{item.viewersLabel}</div>
                       </div>
                     ))}
@@ -2785,10 +2715,10 @@ export function LiveShoppingPage({
                 </div>
                 <div className="mt-10 grid grid-cols-[260px_minmax(0,1fr)] gap-8">
                   <aside className="pt-2">
-                    <div className="rounded-[10px] border border-[#edf1f7] bg-white p-5">
-                      <div className="flex items-center justify-between"><h2 className="text-[16px] font-semibold text-[#101522]">Trier</h2><ChevronDown className="h-4 w-4 text-[#7f8da1]" /></div>
+                    <div className="rounded-[24px] border border-[#e3ebf5] bg-white p-5 shadow-[0_18px_36px_rgba(16,21,34,0.05)]">
+              <div className="flex items-center justify-between"><h2 className="text-[16px] font-medium tracking-[-0.01em] text-[#101522]">Trier</h2><ChevronDown className="h-4 w-4 text-[#7f8da1]" /></div>
                       <div className="mt-5 space-y-4 text-[15px] text-[#101522]">
-                        {[{ id: "recommended", label: "Recommande" }, { id: "viewers-desc", label: "Spectateurs : ordre decroissant" }, { id: "viewers-asc", label: "Spectateurs : ordre croissant" }].map((item) => (
+                        {[{ id: "recommended", label: "Recommande" }, { id: "viewers-desc", label: "Les plus suivis" }, { id: "viewers-asc", label: "Les plus niches" }].map((item) => (
                           <label key={item.id} className="flex cursor-pointer items-center gap-3">
                             <span className={`h-4 w-4 rounded-full border ${sortMode === item.id ? "border-[#101522]" : "border-[#a9b7c8]"}`}><span className={`m-[3px] block h-[6px] w-[6px] rounded-full ${sortMode === item.id ? "bg-[#101522]" : "bg-transparent"}`} /></span>
                             <input type="radio" className="sr-only" checked={sortMode === item.id} onChange={() => setSortMode(item.id as SortMode)} />
@@ -2797,7 +2727,7 @@ export function LiveShoppingPage({
                         ))}
                       </div>
                     </div>
-                    <div className="mt-5 space-y-3 rounded-[10px] border border-[#edf1f7] bg-white p-5">
+                    <div className="mt-5 space-y-3 rounded-[24px] border border-[#e3ebf5] bg-white p-5 shadow-[0_18px_36px_rgba(16,21,34,0.05)]">
                       {["Categorie", "Heure du live", "Format du live", "Tag", "Boutique premium", "Pays d expedition"].map((section) => (
                         <button
                           key={section}
@@ -2812,26 +2742,62 @@ export function LiveShoppingPage({
                   </aside>
                   <div>
                     <div className="mb-6">
-                      <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#8aa0bd]">{activeCategory.label}</p>
-                      <h2 className="mt-2 text-[42px] font-semibold tracking-[-0.06em] text-[#101522]">{activeCategory.label}</h2>
+              <p className="type-kicker-tight text-[#8aa0bd]">{activeCategory.label}</p>
+              <h2 className="mt-2 text-[42px] font-medium tracking-[-0.04em] text-[#101522]">{activeCategory.label}</h2>
                       <p className="mt-2 text-[15px] leading-7 text-[#66768c]">{activeCategory.helper}</p>
                     </div>
-                    <div className="grid grid-cols-4 gap-x-6 gap-y-9">
-                      {listing.map((event) => (
-                        <button key={event.id} type="button" onClick={() => router.push(getLiveShoppingHref(event))} className="text-left">
-                          <div className="mb-3 flex items-center gap-2"><div className="relative h-7 w-7 overflow-hidden rounded-full border border-[#d7e2f0]"><Image src={event.avatar} alt={event.seller} fill sizes="28px" className="object-cover" /></div><p className="text-[13px] font-medium text-[#101522]">{event.handle.replace("@", "")}</p></div>
-                          <div className="relative overflow-hidden rounded-[10px] bg-black">
-                            <div className="relative aspect-[4/5]"><Image src={event.cover} alt={event.title} fill sizes="320px" className="object-cover transition duration-300 hover:scale-[1.02]" /></div>
-                            <div className="absolute inset-x-0 top-0 flex items-center justify-between px-3 pt-3">
-                              <span className="rounded-[8px] bg-[#ff465f] px-2.5 py-1 text-[12px] font-semibold text-white">{event.liveBadge}</span>
-                              <span className="rounded-full bg-[rgba(16,21,34,0.66)] px-2.5 py-1 text-[12px] font-medium text-white">{viewers(event.viewers)}</span>
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-7">
+                      {listing.map((event, index) => {
+                        const theme = categoryTileThemes[index % categoryTileThemes.length];
+
+                        return (
+                          <button
+                            key={event.id}
+                            type="button"
+                            onClick={() => router.push(getLiveShoppingHref(event))}
+                            className="group rounded-[28px] border border-[#dce6f2] bg-white p-3 text-left shadow-[0_18px_38px_rgba(16,21,34,0.06)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_30px_60px_rgba(16,21,34,0.1)]"
+                          >
+                            <div className="mb-3 flex items-center gap-2 px-1">
+                              <div className="relative h-7 w-7 overflow-hidden rounded-full border border-[#d7e2f0]">
+                                <Image src={event.avatar} alt={event.seller} fill sizes="28px" className="object-cover" />
+                              </div>
+                              <p className="text-[13px] font-medium text-[#101522]">{event.handle.replace("@", "")}</p>
                             </div>
-                          </div>
-                          <h3 className="mt-3 text-[20px] font-medium leading-7 text-[#101522]">{event.title}</h3>
-                          <p className="mt-2 text-[14px] leading-6 text-[#101522]">{event.subtitle}</p>
-                          <p className="mt-2 text-[13px] text-[#2b6fff]">{event.tags[0]}</p>
-                        </button>
-                      ))}
+
+                            <div className="relative overflow-hidden rounded-[24px] px-3 pb-3 pt-3" style={{ background: theme.canvas }}>
+                              <div className="absolute inset-0" style={{ background: theme.halo }} />
+                              <div
+                                className="relative overflow-hidden rounded-[20px] border border-white/70"
+                                style={{
+                                  background: theme.frameTint,
+                                  boxShadow: `0 22px 44px ${theme.imageGlow}`,
+                                }}
+                              >
+                                <div className="relative aspect-[4/5]">
+                                  <Image
+                                    src={event.cover}
+                                    alt={event.title}
+                                    fill
+                                    sizes="320px"
+                                    className="object-cover transition duration-500 group-hover:scale-[1.03]"
+                                  />
+                                </div>
+                                <div className="absolute inset-x-0 top-0 flex items-center justify-start px-3 pt-3">
+                                  <span className="rounded-full bg-[#101522] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-white">
+                                    {event.liveBadge}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="px-1 pb-1 pt-4">
+                              <h3 className="text-[20px] font-medium leading-[1.2] tracking-[-0.025em] text-[#101522]">{event.title}</h3>
+                              <p className="mt-2 text-[14px] leading-6 text-[#556579]">{event.subtitle}</p>
+                              <p className="mt-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#2b6fff]">{event.tags[0]}</p>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -2841,7 +2807,7 @@ export function LiveShoppingPage({
         </section>
       ) : activeRoom && selectedLot ? (
         <section className="pt-[108px]">
-          <div className="mx-auto w-[1440px] px-8 pb-8">
+          <div className="w-full px-8 pb-8">
             <div className="mb-5 flex items-center gap-3">
               <button type="button" onClick={() => router.push(`/live-shopping?category=${activeRoom.categoryId}`)} className="inline-flex items-center gap-2 rounded-full border border-[#d7e1f0] px-4 py-2 text-[14px] font-medium text-[#101522]"><ArrowLeft className="h-4 w-4" />Retour aux lives</button>
               <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#8aa0bd]">{activeRoom.category}</p>
@@ -2850,7 +2816,7 @@ export function LiveShoppingPage({
               <aside className="rounded-[10px] border border-[#edf1f7] bg-white p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="text-[30px] font-semibold tracking-[-0.05em] text-[#101522]">Boutique</h2>
+                    <h2 className="text-[30px] font-medium tracking-[-0.04em] text-[#101522]">Boutique</h2>
                     <p className="mt-1 text-[13px] text-[#7f8da1]">Selection active du live, mise a jour en temps reel.</p>
                   </div>
                   <button
@@ -2982,7 +2948,7 @@ export function LiveShoppingPage({
                   </div>
                 ) : null}
                 <div className="mt-8 flex items-center justify-between">
-                  <p className="text-[16px] font-semibold text-[#101522]">({lots.length}) Produits</p>
+                <p className="text-[16px] font-medium tracking-[-0.01em] text-[#101522]">({lots.length}) Produits</p>
                   <ChevronDown className="h-4 w-4 text-[#7f8da1]" />
                 </div>
                 <div className="mt-5 max-h-[758px] space-y-4 overflow-y-auto pr-1">
@@ -3063,7 +3029,7 @@ export function LiveShoppingPage({
                       <Image src={activeRoom.avatar} alt={activeRoom.seller} fill sizes="48px" className="object-cover" />
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-[18px] font-semibold">{activeRoom.seller}</p>
+                      <p className="truncate text-[18px] font-medium tracking-[-0.02em]">{activeRoom.seller}</p>
                       <div className="mt-1 flex items-center gap-2 text-[13px] text-white/82">
                         <span className="inline-flex items-center gap-1">
                           <Star className="h-3.5 w-3.5 fill-[#f7d43f] text-[#f7d43f]" />
@@ -3076,7 +3042,7 @@ export function LiveShoppingPage({
                     <button
                       type="button"
                       onClick={handleFollowRoom}
-                      className={`ml-1 inline-flex rounded-full px-4 py-2 text-[14px] font-semibold ${
+                      className={`ml-1 inline-flex rounded-full px-4 py-2 text-[14px] font-medium tracking-[-0.01em] ${
                         isFollowingRoomSeller ? "bg-white text-[#101522]" : "bg-[#f6dd1f] text-[#101522]"
                       }`}
                     >
@@ -3091,10 +3057,6 @@ export function LiveShoppingPage({
                         <span className="rounded-full bg-white/18 px-2 py-0.5 text-[12px]">{selectedLotBidCount}</span>
                       </span>
                     ) : null}
-                    <span className="inline-flex items-center gap-2 rounded-full bg-[rgba(11,13,20,0.58)] px-3 py-1.5 text-[13px] font-medium text-white backdrop-blur-[6px]">
-                      <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[#ff4d4f]" />
-                      {count(activeRoomViewerCount)}
-                    </span>
                   </div>
 
                   <div className="absolute right-6 top-1/2 flex -translate-y-1/2 flex-col gap-3">
@@ -3118,7 +3080,7 @@ export function LiveShoppingPage({
                       <div className="flex min-w-0 items-start gap-4 rounded-[10px] bg-[rgba(14,17,24,0.76)] p-4 text-white backdrop-blur-[10px]">
                         <div className="relative h-20 w-20 overflow-hidden rounded-[8px] bg-black"><Image src={selectedLot.cover} alt={selectedLot.title} fill sizes="80px" className="object-cover" /></div>
                         <div className="min-w-0">
-                          <p className="line-clamp-1 text-[24px] font-semibold tracking-[-0.04em]">{selectedLot.title}</p>
+                          <p className="line-clamp-1 text-[24px] font-medium tracking-[-0.028em]">{selectedLot.title}</p>
                           <p className="mt-1 line-clamp-2 max-w-[410px] text-[15px] leading-6 text-white/76">{selectedLot.subtitle}</p>
                           <div className="mt-3 flex flex-wrap items-center gap-4 text-[14px] text-white/82">
                             <span>{selectedLot.mode === "auction" ? `${bidCount(selectedLot)} enchères` : "Achat direct"}</span>
@@ -3128,7 +3090,7 @@ export function LiveShoppingPage({
                         </div>
                       </div>
                       <div className="shrink-0 text-right text-white">
-                        <p className="text-[30px] font-semibold tracking-[-0.05em]">{lotPrice(selectedLot)}</p>
+                        <p className="text-[30px] font-medium tracking-[-0.03em]">{lotPrice(selectedLot)}</p>
                         <p className="mt-1 text-[14px] text-white/74">{selectedLot.mode === "auction" ? "enchère en cours" : "achat immédiat"}</p>
                       </div>
                     </div>
@@ -3145,7 +3107,7 @@ export function LiveShoppingPage({
                         type="button"
                         onClick={selectedLot.mode === "auction" ? handleBid : handleBuy}
                         data-testid="live-selected-lot-primary-action"
-                        className={`inline-flex flex-1 items-center justify-center gap-2 rounded-full px-8 py-3.5 text-[16px] font-semibold ${selectedLot.mode === "auction" ? "bg-[#d0b511] text-[#101522]" : "bg-[#2b6fff] text-white shadow-[0_18px_30px_rgba(43,111,255,0.26)]"}`}
+                        className={`inline-flex flex-1 items-center justify-center gap-2 rounded-full px-8 py-3.5 text-[16px] font-medium tracking-[-0.01em] ${selectedLot.mode === "auction" ? "bg-[#d0b511] text-[#101522]" : "bg-[#2b6fff] text-white shadow-[0_18px_30px_rgba(43,111,255,0.26)]"}`}
                       >
                         {selectedLot.mode === "auction" ? `Enchère : ${lotPrice(selectedLot)}` : `Acheter maintenant : ${euros(selectedLot.price)}`}
                         <ArrowRight className="h-4 w-4" />
@@ -3203,8 +3165,8 @@ export function LiveShoppingPage({
                 ) : (
                   <div className="px-5 py-5">
                     <div className="rounded-[10px] border border-[#edf1f7] bg-[#fafbfd] p-4">
-                      <p className="text-[13px] font-semibold uppercase tracking-[0.18em] text-[#8aa0bd]">Salle en direct</p>
-                      <p className="mt-2 text-[20px] font-semibold tracking-[-0.04em] text-[#101522]">{activeRoom.title}</p>
+                      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-[#8aa0bd]">Salle en direct</p>
+                      <p className="mt-2 text-[20px] font-medium tracking-[-0.025em] text-[#101522]">{activeRoom.title}</p>
                       <p className="mt-2 text-[14px] leading-6 text-[#66768c]">{activeRoom.heroNote}</p>
                     </div>
                     <div className="mt-4 space-y-3">
@@ -3220,12 +3182,11 @@ export function LiveShoppingPage({
                         </div>
                       ))}
                     </div>
-                    <div className="mt-5 rounded-[10px] border border-[#edf1f7] bg-white p-4">
+                    <div className="mt-5 rounded-[18px] border border-[#edf1f7] bg-white p-4">
                       <div className="flex items-center justify-between">
-                        <span className="text-[14px] text-[#66768c]">Vue live</span>
-                        <span className="inline-flex items-center gap-2 text-[14px] font-semibold text-[#101522]">
-                          <Eye className="h-4 w-4 text-[#7f8da1]" />
-                          {viewers(activeRoomViewerCount)}
+                        <span className="text-[14px] text-[#66768c]">Statut du live</span>
+                        <span className="text-[14px] font-semibold text-[#101522]">
+                          {activeRoomPresence ? "Salle active" : activeRoom.status === "live" ? "En direct" : "Hors ligne"}
                         </span>
                       </div>
                       <div className="mt-2 flex items-center justify-between">

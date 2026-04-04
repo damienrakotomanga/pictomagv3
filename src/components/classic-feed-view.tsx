@@ -1,11 +1,22 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import type { AnimationItem } from "lottie-web";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type SVGProps } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type SVGProps,
+} from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, MessageCircleMore, Play, Send, X } from "lucide-react";
 import timeAnimationData from "../../public/feed-rail-animations/feed-time-icon.json";
+import { DEFAULT_AVATAR, resolveProfileAvatarSrc } from "@/lib/profile-avatar";
 import type { ClassicFeedCardItem } from "@/lib/posts";
 
 type ClassicFeedViewProps = {
@@ -61,12 +72,19 @@ type ClassicLightboxState = {
   title: string;
 };
 
+type ClassicCardLayout = {
+  articleMaxWidthClassName: string;
+  copyMaxWidthClassName: string;
+  imageFrameMaxWidthClassName: string;
+};
+
 const legacyFallbackClassicFeedItems: ClassicFeedCardItem[] = [
   {
     id: 1,
     videoId: 101,
     variant: "letter",
     author: "Axel Belujon",
+    authorUsername: "axelbelujon",
     handle: "@axelbelujon",
     avatar: "/figma-assets/avatar-post.png",
     timestamp: "il y a 18 min",
@@ -84,6 +102,7 @@ const legacyFallbackClassicFeedItems: ClassicFeedCardItem[] = [
     videoId: 102,
     variant: "gallery",
     author: "Pictomag News",
+    authorUsername: "pictomag.news",
     handle: "@pictomag.news",
     avatar: "/figma-assets/avatar-user.png",
     timestamp: "il y a 42 min",
@@ -109,6 +128,7 @@ const legacyFallbackClassicFeedItems: ClassicFeedCardItem[] = [
     videoId: 103,
     variant: "video",
     author: "World of TCGP",
+    authorUsername: "world.of.tcgp",
     handle: "@world.of.tcgp",
     avatar: "/figma-assets/avatar-post.png",
     timestamp: "il y a 1 h",
@@ -131,6 +151,7 @@ const legacyFallbackClassicFeedItems: ClassicFeedCardItem[] = [
     videoId: 104,
     variant: "note",
     author: "Studio Heat",
+    authorUsername: "studio.heat",
     handle: "@studio.heat",
     avatar: "/figma-assets/avatar-story.png",
     timestamp: "il y a 2 h",
@@ -159,6 +180,14 @@ const classicTimeLikeBurstParticles: ClassicBurstParticle[] = [
   { id: 7, kind: "dot", x: -26, y: -14, rotate: -20, delay: 30, size: 5, from: "#70d5ff", to: "#3f86ff" },
   { id: 8, kind: "dot", x: 26, y: -16, rotate: 18, delay: 90, size: 5, from: "#ff8d74", to: "#ff5a93" },
 ];
+
+function getClassicCardLayout(): ClassicCardLayout {
+  return {
+    articleMaxWidthClassName: "max-w-[468px]",
+    copyMaxWidthClassName: "w-full",
+    imageFrameMaxWidthClassName: "w-full",
+  };
+}
 
 function parseDurationLabel(durationLabel: string) {
   const [minutesText, secondsText] = durationLabel.split(":");
@@ -313,12 +342,12 @@ function ClassicMetricButton({
     <button
       type="button"
       onClick={onClick}
-      className={`group relative flex items-center gap-2.5 rounded-full border border-black/8 bg-white px-3 py-1.5 text-left transition hover:-translate-y-[1px] hover:border-black/12 hover:shadow-[0_16px_30px_rgba(15,23,42,0.08)] ${className ?? ""}`}
+      className={`group relative flex w-full min-w-0 items-center gap-1.5 rounded-[14px] bg-white/0 px-0 py-0.5 text-left transition hover:opacity-90 ${className ?? ""}`}
     >
       {children ?? icon}
-      <span className="flex flex-col">
-        <span className="text-[13px] font-semibold leading-4 text-[#0f172a]">{value}</span>
-        <span className="text-[10px] leading-4 text-[#7c8798]">{label}</span>
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-[11px] font-semibold leading-4 text-[#0f172a]">{value}</span>
+        <span className="text-[9px] leading-[1.2] text-[#8a93a2]">{label}</span>
       </span>
     </button>
   );
@@ -450,8 +479,8 @@ function ClassicTimeLikeButton({
         onBlur={handlePointerLeave}
         style={
           {
-            "--rail-icon-hit": "40px",
-            "--rail-surface": "#f3f4f6",
+            "--rail-icon-hit": "36px",
+            "--rail-surface": "#f7f8fb",
             "--rail-surface-border": "rgba(20, 25, 36, 0.06)",
             "--timelike-progress": `${clampedProgress}`,
           } as CSSProperties
@@ -524,9 +553,9 @@ function ClassicDislikeButton({
   onConfirm: () => void;
 }) {
   return (
-    <div className="relative">
+    <div className="relative w-full">
       <ClassicMetricButton value="Dislike" label="Annuler TimeLike" onClick={onOpen}>
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f4f7fb] text-[#0f172a]">
+        <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#f7f8fb] text-[#0f172a] transition group-hover:bg-[#eef2f7]">
           <DislikeFlagIcon className="h-4 w-4" />
         </span>
       </ClassicMetricButton>
@@ -569,11 +598,13 @@ function ClassicMediaBlock({
   videoRef,
   onOpenImage,
   eagerMedia = false,
+  imageFrameMaxWidthClassName = "w-full",
 }: {
   item: ClassicFeedCardItem;
   videoRef?: { current: HTMLVideoElement | null };
   onOpenImage?: (images: string[], index: number, title: string) => void;
   eagerMedia?: boolean;
+  imageFrameMaxWidthClassName?: string;
 }) {
   if (item.variant === "letter") {
     return null;
@@ -581,13 +612,13 @@ function ClassicMediaBlock({
 
   if (item.media?.kind === "gallery" && item.media.gallery) {
     return (
-      <div className="grid grid-cols-3 gap-2 bg-white">
+      <div className="grid w-full grid-cols-3 gap-1.5 bg-white">
         {item.media.gallery.map((src, index) => (
           <button
             key={src}
             type="button"
             onClick={() => onOpenImage?.(item.media!.gallery!, index, item.title)}
-            className="relative h-[468px] overflow-hidden rounded-[5px] bg-white text-left transition hover:opacity-95"
+            className="relative aspect-[4/5] overflow-hidden rounded-[5px] bg-white text-left transition hover:opacity-95"
           >
             <Image
               src={src}
@@ -605,7 +636,7 @@ function ClassicMediaBlock({
 
   if (item.media?.kind === "video" && item.media.src) {
     return (
-      <div className="overflow-hidden rounded-[5px] bg-[#030712]">
+      <div className="w-full overflow-hidden rounded-[5px] bg-[#030712]">
         <div className="relative aspect-[16/9] bg-black">
           <video
             ref={videoRef}
@@ -636,16 +667,16 @@ function ClassicMediaBlock({
       <button
         type="button"
         onClick={() => onOpenImage?.([item.media!.src!], 0, item.title)}
-        className="block w-full overflow-hidden rounded-[5px] bg-black text-left transition hover:opacity-95"
+        className="block w-full text-left transition hover:opacity-95"
       >
-        <div className="relative aspect-[16/9] bg-black">
-          <Image
+        <div className={`${imageFrameMaxWidthClassName} overflow-hidden rounded-[5px]`}>
+          {/* Single-image posts fill the full feed column width up to 468px. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             src={item.media.src}
             alt={item.title}
-            fill
-            sizes="760px"
-            className="object-contain"
-            loading={eagerMedia ? "eager" : undefined}
+            loading={eagerMedia ? "eager" : "lazy"}
+            className="block h-auto w-full"
           />
         </div>
       </button>
@@ -678,8 +709,12 @@ function ClassicFeedCard({
   flatCards?: boolean;
   eagerMedia?: boolean;
 }) {
+  const router = useRouter();
   const cardRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const reportTimeLikeStateChange = useEffectEvent((snapshot: ClassicTimeLikeSnapshot) => {
+    onTimeLikeStateChange(item.videoId, snapshot);
+  });
   const timeLikeBurstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [timeLikeBurstVisible, setTimeLikeBurstVisible] = useState(false);
   const [timeLikeBurstTick, setTimeLikeBurstTick] = useState(0);
@@ -702,6 +737,14 @@ function ClassicFeedCard({
   const timeLikeProgress = timeLikeState.triggered
     ? 1
     : getTimeLikeProgress(timeLikeRule, timeLikeState.activeMs, timeLikeState.maxProgress);
+  const authorUsername = (item.authorUsername ?? item.handle.replace(/^@/, "")).trim();
+  const canOpenAuthorProfile = authorUsername.length > 0;
+  const avatarSrc = resolveProfileAvatarSrc(item.avatar, DEFAULT_AVATAR);
+  const cardLayout = getClassicCardLayout();
+  const [bodyExpanded, setBodyExpanded] = useState(false);
+  const hasMedia = Boolean(item.media);
+  const hasBody = item.body.trim().length > 0;
+  const canExpandBody = hasMedia && item.body.trim().length > 10;
 
   useEffect(() => {
     return () => {
@@ -758,7 +801,7 @@ function ClassicFeedCard({
   }, [item.media?.src, mediaKind]);
 
   useEffect(() => {
-    onTimeLikeStateChange(item.videoId, {
+    reportTimeLikeStateChange({
       videoId: item.videoId,
       kind: mediaKind,
       author: item.handle.replace(/^@/, ""),
@@ -776,7 +819,6 @@ function ClassicFeedCard({
     item.title,
     item.videoId,
     mediaKind,
-    onTimeLikeStateChange,
     resolvedDurationSeconds,
     timeLikeProgress,
     timeLikeRule,
@@ -887,57 +929,82 @@ function ClassicFeedCard({
     setIsDislikePromptOpen(false);
   };
 
+  const handleOpenAuthorProfile = () => {
+    if (!canOpenAuthorProfile) {
+      return;
+    }
+
+    router.push(`/u/${encodeURIComponent(authorUsername)}`);
+  };
+
   return (
     <article
       ref={cardRef}
-      className={`overflow-visible rounded-[30px] border border-black/6 bg-white ${
-        flatCards ? "shadow-none" : "shadow-[0_24px_56px_rgba(15,23,42,0.08)]"
+      className={`mx-auto w-full ${cardLayout.articleMaxWidthClassName} overflow-visible bg-white ${
+        flatCards ? "shadow-none" : "shadow-none"
       }`}
     >
-      <div className="px-5 pb-2 pt-4">
-        <div className="flex items-center gap-3">
-          <div className="relative h-11 w-11 overflow-hidden rounded-full ring-1 ring-black/6">
-            <Image src={item.avatar} alt={item.author} fill sizes="44px" className="object-cover" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <p className="truncate text-[15px] font-semibold text-[#111827]">{item.author}</p>
+      <div className="pb-2 pt-0">
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={handleOpenAuthorProfile}
+            disabled={!canOpenAuthorProfile}
+            className="flex min-w-0 flex-1 items-center gap-2 text-left transition hover:opacity-85 disabled:cursor-default disabled:hover:opacity-100"
+          >
+            <div className="relative h-9 w-9 overflow-hidden rounded-full ring-1 ring-black/6">
+              <Image src={avatarSrc} alt={item.author} fill sizes="36px" className="object-cover" />
             </div>
-            <p className="text-[12px] text-[#7a8597]">
-              <span className="text-[#111827]">{item.handle}</span>
-              {" - "}
-              <span>{item.timestamp}</span>
-            </p>
-          </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1">
+                <p className="truncate text-[13px] font-semibold leading-5 text-[#111827]">{item.author}</p>
+              </div>
+              <p className="text-[10px] leading-4 text-[#8792a3]">
+                <span className="text-[#475569]">{item.handle}</span>
+                {" - "}
+                <span>{item.timestamp}</span>
+              </p>
+            </div>
+          </button>
           <button
             type="button"
             onClick={() => onOpenMore(item.videoId)}
-            className="rounded-full border border-black/8 bg-[#f6f8fb] px-3 py-1 text-[11px] font-semibold text-[#0f172a] transition hover:border-black/12 hover:bg-white"
+            className="rounded-full px-1 py-1 text-[10px] font-semibold tracking-[0.01em] text-[#94a3b8] transition hover:text-[#334155]"
           >
             Plus
           </button>
         </div>
       </div>
 
-      <div className="px-5 pb-4 pt-0">
-        <div className="max-w-[620px]">
+      <div className="pb-3 pt-0">
+        <div className={cardLayout.copyMaxWidthClassName}>
           <h3
             className={`mt-1.5 text-[#111827] ${
               item.variant === "letter"
-                ? "text-[29px] font-semibold leading-[1.03] tracking-[-0.05em]"
-                : "text-[20px] font-semibold leading-[1.14] tracking-[-0.035em]"
+                ? "text-[26px] font-medium leading-[1.04] tracking-[-0.04em]"
+                : hasMedia
+                  ? "text-[17px] font-medium leading-[1.14] tracking-[-0.03em]"
+                  : "text-[18px] font-medium leading-[1.18] tracking-[-0.02em]"
             }`}
           >
             {item.title}
           </h3>
-          <p className="mt-2 text-[14px] leading-6 text-[#111827]">{item.body}</p>
+          {!hasMedia && hasBody ? <p className="mt-2 text-[14px] leading-7 text-[#111827]">{item.body}</p> : null}
         </div>
       </div>
 
-      {item.media ? <ClassicMediaBlock item={item} videoRef={videoRef} onOpenImage={onOpenImage} eagerMedia={eagerMedia} /> : null}
+      {item.media ? (
+        <ClassicMediaBlock
+          item={item}
+          videoRef={videoRef}
+          onOpenImage={onOpenImage}
+          eagerMedia={eagerMedia}
+          imageFrameMaxWidthClassName={cardLayout.imageFrameMaxWidthClassName}
+        />
+      ) : null}
 
-      <div className="px-5 pb-4 pt-4">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="pb-0 pt-4">
+        <div className="grid w-full grid-cols-4 gap-2.5">
           <ClassicTimeLikeButton
             value={String(timeLikeState.count)}
             progress={timeLikeProgress}
@@ -948,7 +1015,7 @@ function ClassicFeedCard({
           />
           <ClassicMetricButton
             icon={
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f4f7fb] text-[#0f172a]">
+              <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#f7f8fb] text-[#0f172a] transition group-hover:bg-[#eef2f7]">
                 <MessageCircleMore className="h-4 w-4" strokeWidth={2.1} />
               </span>
             }
@@ -958,7 +1025,7 @@ function ClassicFeedCard({
           />
           <ClassicMetricButton
             icon={
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f4f7fb] text-[#0f172a]">
+              <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#f7f8fb] text-[#0f172a] transition group-hover:bg-[#eef2f7]">
                 <Send className="h-4 w-4" strokeWidth={2.1} />
               </span>
             }
@@ -976,6 +1043,29 @@ function ClassicFeedCard({
           />
         </div>
       </div>
+
+      {hasMedia && hasBody ? (
+        <div className="pb-1 pt-5">
+          <div className={cardLayout.copyMaxWidthClassName}>
+            <p
+              className={`text-[13px] leading-6 text-[#111827] ${
+                bodyExpanded ? "" : "line-clamp-2"
+              }`}
+            >
+              {item.body}
+            </p>
+            {canExpandBody ? (
+              <button
+                type="button"
+                onClick={() => setBodyExpanded((current) => !current)}
+                className="mt-1.5 text-[13px] font-semibold text-[#111827]"
+              >
+                {bodyExpanded ? "Lire moins" : "Lire tout"}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -1108,7 +1198,7 @@ export function ClassicFeedView({
         onTimeLikeStateChange={onTimeLikeStateChange}
         flatCards={flatCards}
         items={items}
-        className="space-y-3"
+        className="space-y-6"
       />
     </section>
   );
@@ -1123,7 +1213,7 @@ export function ClassicFeedStream({
   onTimeLikeStateChange,
   flatCards = false,
   items,
-  className = "space-y-3",
+  className = "space-y-6",
 }: ClassicFeedViewProps & { className?: string }) {
   const [lightboxState, setLightboxState] = useState<ClassicLightboxState | null>(null);
   const resolvedItems = items ?? legacyFallbackClassicFeedItems;
@@ -1163,9 +1253,11 @@ export function ClassicFeedStream({
     });
   };
 
+  const resolvedStreamClassName = `mx-auto w-full max-w-[468px] ${className}`;
+
   return (
     <>
-      <div className={className}>
+      <div className={resolvedStreamClassName}>
         {resolvedItems.map((item, index) => (
           <ClassicFeedCard
             key={item.id}

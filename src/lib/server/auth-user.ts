@@ -50,6 +50,7 @@ export type PublicProfile = {
   bio: string;
   avatarUrl: string | null;
   websiteUrl: string | null;
+  onboardingCompletedAt: number | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -271,6 +272,7 @@ export function serializePublicProfile(profile: StoredProfileRow): PublicProfile
     bio: profile.bio,
     avatarUrl: profile.avatar_url,
     websiteUrl: profile.website_url,
+    onboardingCompletedAt: profile.onboarding_completed_at,
     createdAt: profile.created_at,
     updatedAt: profile.updated_at,
   };

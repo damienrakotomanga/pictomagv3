@@ -36,6 +36,7 @@ function toPublicPost(post: StoredPostRow, author: PublicPostAuthor, media: Stor
     userId: post.user_id,
     surface: post.surface,
     kind: post.kind,
+    albumName: post.album_name,
     title: post.title,
     body: post.body,
     trackName: post.track_name,

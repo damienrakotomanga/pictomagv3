@@ -160,9 +160,12 @@ export function PhotoFeedPage() {
 
   return (
     <main className="overflow-x-auto bg-white">
-      <div className="mx-auto w-[1440px] bg-white">
-        <div className="relative min-h-[2009px] w-[1440px] bg-white text-black">
-          <header className="fixed left-1/2 top-0 z-[120] h-[73px] w-[1440px] -translate-x-1/2">
+      <div className="w-full bg-white">
+        <div className="relative min-h-[2009px] w-full bg-white text-black">
+          <header
+            className="fixed left-1/2 top-0 z-[120] h-[73px] w-[1440px] -translate-x-1/2"
+            data-legacy-site-header="true"
+          >
             <div className="absolute left-0 top-0 h-[61px] w-[1440px] bg-[rgba(255,255,255,0.87)] backdrop-blur-[13px]" />
             <Image
               src="/figma-assets/logo-mark.png"

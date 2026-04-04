@@ -107,7 +107,7 @@ export function SoundLibraryPage({ soundId }: { soundId: string }) {
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(35,37,44,0.96)_0%,rgba(10,10,12,1)_42%,rgba(3,3,4,1)_100%)] text-[#f5f5f7]">
       <audio ref={audioRef} src={collection.previewSrc} preload="metadata" />
 
-      <div className="mx-auto flex min-h-screen w-full max-w-[1380px] flex-col px-6 pb-20 pt-8 lg:px-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1380px] flex-col px-6 pb-20 pt-[92px] lg:px-8">
         <header className="mb-8 flex items-center gap-4">
           <Link
             href="/"
@@ -116,8 +116,8 @@ export function SoundLibraryPage({ soundId }: { soundId: string }) {
             <ChevronLeft size={20} strokeWidth={2.2} />
           </Link>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/45">Pictomag Audio</p>
-            <h1 className="text-[20px] font-semibold tracking-[-0.03em] text-[#f5f5f7]">Bibliotheque sonore</h1>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">Pictomag Audio</p>
+            <h1 className="text-[20px] font-medium tracking-[-0.02em] text-[#f5f5f7]">Bibliotheque sonore</h1>
           </div>
         </header>
 
@@ -136,13 +136,13 @@ export function SoundLibraryPage({ soundId }: { soundId: string }) {
 
               <div className="mt-7">
                 <div className="min-w-0">
-                  <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-white/42">Audio</p>
-                  <h2 className="mt-3 max-w-[760px] text-[40px] font-semibold leading-[0.92] tracking-[-0.06em] text-[#f5f5f7] lg:text-[64px]">
+                  <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-white/42">Audio</p>
+                  <h2 className="mt-3 max-w-[760px] text-[40px] font-medium leading-[0.92] tracking-[-0.05em] text-[#f5f5f7] lg:text-[64px]">
                     {collection.title}
                   </h2>
 
                   <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[15px] text-white/55">
-                    <span className="font-semibold text-[#f5f5f7]">{collection.creatorName}</span>
+                    <span className="font-medium tracking-[-0.01em] text-[#f5f5f7]">{collection.creatorName}</span>
                     <span className="h-1 w-1 rounded-full bg-white/24" />
                     <span>{collection.creatorHandle}</span>
                     <span className="h-1 w-1 rounded-full bg-white/24" />
@@ -197,16 +197,16 @@ export function SoundLibraryPage({ soundId }: { soundId: string }) {
 
               <div className="mt-8 grid max-w-[720px] gap-3 sm:grid-cols-3">
                 <div className="rounded-[20px] border border-white/10 bg-white/[0.04] px-5 py-4 backdrop-blur-xl">
-                  <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white/36">Clips</p>
-                  <p className="mt-3 text-[28px] font-semibold tracking-[-0.04em] text-[#f5f5f7]">{collection.reelsCount}</p>
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-white/36">Clips</p>
+                  <p className="mt-3 text-[28px] font-medium tracking-[-0.03em] text-[#f5f5f7]">{collection.reelsCount}</p>
                 </div>
                 <div className="rounded-[20px] border border-white/10 bg-white/[0.04] px-5 py-4 backdrop-blur-xl">
-                  <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white/36">Preview</p>
-                  <p className="mt-3 text-[28px] font-semibold tracking-[-0.04em] text-[#f5f5f7]">{previewDurationLabel}</p>
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-white/36">Preview</p>
+                  <p className="mt-3 text-[28px] font-medium tracking-[-0.03em] text-[#f5f5f7]">{previewDurationLabel}</p>
                 </div>
                 <div className="rounded-[20px] border border-white/10 bg-white/[0.04] px-5 py-4 backdrop-blur-xl">
-                  <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white/36">Ecoutes</p>
-                  <p className="mt-3 text-[28px] font-semibold tracking-[-0.04em] text-[#f5f5f7]">{totalViewsLabel}</p>
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-white/36">Ecoutes</p>
+                  <p className="mt-3 text-[28px] font-medium tracking-[-0.03em] text-[#f5f5f7]">{totalViewsLabel}</p>
                 </div>
               </div>
             </div>
@@ -215,8 +215,8 @@ export function SoundLibraryPage({ soundId }: { soundId: string }) {
               <div className="w-full max-w-[390px] rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(31,32,38,0.96)_0%,rgba(14,15,18,0.98)_100%)] p-6 shadow-[0_22px_50px_rgba(0,0,0,0.34)]">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/38">Preview</p>
-                    <p className="mt-2 text-[18px] font-semibold tracking-[-0.02em] text-[#f5f5f7]">Lecture du son</p>
+                    <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white/38">Preview</p>
+                    <p className="mt-2 text-[18px] font-medium tracking-[-0.015em] text-[#f5f5f7]">Lecture du son</p>
                   </div>
                   <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[12px] font-semibold text-white/54">
                     {collection.creatorHandle}
@@ -274,8 +274,8 @@ export function SoundLibraryPage({ soundId }: { soundId: string }) {
         <section className="mt-10 rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(16,17,20,0.98)_0%,rgba(9,10,12,1)_100%)] px-6 py-6 shadow-[0_18px_48px_rgba(0,0,0,0.28)]">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/36">Selection</p>
-              <h3 className="mt-2 text-[30px] font-semibold tracking-[-0.04em] text-[#f5f5f7]">Videos utilisant ce son</h3>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white/36">Selection</p>
+              <h3 className="mt-2 text-[30px] font-medium tracking-[-0.03em] text-[#f5f5f7]">Videos utilisant ce son</h3>
               <p className="mt-2 max-w-[620px] text-[15px] leading-[1.65] text-white/48">
                 Une galerie sombre, plus cinematographique, avec des cartes plus nettes et un contraste plus premium.
               </p>

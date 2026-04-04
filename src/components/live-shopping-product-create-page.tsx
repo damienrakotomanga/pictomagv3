@@ -232,18 +232,16 @@ export function LiveShoppingProductCreatePage({
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      <LiveHeader
-        onNavClick={handleNav}
-        onProfileClick={() => router.push("/profile")}
-        onCreateClick={() => router.push("/live-shopping/schedule")}
-        onNotificationsClick={() => setToast("Notifications live ouvertes.")}
-        onMessagesClick={() => setToast("Messagerie live ouverte.")}
-        onMenuClick={() => setToast("Menu du compte ouvert.")}
-      />
+      <div className="min-h-screen bg-white">
+        <LiveHeader
+          onNavClick={handleNav}
+          onCreateClick={() => router.push("/live-shopping/schedule")}
+          onNotificationsClick={() => setToast("Notifications live ouvertes.")}
+          onMessagesClick={() => setToast("Messagerie live ouverte.")}
+        />
 
       <section className="pt-[120px]">
-        <div className="mx-auto w-[1440px] px-8 pb-32">
+        <div className="w-full px-8 pb-32">
           <div className="mb-10 flex items-center gap-4">
             <button
               type="button"
@@ -252,7 +250,7 @@ export function LiveShoppingProductCreatePage({
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
-            <h1 className="text-[38px] font-semibold tracking-[-0.05em] text-[#101522]">
+            <h1 className="text-[38px] font-medium tracking-[-0.04em] text-[#101522]">
               {existingProduct ? "Modifier un produit" : "Creer un produit"}
             </h1>
           </div>
@@ -260,7 +258,7 @@ export function LiveShoppingProductCreatePage({
           <div className="grid grid-cols-[minmax(0,1fr)_340px] gap-6">
             <div className="space-y-6">
               <div className="rounded-[10px] border border-black/8 bg-white p-7">
-                <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">Medias</h2>
+                <h2 className="text-[24px] font-medium tracking-[-0.03em] text-[#101522]">Medias</h2>
                 <div className="mt-5 rounded-[10px] border border-dashed border-[#d6dfed] bg-[#fbfdff] px-6 py-10">
                   <label className="flex cursor-pointer flex-col items-center justify-center text-center">
                     <input
@@ -272,7 +270,7 @@ export function LiveShoppingProductCreatePage({
                     <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#eef4ff] text-[#2b6fff]">
                       <ImagePlus className="h-6 w-6" />
                     </div>
-                    <p className="mt-4 text-[18px] font-semibold text-[#101522]">Clique pour telecharger ou glisse ton media</p>
+                    <p className="mt-4 text-[18px] font-medium tracking-[-0.02em] text-[#101522]">Clique pour telecharger ou glisse ton media</p>
                     <p className="mt-2 text-[14px] leading-6 text-[#7a889b]">{coverName ?? "Commence par choisir la photo principale du produit."}</p>
                   </label>
                 </div>
@@ -280,14 +278,14 @@ export function LiveShoppingProductCreatePage({
                   <div className="flex items-start gap-4">
                     <UploadCloud className="mt-1 h-5 w-5 text-[#101522]" />
                     <div>
-                      <p className="font-semibold text-[#101522]">Telechargement mobile</p>
+                      <p className="font-medium tracking-[-0.01em] text-[#101522]">Telechargement mobile</p>
                       <p className="mt-1 text-[14px] text-[#7a889b]">Telecharge des photos et des videos directement depuis ton telephone.</p>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setToast("Envoi mobile active: scanne le QR pour televerser depuis ton telephone.")}
-                    className="inline-flex h-10 items-center justify-center rounded-full bg-[#101522] px-5 text-[14px] font-semibold text-white"
+                    className="inline-flex h-10 items-center justify-center rounded-full bg-[#101522] px-5 text-[14px] font-medium tracking-[-0.01em] text-white"
                   >
                     Essaie
                   </button>
@@ -296,7 +294,7 @@ export function LiveShoppingProductCreatePage({
 
               <div className="rounded-[10px] border border-black/8 bg-white p-7">
                 <div className="mb-6 flex items-center justify-between">
-                  <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">Details du produit</h2>
+                  <h2 className="text-[24px] font-medium tracking-[-0.03em] text-[#101522]">Details du produit</h2>
                   <button
                     type="button"
                     onClick={() => setToast("Scanner code-barres: pret a connecter au flux d inventaire.")}
@@ -359,7 +357,7 @@ export function LiveShoppingProductCreatePage({
               <div className="rounded-[10px] border border-black/8 bg-white p-7">
                 <div className="flex items-start justify-between gap-8">
                   <div>
-                    <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">Variantes</h2>
+                    <h2 className="text-[24px] font-medium tracking-[-0.03em] text-[#101522]">Variantes</h2>
                     <p className="mt-2 text-[14px] leading-6 text-[#7a889b]">Ajoute differentes couleurs ou tailles, et des quantites pour ce produit.</p>
                   </div>
                   <Toggle checked={variantsEnabled} onChange={setVariantsEnabled} />
@@ -369,7 +367,7 @@ export function LiveShoppingProductCreatePage({
 
             <div className="space-y-6">
               <div className="rounded-[10px] border border-black/8 bg-white p-6">
-                <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">Prix</h2>
+                <h2 className="text-[24px] font-medium tracking-[-0.03em] text-[#101522]">Prix</h2>
                 <div className="mt-5 flex rounded-full bg-[#f5f7fb] p-1">
                   <PriceModeButton active={mode === "fixed"} label="Achat immediat" onClick={() => setMode("fixed")} />
                   <PriceModeButton active={mode === "auction"} label="Vente aux encheres" onClick={() => setMode("auction")} />
@@ -385,21 +383,21 @@ export function LiveShoppingProductCreatePage({
                 <div className="mt-5 space-y-5">
                   <div className="flex items-start justify-between gap-6">
                     <div>
-                      <p className="font-semibold text-[#101522]">Vente Flash</p>
+                      <p className="font-medium tracking-[-0.01em] text-[#101522]">Vente Flash</p>
                       <p className="mt-1 text-[14px] leading-6 text-[#7a889b]">Pour activer les ventes flash sur ce produit.</p>
                     </div>
                     <Toggle checked={flashSale} onChange={setFlashSale} />
                   </div>
                   <div className="flex items-start justify-between gap-6">
                     <div>
-                      <p className="font-semibold text-[#101522]">Accepter les offres</p>
+                      <p className="font-medium tracking-[-0.01em] text-[#101522]">Accepter les offres</p>
                       <p className="mt-1 text-[14px] leading-6 text-[#7a889b]">Active cette option si tu souhaites accepter des offres en live ou en boutique.</p>
                     </div>
                     <Toggle checked={acceptOffers} onChange={setAcceptOffers} />
                   </div>
                   <div className="flex items-start justify-between gap-6">
                     <div>
-                      <p className="font-semibold text-[#101522]">Reserver pour le live</p>
+                      <p className="font-medium tracking-[-0.01em] text-[#101522]">Reserver pour le live</p>
                       <p className="mt-1 text-[14px] leading-6 text-[#7a889b]">Active cette option pour rendre ce produit achetable uniquement en live.</p>
                     </div>
                     <Toggle checked={reserveForLive} onChange={setReserveForLive} />
@@ -426,7 +424,7 @@ export function LiveShoppingProductCreatePage({
               </div>
 
               <div className="rounded-[10px] border border-black/8 bg-white p-6">
-                <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">Livraison</h2>
+                <h2 className="text-[24px] font-medium tracking-[-0.03em] text-[#101522]">Livraison</h2>
                 <div className="mt-5 space-y-4">
                   <div className="relative">
                     <select
@@ -463,7 +461,7 @@ export function LiveShoppingProductCreatePage({
               </div>
 
               <div className="rounded-[10px] border border-black/8 bg-white p-6">
-                <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">Champs facultatifs</h2>
+                <h2 className="text-[24px] font-medium tracking-[-0.03em] text-[#101522]">Champs facultatifs</h2>
                 <div className="mt-5 space-y-4">
                   <input
                     value={costPerItem}
@@ -485,7 +483,7 @@ export function LiveShoppingProductCreatePage({
       </section>
 
       <div className="fixed inset-x-0 bottom-0 z-[130] border-t border-black/8 bg-[rgba(255,255,255,0.96)] backdrop-blur-[12px]">
-        <div className="mx-auto flex w-[1440px] items-center justify-end gap-3 px-8 py-4">
+        <div className="flex w-full items-center justify-end gap-3 px-8 py-4">
           <button
             type="button"
             onClick={() => handleSave("draft")}

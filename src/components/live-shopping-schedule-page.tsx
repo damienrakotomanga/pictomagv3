@@ -416,18 +416,16 @@ export function LiveShoppingSchedulePage({
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      <LiveHeader
-        onNavClick={handleNav}
-        onProfileClick={() => router.push("/profile")}
-        onCreateClick={() => router.push("/live-shopping/schedule")}
-        onNotificationsClick={() => setToast("Notifications live ouvertes.")}
-        onMessagesClick={() => setToast("Messagerie live ouverte.")}
-        onMenuClick={() => setToast("Menu du compte ouvert.")}
-      />
+      <div className="min-h-screen bg-white">
+        <LiveHeader
+          onNavClick={handleNav}
+          onCreateClick={() => router.push("/live-shopping/schedule")}
+          onNotificationsClick={() => setToast("Notifications live ouvertes.")}
+          onMessagesClick={() => setToast("Messagerie live ouverte.")}
+        />
 
       <section className="pt-[120px]">
-        <div className="mx-auto w-[1440px] px-8 pb-36">
+        <div className="w-full px-8 pb-36">
           <div className="mb-10 flex items-center gap-4">
             <button
               type="button"
@@ -437,7 +435,7 @@ export function LiveShoppingSchedulePage({
               <ChevronLeft className="h-5 w-5" />
             </button>
             <div>
-              <h1 className="text-[38px] font-semibold tracking-[-0.05em] text-[#101522]">Programmer un live</h1>
+              <h1 className="text-[38px] font-medium tracking-[-0.04em] text-[#101522]">Programmer un live</h1>
               <p className="mt-2 text-[15px] leading-7 text-[#66768c]">
                 Prepare ton prochain live sans friction. On garde le setup simple, clair et propre a partager.
               </p>
@@ -447,7 +445,7 @@ export function LiveShoppingSchedulePage({
           <div className="mb-8 rounded-[10px] border border-black/8 bg-white p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-[18px] font-semibold tracking-[-0.03em] text-[#101522]">Lives programmes</p>
+                <p className="text-[18px] font-medium tracking-[-0.02em] text-[#101522]">Lives programmes</p>
                 <p className="mt-1 text-[13px] text-[#66768c]">
                   Tes prochains lives apparaissent ici et restent synchronises sur ton compte.
                 </p>
@@ -486,7 +484,7 @@ export function LiveShoppingSchedulePage({
                     className="flex items-center justify-between gap-4 rounded-[10px] border border-black/8 bg-white px-4 py-3"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-[14px] font-semibold text-[#101522]">{item.title}</p>
+                      <p className="truncate text-[14px] font-medium tracking-[-0.01em] text-[#101522]">{item.title}</p>
                       <p className="mt-1 text-[13px] text-[#6a788c]">
                         {formatScheduledDate(item)} · {item.categoryLabel} · {item.saleFormat}
                       </p>
@@ -544,7 +542,7 @@ export function LiveShoppingSchedulePage({
                 }}
                 className="rounded-[10px] border border-black/8 bg-white p-7"
               >
-                <h2 className="text-[28px] font-semibold tracking-[-0.04em] text-[#101522]">Informations du live</h2>
+                <h2 className="text-[28px] font-medium tracking-[-0.03em] text-[#101522]">Informations du live</h2>
                 <p className="mt-2 text-[14px] leading-6 text-[#66768c]">
                   Donne un titre clair, choisis une categorie precise et annonce le format de vente principal.
                 </p>
@@ -603,7 +601,7 @@ export function LiveShoppingSchedulePage({
               </div>
 
               <div className="rounded-[10px] border border-black/8 bg-white p-7">
-                <h3 className="text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">Categorie principale</h3>
+                <h3 className="text-[24px] font-medium tracking-[-0.03em] text-[#101522]">Categorie principale</h3>
                 <p className="mt-2 text-[14px] leading-6 text-[#66768c]">
                   Categoriser ton live avec precision permet d&apos;ameliorer sa lisibilite et sa decouverte.
                 </p>
@@ -626,7 +624,7 @@ export function LiveShoppingSchedulePage({
                 </div>
 
                 <div className="mt-5 rounded-[10px] border border-dashed border-[#dbe5f4] bg-[#fbfdff] px-4 py-4">
-                  <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#8aa0bd]">Utilisee recemment</p>
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8aa0bd]">Utilisee recemment</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {[selectedCategory.label, "Cartes One Piece", "Selection premium"].map((label) => (
                       <span key={label} className="rounded-full border border-[#d7e4f7] px-3 py-1.5 text-[13px] text-[#4f6075]">
@@ -638,7 +636,7 @@ export function LiveShoppingSchedulePage({
               </div>
 
               <div className="rounded-[10px] border border-black/8 bg-white p-7">
-                <h3 className="text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">Format de vente principal</h3>
+                <h3 className="text-[24px] font-medium tracking-[-0.03em] text-[#101522]">Format de vente principal</h3>
                 <p className="mt-2 text-[14px] leading-6 text-[#66768c]">
                   Choisis le format que tu utilises le plus souvent pendant le live. L&apos;acheteur comprend mieux le setup avant d&apos;entrer.
                 </p>
@@ -661,7 +659,7 @@ export function LiveShoppingSchedulePage({
               </div>
 
               <div className="rounded-[10px] border border-black/8 bg-white p-7">
-                <h3 className="text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">Tags de live</h3>
+                <h3 className="text-[24px] font-medium tracking-[-0.03em] text-[#101522]">Tags de live</h3>
                 <p className="mt-2 text-[14px] leading-6 text-[#66768c]">Selectionne jusqu&apos;a 3 tags pour aider la recommandation et la recherche.</p>
                 <div className="mt-5 flex min-h-14 flex-wrap gap-2 rounded-[10px] border border-black/10 px-4 py-3">
                   {selectedTags.length ? (
@@ -704,7 +702,7 @@ export function LiveShoppingSchedulePage({
                 }}
                 className="rounded-[10px] border border-black/8 bg-white p-7"
               >
-                <h2 className="text-[28px] font-semibold tracking-[-0.04em] text-[#101522]">Medias</h2>
+                <h2 className="text-[28px] font-medium tracking-[-0.03em] text-[#101522]">Medias</h2>
                 <p className="mt-2 text-[14px] leading-6 text-[#66768c]">
                   Ajoute une vignette et un apercu video pour maximiser la visibilite du live dans la grille.
                 </p>
@@ -718,7 +716,7 @@ export function LiveShoppingSchedulePage({
                       onChange={(event) => setCoverName(event.target.files?.[0]?.name ?? null)}
                     />
                     <ImagePlus className="h-8 w-8 text-[#2b6fff]" />
-                    <span className="mt-4 text-[16px] font-semibold text-[#101522]">Ajouter une photo</span>
+                    <span className="mt-4 text-[16px] font-medium tracking-[-0.01em] text-[#101522]">Ajouter une photo</span>
                     <span className="mt-2 text-[13px] text-[#6a788c]">{coverName ?? "Vignette du live en 4:5 ou 1:1."}</span>
                   </label>
                   <label className="flex min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-[10px] border border-dashed border-[#d6dfed] bg-[#fbfdff] text-center transition hover:border-[#bfd3ff]">
@@ -729,7 +727,7 @@ export function LiveShoppingSchedulePage({
                       onChange={(event) => setPreviewName(event.target.files?.[0]?.name ?? null)}
                     />
                     <Video className="h-8 w-8 text-[#2b6fff]" />
-                    <span className="mt-4 text-[16px] font-semibold text-[#101522]">Ajouter une video</span>
+                    <span className="mt-4 text-[16px] font-medium tracking-[-0.01em] text-[#101522]">Ajouter une video</span>
                     <span className="mt-2 text-[13px] text-[#6a788c]">{previewName ?? "Apercu court pour la decouverte."}</span>
                   </label>
                 </div>
@@ -784,7 +782,7 @@ export function LiveShoppingSchedulePage({
                 }}
                 className="rounded-[10px] border border-black/8 bg-white p-7"
               >
-                <h2 className="text-[28px] font-semibold tracking-[-0.04em] text-[#101522]">Parametres de livraison</h2>
+                <h2 className="text-[28px] font-medium tracking-[-0.03em] text-[#101522]">Parametres de livraison</h2>
                 <p className="mt-2 text-[14px] leading-6 text-[#66768c]">
                   Ajuste les parametres par defaut pour les frais de port, la remise en main propre et le traitement du live.
                 </p>
@@ -792,7 +790,7 @@ export function LiveShoppingSchedulePage({
                 <div className="mt-6 space-y-5">
                   <div className="flex items-start justify-between gap-8 rounded-[10px] border border-black/8 px-5 py-4">
                     <div>
-                      <p className="text-[16px] font-semibold text-[#101522]">Retrait gratuit</p>
+                      <p className="text-[16px] font-medium tracking-[-0.01em] text-[#101522]">Retrait gratuit</p>
                       <p className="mt-1 text-[14px] text-[#66768c]">Propose la remise en main propre pour les acheteurs proches.</p>
                     </div>
                     <Toggle checked={freePickup} onChange={setFreePickup} />
@@ -822,7 +820,7 @@ export function LiveShoppingSchedulePage({
                 }}
                 className="rounded-[10px] border border-black/8 bg-white p-7"
               >
-                <h2 className="text-[28px] font-semibold tracking-[-0.04em] text-[#101522]">Afficher les options</h2>
+                <h2 className="text-[28px] font-medium tracking-[-0.03em] text-[#101522]">Afficher les options</h2>
                 <div className="mt-6 space-y-5">
                   {[
                     {
@@ -846,7 +844,7 @@ export function LiveShoppingSchedulePage({
                   ].map((item) => (
                     <div key={item.title} className="flex items-start justify-between gap-8 rounded-[10px] border border-black/8 px-5 py-4">
                       <div>
-                        <p className="text-[16px] font-semibold text-[#101522]">{item.title}</p>
+                        <p className="text-[16px] font-medium tracking-[-0.01em] text-[#101522]">{item.title}</p>
                         <p className="mt-1 text-[14px] text-[#66768c]">{item.body}</p>
                       </div>
                       <Toggle checked={item.value} onChange={item.setter} />
@@ -861,7 +859,7 @@ export function LiveShoppingSchedulePage({
                 }}
                 className="rounded-[10px] border border-black/8 bg-white p-7"
               >
-                <h2 className="text-[28px] font-semibold tracking-[-0.04em] text-[#101522]">Parametres de contenu</h2>
+                <h2 className="text-[28px] font-medium tracking-[-0.03em] text-[#101522]">Parametres de contenu</h2>
                 <div className="mt-6 grid grid-cols-[1fr_auto] gap-6">
                   <div className="space-y-5">
                     <ScheduleField label="Langue principale">
@@ -890,7 +888,7 @@ export function LiveShoppingSchedulePage({
                     </ScheduleField>
                   </div>
                   <div className="rounded-[10px] border border-black/8 px-5 py-4">
-                    <p className="text-[16px] font-semibold text-[#101522]">Langage explicite</p>
+                    <p className="text-[16px] font-medium tracking-[-0.01em] text-[#101522]">Langage explicite</p>
                     <p className="mt-1 max-w-[220px] text-[14px] leading-6 text-[#66768c]">Active le marquage contenu adulte si le vocabulaire du live peut le justifier.</p>
                     <div className="mt-5">
                       <Toggle checked={explicitLanguage} onChange={setExplicitLanguage} />
@@ -905,7 +903,7 @@ export function LiveShoppingSchedulePage({
                 }}
                 className="rounded-[10px] border border-black/8 bg-white p-7"
               >
-                <h2 className="text-[28px] font-semibold tracking-[-0.04em] text-[#101522]">Afficher la decouverte</h2>
+                <h2 className="text-[28px] font-medium tracking-[-0.03em] text-[#101522]">Afficher la decouverte</h2>
                 <p className="mt-2 text-[14px] leading-6 text-[#66768c]">Choisis si ton live est visible de tous, reserve aux abonnes ou prive.</p>
                 <div className="mt-6 space-y-3">
                   {[
@@ -935,7 +933,7 @@ export function LiveShoppingSchedulePage({
                         />
                       </span>
                       <span>
-                        <span className="block text-[15px] font-semibold text-[#101522]">{option.label}</span>
+                        <span className="block text-[15px] font-medium tracking-[-0.01em] text-[#101522]">{option.label}</span>
                         <span className="mt-1 block text-[14px] text-[#66768c]">{option.helper}</span>
                       </span>
                     </button>
@@ -948,7 +946,7 @@ export function LiveShoppingSchedulePage({
       </section>
 
       <div className="fixed inset-x-0 bottom-0 z-[130] border-t border-black/8 bg-[rgba(255,255,255,0.96)] backdrop-blur-[12px]">
-        <div className="mx-auto flex w-[1440px] items-center justify-end gap-3 px-8 py-4">
+        <div className="flex w-full items-center justify-end gap-3 px-8 py-4">
           <button
             type="button"
             onClick={() => router.push("/live-shopping")}

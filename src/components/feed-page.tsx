@@ -47,6 +47,7 @@ import shareAnimationData from "../../public/feed-rail-animations/feed-share-ico
 import timeAnimationData from "../../public/feed-rail-animations/feed-time-icon.json";
 import { AnimatedHeaderNav, type HeaderNavItemId } from "@/components/animated-header-nav";
 import { ClassicFeedView } from "@/components/classic-feed-view";
+import { SiteAccountMenu } from "@/components/site-account-menu";
 import {
   type ClassicFeedCardItem,
   type FeedMediaItem,
@@ -1210,7 +1211,7 @@ function StoryItem({ story, index }: { story: Story; index: number }) {
             loading="eager"
           />
         </div>
-        <p className="absolute left-0 top-[99px] w-[86px] text-center text-[12px] leading-[15px] text-black transition-colors duration-300 group-hover:text-[#0077ff]">
+        <p className="absolute left-0 top-[99px] w-[86px] text-center text-[12px] font-medium leading-[15px] tracking-[-0.01em] text-black transition-colors duration-300 group-hover:text-[#0077ff]">
           Watch all
         </p>
       </div>
@@ -1268,8 +1269,8 @@ function StoryItem({ story, index }: { story: Story; index: number }) {
       <p
         className={`absolute top-[99px] w-[86px] text-center text-[12px] leading-[15px] ${
           story.own
-            ? "text-[#aeaeae] transition-colors duration-300 group-hover:text-black"
-            : "font-medium text-black transition-colors duration-300 group-hover:text-[#0077ff]"
+            ? "font-medium tracking-[-0.01em] text-[#aeaeae] transition-colors duration-300 group-hover:text-black"
+            : "font-medium tracking-[-0.01em] text-black transition-colors duration-300 group-hover:text-[#0077ff]"
         }`}
       >
         {story.name}
@@ -1731,11 +1732,17 @@ function PostCluster({
         <div className="absolute inset-x-0 bottom-0 h-[22%] bg-[linear-gradient(180deg,rgba(3,5,9,0)_0%,rgba(3,5,9,0.03)_36%,rgba(3,5,9,0.14)_72%,rgba(3,5,9,0.48)_100%)]" />
 
         <div className="video-meta-dock absolute inset-x-0 bottom-0">
-          <div className="video-meta-copy">
-            <p className="video-meta-user">#{media.author}</p>
-            <div className="video-meta-caption-row">
-              <p className="video-meta-title">{media.title}</p>
-              <span className="video-meta-more">Plus</span>
+        <div className="video-meta-copy">
+          <button
+            type="button"
+            onClick={() => router.push(`/u/${encodeURIComponent(media.author)}`)}
+            className="video-meta-user text-left transition hover:opacity-80"
+          >
+            #{media.author}
+          </button>
+          <div className="video-meta-caption-row">
+            <p className="video-meta-title">{media.title}</p>
+            <span className="video-meta-more">Plus</span>
             </div>
           </div>
         </div>
@@ -1794,7 +1801,7 @@ function PostCluster({
                 </div>
               ) : null}
             </div>
-            <p className="follow-hype-label w-full text-center font-bold">
+            <p className="follow-hype-label w-full text-center font-semibold tracking-[-0.015em]">
               <span className="follow-variant-word follow-variant-word-2" data-text="Follow me">
                 Follow me
               </span>
@@ -3300,7 +3307,7 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
     (actionId: string) => {
       if (actionId === "create") {
         closeOverlayPanels();
-        router.push("/marketplace?view=create");
+        router.push("/compose");
         return;
       }
 
@@ -3436,12 +3443,15 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
 
   return (
     <div className="overflow-x-auto bg-white">
-      <div className="mx-auto w-[1440px] bg-white">
+      <div className="w-full bg-white">
         <div
-          className="relative w-[1440px] bg-white text-black"
+          className="relative mx-auto w-[1440px] bg-white text-black"
           style={{ height: pageHeight }}
         >
-          <header className="fixed left-1/2 top-0 z-[120] h-[73px] w-[1440px] -translate-x-1/2">
+          <header
+            className="fixed left-1/2 top-0 z-[120] h-[73px] w-[1440px] -translate-x-1/2"
+            data-legacy-site-header="true"
+          >
             <div className="absolute left-0 top-0 h-[61px] w-[1440px] bg-[rgba(255,255,255,0.87)] backdrop-blur-[13px]" />
             <Image
               src="/figma-assets/logo-mark.png"
@@ -3478,33 +3488,14 @@ export function FeedPage({ initialMode = "video" }: { initialMode?: ContentMode 
 
             <div className="absolute left-[1303px] top-[19px] h-9 w-px bg-black/12" />
 
-            <div className="absolute left-[1318px] top-5 flex h-8 w-[69px] items-center gap-[13px]">
-              <button
-                type="button"
-                aria-label="Menu"
-                onClick={() => {
-                  if (typeof window !== "undefined") {
-                    window.alert("Menu compte: profil, reglages et deconnexion.");
-                  }
-                }}
-                className="hover-lift h-6 w-6"
-              >
-                <Asset src="/figma-assets/top-menu.svg" alt="" width={24} height={24} className="h-6 w-6" />
-              </button>
-              <button
-                type="button"
-                aria-label="Mon profil"
-                onClick={() => router.push("/profile")}
-                className="hover-lift relative h-8 w-8 overflow-hidden rounded-full"
-              >
-                <Image
-                  src="/figma-assets/avatar-user.png"
-                  alt="Current user"
-                  fill
-                  sizes="32px"
-                  className="object-cover"
-                />
-              </button>
+            <div className="absolute left-[1318px] top-5">
+              <SiteAccountMenu
+                className="flex h-8 w-[69px] items-center gap-[13px]"
+                menuButtonClassName="hover-lift h-6 w-6"
+                avatarButtonClassName="hover-lift relative h-8 w-8 overflow-hidden rounded-full"
+                avatarImageClassName="object-cover"
+                avatarSize="32px"
+              />
             </div>
           </header>
 

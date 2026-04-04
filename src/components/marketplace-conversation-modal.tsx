@@ -7,6 +7,7 @@ import type {
   MarketplaceConversationRecord,
   MarketplaceMessageRecord,
 } from "@/lib/marketplace-api";
+import { resolveProfileAvatarSrc } from "@/lib/profile-avatar";
 
 function formatConversationTime(timestamp: number) {
   return new Intl.DateTimeFormat("fr-FR", {
@@ -70,8 +71,8 @@ export function MarketplaceConversationModal({
         <aside className="flex w-[320px] flex-col border-r border-black/6 bg-[#fbfcfe]">
           <div className="flex items-center justify-between border-b border-black/6 px-5 py-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8ea2bc]">Messagerie</p>
-              <h2 className="mt-1 text-[20px] font-semibold tracking-[-0.04em] text-[#101522]">Conversations</h2>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8ea2bc]">Messagerie</p>
+              <h2 className="mt-1 text-[20px] font-medium tracking-[-0.03em] text-[#101522]">Conversations</h2>
             </div>
             <button
               type="button"
@@ -122,7 +123,7 @@ export function MarketplaceConversationModal({
                         <div className="relative h-11 w-11 overflow-hidden rounded-full bg-[#eef4ff] ring-1 ring-black/8">
                           {conversation.participant.avatarUrl ? (
                             <Image
-                              src={conversation.participant.avatarUrl}
+                          src={resolveProfileAvatarSrc(conversation.participant.avatarUrl)}
                               alt={conversation.participant.displayName}
                               fill
                               sizes="44px"
@@ -136,7 +137,7 @@ export function MarketplaceConversationModal({
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-3">
-                            <p className="truncate text-[14px] font-semibold text-[#101522]">
+                            <p className="truncate text-[14px] font-medium tracking-[-0.01em] text-[#101522]">
                               {conversation.participant.displayName}
                             </p>
                             <span className="shrink-0 text-[11px] text-[#8ea2bc]">
@@ -164,7 +165,7 @@ export function MarketplaceConversationModal({
                 <div className="relative h-12 w-12 overflow-hidden rounded-full bg-[#eef4ff] ring-1 ring-black/8">
                   {activeConversation.participant.avatarUrl ? (
                     <Image
-                      src={activeConversation.participant.avatarUrl}
+                          src={resolveProfileAvatarSrc(activeConversation.participant.avatarUrl)}
                       alt={activeConversation.participant.displayName}
                       fill
                       sizes="48px"
@@ -177,7 +178,7 @@ export function MarketplaceConversationModal({
                   )}
                 </div>
                 <div>
-                  <p className="text-[18px] font-semibold tracking-[-0.04em] text-[#101522]">
+                  <p className="text-[18px] font-medium tracking-[-0.03em] text-[#101522]">
                     {activeConversation.participant.displayName}
                   </p>
                   <p className="text-[13px] text-[#7f8a9a]">@{activeConversation.participant.username}</p>
@@ -185,7 +186,7 @@ export function MarketplaceConversationModal({
               </div>
             ) : (
               <div>
-                <p className="text-[18px] font-semibold tracking-[-0.04em] text-[#101522]">Discussion privee</p>
+                <p className="text-[18px] font-medium tracking-[-0.03em] text-[#101522]">Discussion privee</p>
                 <p className="text-[13px] text-[#7f8a9a]">Choisis une conversation pour lire et repondre.</p>
               </div>
             )}
@@ -215,7 +216,7 @@ export function MarketplaceConversationModal({
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#eef4ff] text-[#2b6fff]">
                     <MessageSquareText className="h-6 w-6" />
                   </div>
-                  <p className="mt-4 text-[17px] font-semibold text-[#101522]">Choisis une conversation</p>
+                  <p className="mt-4 text-[17px] font-medium tracking-[-0.02em] text-[#101522]">Choisis une conversation</p>
                   <p className="mt-2 text-[14px] leading-6 text-[#607085]">
                     Les messages marketplace sont maintenant persistés et relisibles entre deux utilisateurs.
                   </p>

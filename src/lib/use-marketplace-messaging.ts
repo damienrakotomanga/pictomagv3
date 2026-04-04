@@ -13,6 +13,7 @@ import {
 type ConversationActionResult = {
   ok: boolean;
   message?: string;
+  conversationId?: number;
 };
 
 function sortConversations(conversations: MarketplaceConversationRecord[]) {
@@ -130,7 +131,7 @@ export function useMarketplaceMessaging() {
       setActiveConversationId(nextConversation.id);
       await loadMessages(nextConversation.id);
 
-      return { ok: true };
+      return { ok: true, conversationId: nextConversation.id };
     },
     [loadMessages],
   );

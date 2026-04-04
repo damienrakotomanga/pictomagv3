@@ -268,8 +268,8 @@ function MarketplaceDetailCheckoutModal({
       <div className="absolute left-1/2 top-1/2 w-[860px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[10px] border border-white/12 bg-white shadow-[0_38px_100px_rgba(8,12,24,0.34)]">
         <div className="flex items-center justify-between border-b border-black/6 px-7 py-5">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7b8797]">Paiement securise</p>
-            <h3 className="mt-2 text-[26px] font-semibold tracking-[-0.04em] text-[#101522]">Finaliser la commande</h3>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7b8797]">Paiement securise</p>
+            <h3 className="mt-2 text-[26px] font-medium tracking-[-0.03em] text-[#101522]">Finaliser la commande</h3>
           </div>
           <button
             type="button"
@@ -285,7 +285,7 @@ function MarketplaceDetailCheckoutModal({
             <div className="rounded-[10px] border border-black/7 bg-[#f8fafc] p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[16px] font-semibold text-[#101522]">{gig.title}</p>
+                  <p className="text-[16px] font-medium tracking-[-0.01em] text-[#101522]">{gig.title}</p>
                   <p className="mt-1 text-[13px] text-[#6b788a]">
                     {selectedPackage.name} · {selectedPackage.deliveryDays} jours
                   </p>
@@ -299,12 +299,12 @@ function MarketplaceDetailCheckoutModal({
 
             {selectedAddOns.length > 0 ? (
               <div className="mt-5 rounded-[10px] border border-black/7 bg-white p-5">
-                <p className="text-[13px] font-semibold text-[#101522]">Options ajoutees</p>
+                <p className="text-[13px] font-medium tracking-[-0.01em] text-[#101522]">Options ajoutees</p>
                 <div className="mt-3 space-y-3">
                   {selectedAddOns.map((item) => (
                     <div key={item.id} className="flex items-center justify-between text-[13px] text-[#506073]">
                       <span>{item.label}</span>
-                      <span className="font-semibold text-[#101522]">{item.price} EUR</span>
+                      <span className="font-medium tracking-[-0.01em] text-[#101522]">{item.price} EUR</span>
                     </div>
                   ))}
                 </div>
@@ -312,7 +312,7 @@ function MarketplaceDetailCheckoutModal({
             ) : null}
 
             <div className="mt-5">
-              <p className="text-[14px] font-semibold text-[#101522]">Moyen de paiement</p>
+              <p className="text-[14px] font-medium tracking-[-0.01em] text-[#101522]">Moyen de paiement</p>
               <div className="mt-3 grid grid-cols-3 gap-3">
                 {[
                   { id: "card", label: "Carte", icon: CreditCard },
@@ -332,7 +332,7 @@ function MarketplaceDetailCheckoutModal({
                       }`}
                     >
                       <Icon className={`h-5 w-5 ${active ? "text-[#2b6fff]" : "text-[#101522]"}`} />
-                      <p className="mt-3 text-[13px] font-semibold text-[#101522]">{method.label}</p>
+                      <p className="mt-3 text-[13px] font-medium tracking-[-0.01em] text-[#101522]">{method.label}</p>
                     </button>
                   );
                 })}
@@ -359,9 +359,9 @@ function MarketplaceDetailCheckoutModal({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/56">Recap</p>
-                  <p className="mt-2 text-[20px] font-semibold">{selectedPackage.name}</p>
+                  <p className="mt-2 text-[20px] font-medium tracking-[-0.02em]">{selectedPackage.name}</p>
                 </div>
-                <p className="text-[28px] font-semibold">{selectedPackage.price} EUR</p>
+                <p className="text-[28px] font-medium tracking-[-0.03em]">{selectedPackage.price} EUR</p>
               </div>
 
               <div className="mt-5 space-y-3 text-[13px]">
@@ -737,8 +737,11 @@ export function MarketplaceGigDetailPage({
 
   return (
     <div className="min-h-screen bg-white text-[#101522]">
-      <div className="mx-auto min-h-screen w-[1440px] bg-white">
-        <header className="fixed left-1/2 top-0 z-[120] h-[73px] w-[1440px] -translate-x-1/2">
+      <div className="min-h-screen w-full bg-white">
+        <header
+          className="fixed left-1/2 top-0 z-[120] h-[73px] w-[1440px] -translate-x-1/2"
+          data-legacy-site-header="true"
+        >
           <div className="absolute left-0 top-0 h-[61px] w-[1440px] bg-[rgba(255,255,255,0.87)] backdrop-blur-[13px]" />
           <div className="relative h-full">
             <Image
@@ -820,13 +823,13 @@ export function MarketplaceGigDetailPage({
             </button>
           </div>
 
-          <div className="mt-5 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8792a4]">
+          <div className="mt-5 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8792a4]">
             Pictomag marketplace / {gig.category} / {gig.seller}
           </div>
 
           <div className="mt-5 grid grid-cols-[minmax(0,1fr)_376px] gap-9">
             <div>
-              <h1 className="max-w-[840px] text-[44px] font-semibold leading-[1.02] tracking-[-0.055em] text-[#101522]">
+              <h1 className="max-w-[840px] text-[44px] font-medium leading-[1.02] tracking-[-0.045em] text-[#101522]">
                 {gig.title}
               </h1>
 
@@ -836,7 +839,7 @@ export function MarketplaceGigDetailPage({
                 </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-[16px] font-semibold text-[#101522]">{gig.seller}</p>
+                    <p className="text-[16px] font-medium tracking-[-0.01em] text-[#101522]">{gig.seller}</p>
                     <span className="rounded-[10px] bg-[#f2f5fa] px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#6f7c8f]">
                       {gig.category}
                     </span>
@@ -938,14 +941,14 @@ export function MarketplaceGigDetailPage({
                 {activeTab === "description" ? (
                   <div className="space-y-8">
                     <section>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8792a4]">Description</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8792a4]">Description</p>
                       <p className="mt-3 max-w-[860px] text-[16px] leading-8 text-[#4c5a6d]">{gig.subtitle}</p>
                     </section>
 
                     <div className="grid grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] gap-10 border-t border-black/8 pt-7">
                       <section>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8792a4]">Inclus</p>
-                        <h2 className="mt-3 text-[26px] font-semibold tracking-[-0.04em] text-[#101522]">Ce que tu recois</h2>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8792a4]">Inclus</p>
+                        <h2 className="mt-3 text-[26px] font-medium tracking-[-0.03em] text-[#101522]">Ce que tu recois</h2>
                         <div className="mt-5 space-y-3">
                           {gig.deliverables.map((item) => (
                             <div key={item} className="flex items-center gap-3 text-[14px] text-[#243144]">
@@ -957,8 +960,8 @@ export function MarketplaceGigDetailPage({
                       </section>
 
                       <section>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8792a4]">Workflow</p>
-                        <h2 className="mt-3 text-[26px] font-semibold tracking-[-0.04em] text-[#101522]">Comment on avance</h2>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8792a4]">Workflow</p>
+                        <h2 className="mt-3 text-[26px] font-medium tracking-[-0.03em] text-[#101522]">Comment on avance</h2>
                         <div className="mt-5 space-y-4">
                           {projectStages.map((stage, index) => (
                             <div key={stage.id} className="flex gap-3">
@@ -966,7 +969,7 @@ export function MarketplaceGigDetailPage({
                                 {index + 1}
                               </div>
                               <div>
-                                <p className="text-[13px] font-semibold text-[#101522]">{stage.label}</p>
+                                <p className="text-[13px] font-medium tracking-[-0.01em] text-[#101522]">{stage.label}</p>
                                 <p className="mt-1 text-[12px] leading-5 text-[#647386]">{stage.copy}</p>
                               </div>
                             </div>
@@ -981,8 +984,8 @@ export function MarketplaceGigDetailPage({
                           <ShieldCheck className="h-5 w-5" />
                         </div>
                         <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8792a4]">Brief</p>
-                          <h2 className="mt-1 text-[22px] font-semibold tracking-[-0.04em] text-[#101522]">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8792a4]">Brief</p>
+                          <h2 className="mt-1 text-[22px] font-medium tracking-[-0.03em] text-[#101522]">
                             Ce dont le vendeur aura besoin
                           </h2>
                         </div>
@@ -1005,8 +1008,8 @@ export function MarketplaceGigDetailPage({
                 {activeTab === "compare" ? (
                   <section className="overflow-hidden border-t border-black/8 pt-7">
                     <div className="pb-5">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8792a4]">Compare Packages</p>
-                      <h2 className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-[#101522]">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8792a4]">Compare Packages</p>
+                      <h2 className="mt-2 text-[28px] font-medium tracking-[-0.03em] text-[#101522]">
                         Choisis le bon niveau de livraison
                       </h2>
                     </div>
@@ -1017,8 +1020,8 @@ export function MarketplaceGigDetailPage({
                           {gig.packages.map((pkg) => (
                             <th key={pkg.id} className="px-4 py-4 align-top">
                               <div className={`rounded-[10px] px-4 py-4 ${pkg.id === selectedPackage.id ? "bg-[#eef5ff]" : "bg-[#f8fafc]"}`}>
-                                <p className="text-[15px] font-semibold text-[#101522]">{pkg.name}</p>
-                                <p className="mt-2 text-[24px] font-semibold tracking-[-0.05em] text-[#101522]">{formatCurrency(pkg.price)}</p>
+                                <p className="text-[15px] font-medium tracking-[-0.01em] text-[#101522]">{pkg.name}</p>
+                                <p className="mt-2 text-[24px] font-medium tracking-[-0.035em] text-[#101522]">{formatCurrency(pkg.price)}</p>
                                 <p className="mt-1 text-[12px] text-[#647386]">{pkg.deliveryDays} jours</p>
                                 {pkg.recommended ? (
                                   <span className="mt-3 inline-flex rounded-[10px] bg-[#101522] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white">
@@ -1054,7 +1057,7 @@ export function MarketplaceGigDetailPage({
                   <section className="space-y-0 border-t border-black/8 pt-7">
                     {faqItems.map((item) => (
                       <div key={item.question} className="border-b border-black/8 py-5 last:border-b-0">
-                        <p className="text-[18px] font-semibold tracking-[-0.03em] text-[#101522]">{item.question}</p>
+                        <p className="text-[18px] font-medium tracking-[-0.02em] text-[#101522]">{item.question}</p>
                         <p className="mt-3 text-[14px] leading-7 text-[#536173]">{item.answer}</p>
                       </div>
                     ))}
@@ -1094,7 +1097,7 @@ export function MarketplaceGigDetailPage({
                       <Image src={gig.avatar} alt={gig.seller} fill sizes="48px" className="object-cover" />
                     </div>
                     <div>
-                      <p className="text-[16px] font-semibold text-[#101522]">{gig.seller}</p>
+                    <p className="text-[16px] font-medium tracking-[-0.01em] text-[#101522]">{gig.seller}</p>
                       <p className="mt-1 text-[13px] text-[#647386]">{gig.handle}</p>
                       <p className="mt-2 text-[12px] text-[#7b8797]">{gig.queueSize} ordre{gig.queueSize > 1 ? "s" : ""} en file</p>
                     </div>
@@ -1163,7 +1166,7 @@ export function MarketplaceGigDetailPage({
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-[20px] font-semibold tracking-[-0.04em] text-[#101522]">{selectedPackage.name}</p>
+                        <p className="text-[20px] font-medium tracking-[-0.03em] text-[#101522]">{selectedPackage.name}</p>
                         {selectedPackage.recommended ? (
                           <span className="rounded-[10px] bg-[#edf3ff] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#2b6fff]">
                             Recommande
@@ -1173,7 +1176,7 @@ export function MarketplaceGigDetailPage({
                       <p className="mt-2 text-[13px] leading-6 text-[#556477]">{selectedPackage.description}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[34px] font-semibold leading-none tracking-[-0.06em] text-[#101522]">
+                      <p className="text-[34px] font-medium leading-none tracking-[-0.045em] text-[#101522]">
                         {formatCurrency(selectedPackage.price)}
                       </p>
                     </div>

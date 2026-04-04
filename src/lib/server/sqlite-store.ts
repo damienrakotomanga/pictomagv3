@@ -43,6 +43,7 @@ export type StoredProfileRow = {
   bio: string;
   avatar_url: string | null;
   website_url: string | null;
+  onboarding_completed_at: number | null;
   created_at: number;
   updated_at: number;
 };
@@ -56,6 +57,7 @@ export type StoredPostRow = {
   user_id: string;
   surface: StoredPostSurface;
   kind: StoredPostKind;
+  album_name: string | null;
   title: string;
   body: string;
   track_name: string;
@@ -218,6 +220,16 @@ export type StoredMessageRow = {
   created_at: number;
 };
 
+export type StoredLiveCategoryCardAssetRow = {
+  category_id: string;
+  image_src: string;
+  offset_x: number;
+  offset_y: number;
+  zoom: number;
+  updated_by_user_id: string;
+  updated_at: number;
+};
+
 type RuntimeStateRow = {
   user_id: string;
   marketplace_orders: string;
@@ -339,6 +351,22 @@ function ensureOrdersSchema(db: DatabaseSync) {
   }
 }
 
+function ensureProfilesSchema(db: DatabaseSync) {
+  const columns = listTableColumns(db, "profiles");
+
+  if (!columns.includes("onboarding_completed_at")) {
+    db.exec("ALTER TABLE profiles ADD COLUMN onboarding_completed_at INTEGER");
+  }
+}
+
+function ensurePostsSchema(db: DatabaseSync) {
+  const columns = listTableColumns(db, "posts");
+
+  if (!columns.includes("album_name")) {
+    db.exec("ALTER TABLE posts ADD COLUMN album_name TEXT");
+  }
+}
+
 function ensureLiveStreamingPhase5Schema(db: DatabaseSync) {
   const liveSessionColumns = listTableColumns(db, "live_sessions");
 
@@ -406,6 +434,27 @@ function ensureLiveStreamingPhase5Schema(db: DatabaseSync) {
   `);
 }
 
+function ensureLiveCategoryCardAssetsSchema(db: DatabaseSync) {
+  const columns = listTableColumns(db, "live_category_card_assets");
+
+  if (!columns.includes("offset_x")) {
+    db.exec("ALTER TABLE live_category_card_assets ADD COLUMN offset_x REAL NOT NULL DEFAULT 0");
+  }
+
+  if (!columns.includes("offset_y")) {
+    db.exec("ALTER TABLE live_category_card_assets ADD COLUMN offset_y REAL NOT NULL DEFAULT 0");
+  }
+
+  if (!columns.includes("zoom")) {
+    db.exec("ALTER TABLE live_category_card_assets ADD COLUMN zoom REAL NOT NULL DEFAULT 1");
+  }
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_live_category_card_assets_updated_at
+    ON live_category_card_assets (updated_at DESC);
+  `);
+}
+
 function ensureDatabase() {
   if (database) {
     return database;
@@ -422,6 +471,16 @@ function ensureDatabase() {
       user_id TEXT PRIMARY KEY,
       marketplace TEXT NOT NULL,
       live_shopping TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS live_category_card_assets (
+      category_id TEXT PRIMARY KEY,
+      image_src TEXT NOT NULL,
+      offset_x REAL NOT NULL DEFAULT 0,
+      offset_y REAL NOT NULL DEFAULT 0,
+      zoom REAL NOT NULL DEFAULT 1,
+      updated_by_user_id TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     );
 
@@ -452,6 +511,7 @@ function ensureDatabase() {
       bio TEXT NOT NULL DEFAULT '',
       avatar_url TEXT,
       website_url TEXT,
+      onboarding_completed_at INTEGER,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -461,6 +521,7 @@ function ensureDatabase() {
       user_id TEXT NOT NULL,
       surface TEXT NOT NULL,
       kind TEXT NOT NULL,
+      album_name TEXT,
       title TEXT NOT NULL,
       body TEXT NOT NULL DEFAULT '',
       track_name TEXT NOT NULL DEFAULT '',
@@ -676,8 +737,11 @@ function ensureDatabase() {
   `);
 
   ensureRuntimeStateSchema(db);
+  ensureProfilesSchema(db);
+  ensurePostsSchema(db);
   ensureOrdersSchema(db);
   ensureLiveStreamingPhase5Schema(db);
+  ensureLiveCategoryCardAssetsSchema(db);
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_orders_source ON orders (source, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_orders_live_session_event_id ON orders (live_session_event_id, updated_at DESC);
@@ -725,6 +789,35 @@ function asPreferencesRow(value: unknown): PreferencesRow | null {
     user_id: row.user_id,
     marketplace: row.marketplace,
     live_shopping: row.live_shopping,
+    updated_at: row.updated_at,
+  };
+}
+
+function asStoredLiveCategoryCardAssetRow(value: unknown): StoredLiveCategoryCardAssetRow | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.category_id !== "string" ||
+    typeof row.image_src !== "string" ||
+    typeof row.offset_x !== "number" ||
+    typeof row.offset_y !== "number" ||
+    typeof row.zoom !== "number" ||
+    typeof row.updated_by_user_id !== "string" ||
+    typeof row.updated_at !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    category_id: row.category_id,
+    image_src: row.image_src,
+    offset_x: row.offset_x,
+    offset_y: row.offset_y,
+    zoom: row.zoom,
+    updated_by_user_id: row.updated_by_user_id,
     updated_at: row.updated_at,
   };
 }
@@ -809,6 +902,8 @@ function asStoredProfileRow(value: unknown): StoredProfileRow | null {
     bio: row.bio,
     avatar_url: asNullableString(row.avatar_url),
     website_url: asNullableString(row.website_url),
+    onboarding_completed_at:
+      typeof row.onboarding_completed_at === "number" ? row.onboarding_completed_at : null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -852,6 +947,7 @@ function asStoredPostRow(value: unknown): StoredPostRow | null {
     typeof row.user_id !== "string" ||
     surface === null ||
     kind === null ||
+    (typeof row.album_name !== "string" && row.album_name !== null && typeof row.album_name !== "undefined") ||
     typeof row.title !== "string" ||
     typeof row.body !== "string" ||
     typeof row.track_name !== "string" ||
@@ -871,6 +967,7 @@ function asStoredPostRow(value: unknown): StoredPostRow | null {
     user_id: row.user_id,
     surface,
     kind,
+    album_name: typeof row.album_name === "string" ? row.album_name : null,
     title: row.title,
     body: row.body,
     track_name: row.track_name,
@@ -2139,6 +2236,95 @@ export function upsertUserPreferencesRow({
   `).run(userId, marketplaceJson, liveShoppingJson, now);
 }
 
+export function listLiveCategoryCardAssetRows() {
+  const db = ensureDatabase();
+  const rows = db
+    .prepare(`
+      SELECT
+        category_id,
+        image_src,
+        offset_x,
+        offset_y,
+        zoom,
+        updated_by_user_id,
+        updated_at
+      FROM live_category_card_assets
+      ORDER BY category_id ASC
+    `)
+    .all();
+
+  return rows
+    .map((row) => asStoredLiveCategoryCardAssetRow(row))
+    .filter((row): row is StoredLiveCategoryCardAssetRow => row !== null);
+}
+
+export function getLiveCategoryCardAssetRow(categoryId: string) {
+  const db = ensureDatabase();
+  const row = db
+    .prepare(`
+      SELECT
+        category_id,
+        image_src,
+        offset_x,
+        offset_y,
+        zoom,
+        updated_by_user_id,
+        updated_at
+      FROM live_category_card_assets
+      WHERE category_id = ?
+    `)
+    .get(categoryId);
+
+  return asStoredLiveCategoryCardAssetRow(row);
+}
+
+export function upsertLiveCategoryCardAssetRow({
+  categoryId,
+  imageSrc,
+  offsetX,
+  offsetY,
+  zoom,
+  updatedByUserId,
+}: {
+  categoryId: string;
+  imageSrc: string;
+  offsetX: number;
+  offsetY: number;
+  zoom: number;
+  updatedByUserId: string;
+}) {
+  const db = ensureDatabase();
+  const now = Date.now();
+
+  db.prepare(`
+    INSERT INTO live_category_card_assets (
+      category_id,
+      image_src,
+      offset_x,
+      offset_y,
+      zoom,
+      updated_by_user_id,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(category_id)
+    DO UPDATE SET
+      image_src = excluded.image_src,
+      offset_x = excluded.offset_x,
+      offset_y = excluded.offset_y,
+      zoom = excluded.zoom,
+      updated_by_user_id = excluded.updated_by_user_id,
+      updated_at = excluded.updated_at
+  `).run(categoryId, imageSrc, offsetX, offsetY, zoom, updatedByUserId, now);
+
+  return getLiveCategoryCardAssetRow(categoryId);
+}
+
+export function deleteLiveCategoryCardAssetRow(categoryId: string) {
+  const db = ensureDatabase();
+  db.prepare("DELETE FROM live_category_card_assets WHERE category_id = ?").run(categoryId);
+}
+
 export function getUserRuntimeStateRow(userId: string) {
   const db = ensureDatabase();
   const row = db
@@ -2200,6 +2386,7 @@ export function getProfileByUserId(userId: string) {
         bio,
         avatar_url,
         website_url,
+        onboarding_completed_at,
         created_at,
         updated_at
       FROM profiles
@@ -2220,6 +2407,7 @@ export function getProfileByUsername(username: string) {
         bio,
         avatar_url,
         website_url,
+        onboarding_completed_at,
         created_at,
         updated_at
       FROM profiles
@@ -2238,6 +2426,7 @@ export function getPostById(postId: number) {
         user_id,
         surface,
         kind,
+        album_name,
         title,
         body,
         track_name,
@@ -2294,6 +2483,7 @@ export function listPostsRows({
         user_id,
         surface,
         kind,
+        album_name,
         title,
         body,
         track_name,
@@ -2353,6 +2543,7 @@ export function createPostWithMedia({
   userId,
   surface,
   kind,
+  albumName,
   title,
   body,
   trackName,
@@ -2366,6 +2557,7 @@ export function createPostWithMedia({
   userId: string;
   surface: StoredPostSurface;
   kind: StoredPostKind;
+  albumName?: string | null;
   title: string;
   body?: string;
   trackName?: string;
@@ -2394,6 +2586,7 @@ export function createPostWithMedia({
           user_id,
           surface,
           kind,
+          album_name,
           title,
           body,
           track_name,
@@ -2405,12 +2598,13 @@ export function createPostWithMedia({
           updated_at,
           published_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
         userId,
         surface,
         kind,
+        albumName ?? null,
         title,
         body ?? "",
         trackName ?? "",
@@ -4194,6 +4388,7 @@ export function createUserWithProfile({
   bio,
   avatarUrl,
   websiteUrl,
+  onboardingCompletedAt,
 }: {
   id: string;
   email: string | null;
@@ -4205,6 +4400,7 @@ export function createUserWithProfile({
   bio?: string;
   avatarUrl?: string | null;
   websiteUrl?: string | null;
+  onboardingCompletedAt?: number | null;
 }) {
   const db = ensureDatabase();
   const now = Date.now();
@@ -4234,10 +4430,11 @@ export function createUserWithProfile({
         bio,
         avatar_url,
         website_url,
+        onboarding_completed_at,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       username,
@@ -4245,6 +4442,7 @@ export function createUserWithProfile({
       bio ?? "",
       avatarUrl ?? null,
       websiteUrl ?? null,
+      onboardingCompletedAt ?? null,
       now,
       now,
     );
@@ -4313,14 +4511,15 @@ export function ensureCompatibilityUserWithProfile({
         INSERT INTO profiles (
           user_id,
           username,
-          display_name,
-          bio,
-          avatar_url,
-          website_url,
-          created_at,
-          updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        display_name,
+        bio,
+        avatar_url,
+        website_url,
+        onboarding_completed_at,
+        created_at,
+        updated_at
+      )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         userId,
         username,
@@ -4328,6 +4527,7 @@ export function ensureCompatibilityUserWithProfile({
         bio ?? "",
         avatarUrl ?? null,
         websiteUrl ?? null,
+        null,
         now,
         now,
       );
@@ -4363,6 +4563,26 @@ export function ensureCompatibilityUserWithProfile({
   };
 }
 
+export function updateUserRoleById({
+  userId,
+  role,
+}: {
+  userId: string;
+  role: string;
+}) {
+  const db = ensureDatabase();
+  const normalizedUserId = normalizePreferenceUserId(userId);
+  const now = Date.now();
+
+  db.prepare(`
+    UPDATE users
+    SET role = ?, updated_at = ?
+    WHERE id = ?
+  `).run(role, now, normalizedUserId);
+
+  return getUserById(normalizedUserId);
+}
+
 export function touchSession(sessionId: string) {
   const db = ensureDatabase();
   const now = Date.now();
@@ -4379,6 +4599,73 @@ export function touchUserLogin(userId: string) {
     SET last_login_at = ?, updated_at = ?
     WHERE id = ?
   `).run(now, now, userId);
+}
+
+export function updateProfileByUserId({
+  userId,
+  username,
+  displayName,
+  bio,
+  avatarUrl,
+  websiteUrl,
+  markOnboardingCompleted,
+}: {
+  userId: string;
+  username: string;
+  displayName: string;
+  bio?: string;
+  avatarUrl?: string | null;
+  websiteUrl?: string | null;
+  markOnboardingCompleted?: boolean;
+}) {
+  const db = ensureDatabase();
+  const now = Date.now();
+  const existingProfile = getProfileByUserId(userId);
+
+  if (!existingProfile) {
+    throw new Error("Profile introuvable.");
+  }
+
+  db.exec("BEGIN IMMEDIATE");
+
+  try {
+    db.prepare(`
+      UPDATE profiles
+      SET
+        username = ?,
+        display_name = ?,
+        bio = ?,
+        avatar_url = ?,
+        website_url = ?,
+        onboarding_completed_at = ?,
+        updated_at = ?
+      WHERE user_id = ?
+    `).run(
+      username,
+      displayName,
+      bio ?? "",
+      avatarUrl ?? null,
+      websiteUrl ?? null,
+      markOnboardingCompleted
+        ? existingProfile.onboarding_completed_at ?? now
+        : existingProfile.onboarding_completed_at,
+      now,
+      userId,
+    );
+
+    db.prepare(`
+      UPDATE users
+      SET updated_at = ?
+      WHERE id = ?
+    `).run(now, userId);
+
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+
+  return getProfileByUserId(userId);
 }
 
 export function getActionIdempotencyRecord({

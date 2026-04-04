@@ -175,7 +175,7 @@ function CreatorFieldRow({
   return (
     <div className="grid grid-cols-[230px_minmax(0,1fr)] gap-8 border-t border-black/6 py-7 first:border-t-0 first:pt-0 last:pb-0">
       <div>
-        <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-[#101522]">{title}</h3>
+        <h3 className="text-[16px] font-medium tracking-[-0.015em] text-[#101522]">{title}</h3>
         <p className="mt-2 text-[14px] leading-7 text-[#667487]">{copy}</p>
       </div>
       <div>{children}</div>
@@ -310,7 +310,7 @@ export function MarketplaceGigCreator({
               <CreatorTextarea
                 value={draft.title}
                 onChange={(value) => onFieldChange("title", value)}
-                className="h-[116px] text-[28px] font-semibold leading-[1.14] tracking-[-0.05em]"
+                className="h-[116px] text-[28px] font-medium leading-[1.14] tracking-[-0.04em]"
               />
               <div className="mt-2 text-right text-[12px] text-[#8a97aa]">{draft.title.length} / 120</div>
             </div>
@@ -352,7 +352,7 @@ export function MarketplaceGigCreator({
 
               <div className="rounded-[10px] border border-black/7 bg-[#f8fafc] px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b8797]">Categorie selectionnee</p>
-                <p className="mt-2 text-[15px] font-semibold text-[#101522]">{draft.category}</p>
+                    <p className="mt-2 text-[15px] font-medium tracking-[-0.01em] text-[#101522]">{draft.category}</p>
               </div>
             </div>
           </CreatorFieldRow>
@@ -595,7 +595,7 @@ export function MarketplaceGigCreator({
             ].map((item) => (
               <div key={item.label} className="rounded-[10px] border border-black/8 bg-[#f8fafc] px-4 py-4">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b8797]">{item.label}</p>
-                <p className="mt-2 text-[15px] font-semibold text-[#101522]">{item.value}</p>
+                    <p className="mt-2 text-[15px] font-medium tracking-[-0.01em] text-[#101522]">{item.value}</p>
               </div>
             ))}
           </div>
@@ -641,7 +641,7 @@ export function MarketplaceGigCreator({
               return (
                 <button key={step.id} type="button" onClick={() => onStepChange(index)} className="flex items-center gap-3 text-left">
                   <span
-                    className={`flex h-8 w-8 items-center justify-center rounded-full border text-[13px] font-semibold transition ${
+                    className={`flex h-8 w-8 items-center justify-center rounded-full border text-[13px] font-medium tracking-[-0.01em] transition ${
                       active
                         ? "border-[#2b6fff] bg-[#2b6fff] text-white"
                         : passed
@@ -666,7 +666,7 @@ export function MarketplaceGigCreator({
             <button
               type="button"
               onClick={onBackToSeller}
-              className="inline-flex items-center gap-2 rounded-[10px] border border-black/8 bg-white px-4 py-2.5 text-[13px] font-semibold text-[#101522]"
+                  className="inline-flex items-center gap-2 rounded-[10px] border border-black/8 bg-white px-4 py-2.5 text-[13px] font-medium tracking-[-0.01em] text-[#101522]"
             >
               <ArrowLeft className="h-4 w-4" />
               Gigs
@@ -674,7 +674,7 @@ export function MarketplaceGigCreator({
             <button
               type="button"
               onClick={onSaveDraft}
-              className="rounded-[10px] border border-black/8 bg-white px-4 py-2.5 text-[13px] font-semibold text-[#101522]"
+                  className="rounded-[10px] border border-black/8 bg-white px-4 py-2.5 text-[13px] font-medium tracking-[-0.01em] text-[#101522]"
             >
               Save
             </button>
@@ -685,8 +685,8 @@ export function MarketplaceGigCreator({
       <div className="grid grid-cols-[minmax(0,1fr)_320px] gap-6">
         <div className="rounded-[10px] border border-black/7 bg-white">
           <div className="border-b border-black/6 px-7 py-7">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7b8797]">{currentStepConfig.label}</p>
-            <h1 className="mt-3 text-[36px] font-semibold leading-[1.02] tracking-[-0.05em] text-[#101522]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7b8797]">{currentStepConfig.label}</p>
+            <h1 className="mt-3 text-[36px] font-medium leading-[1.02] tracking-[-0.04em] text-[#101522]">
               {currentStepConfig.heading}
             </h1>
             <p className="mt-3 max-w-[760px] text-[15px] leading-7 text-[#5f6f82]">{currentStepConfig.description}</p>
@@ -704,7 +704,7 @@ export function MarketplaceGigCreator({
                 type="button"
                 onClick={() => onStepChange(Math.max(0, currentStep - 1))}
                 disabled={!canGoBack}
-                className={`rounded-[10px] px-4 py-2.5 text-[13px] font-semibold transition ${
+                  className={`rounded-[10px] px-4 py-2.5 text-[13px] font-medium tracking-[-0.01em] transition ${
                   canGoBack
                     ? "border border-black/8 bg-white text-[#101522]"
                     : "cursor-not-allowed border border-black/6 bg-[#f6f8fb] text-[#a0aab7]"
@@ -716,7 +716,7 @@ export function MarketplaceGigCreator({
                 <button
                   type="button"
                   onClick={onPublish}
-                  className="inline-flex items-center gap-2 rounded-[10px] bg-[#101522] px-5 py-2.5 text-[13px] font-semibold text-white"
+                  className="inline-flex items-center gap-2 rounded-[10px] bg-[#101522] px-5 py-2.5 text-[13px] font-medium tracking-[-0.01em] text-white"
                 >
                   Publish gig
                   <ArrowRight className="h-4 w-4" />
@@ -725,7 +725,7 @@ export function MarketplaceGigCreator({
                 <button
                   type="button"
                   onClick={() => onStepChange(Math.min(gigCreationSteps.length - 1, currentStep + 1))}
-                  className="inline-flex items-center gap-2 rounded-[10px] bg-[#101522] px-5 py-2.5 text-[13px] font-semibold text-white"
+                  className="inline-flex items-center gap-2 rounded-[10px] bg-[#101522] px-5 py-2.5 text-[13px] font-medium tracking-[-0.01em] text-white"
                 >
                   Save & continue
                   <ChevronRight className="h-4 w-4" />
@@ -738,14 +738,14 @@ export function MarketplaceGigCreator({
         <aside className="space-y-4">
           <div className="sticky top-[96px] space-y-4">
             <div className="rounded-[10px] border border-black/7 bg-white p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7b8797]">Preview</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7b8797]">Preview</p>
               <div className="mt-4 overflow-hidden rounded-[10px] bg-[#eef2f8]">
                 <div className="relative aspect-[4/3]">
                   <Image src={draft.cover} alt={draft.title} fill sizes="320px" className="object-cover" />
                 </div>
               </div>
 
-              <p className="mt-4 line-clamp-3 text-[22px] font-semibold leading-[1.14] tracking-[-0.04em] text-[#101522]">
+              <p className="mt-4 line-clamp-3 text-[22px] font-medium leading-[1.14] tracking-[-0.03em] text-[#101522]">
                 {draft.title}
               </p>
               <p className="mt-2 line-clamp-2 text-[13px] leading-6 text-[#5f6f82]">{draft.subtitle}</p>
@@ -756,14 +756,14 @@ export function MarketplaceGigCreator({
                     <Image src="/figma-assets/avatar-post.png" alt={draft.seller} fill sizes="44px" className="object-cover" />
                   </div>
                   <div>
-                    <p className="text-[13px] font-semibold text-[#101522]">{draft.seller}</p>
+                    <p className="text-[13px] font-medium tracking-[-0.01em] text-[#101522]">{draft.seller}</p>
                     <p className="text-[12px] text-[#607085]">{draft.handle}</p>
                   </div>
                 </div>
 
                 <div className="text-right">
                   <p className="text-[11px] text-[#7b8797]">Starting at</p>
-                  <p className="mt-0.5 text-[22px] font-semibold text-[#101522]">
+                  <p className="mt-0.5 text-[22px] font-medium tracking-[-0.02em] text-[#101522]">
                     {formatPreviewCurrency(draft.packages[0]?.price ?? "0")}
                   </p>
                 </div>

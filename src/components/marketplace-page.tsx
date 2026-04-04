@@ -69,6 +69,7 @@ import {
   readMarketplacePreferencesFromApi,
   writeMarketplacePreferencesToApi,
 } from "@/lib/preferences-api";
+import { SiteAccountMenu } from "@/components/site-account-menu";
 
 type CheckoutState = {
   gigId: number;
@@ -324,8 +325,8 @@ function MarketplaceGigDrawer({
       <aside className="absolute right-0 top-0 h-full w-[560px] overflow-y-auto border-l border-white/12 bg-white px-6 pb-8 pt-6 shadow-[-18px_0_44px_rgba(8,12,24,0.16)]">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7b8797]">{gig.category}</p>
-            <h2 className="mt-2 text-[30px] font-semibold leading-[1.02] tracking-[-0.05em] text-[#101522]">
+            <p className="type-kicker text-[#7b8797]">{gig.category}</p>
+            <h2 className="mt-2 text-[30px] font-medium leading-[1.02] tracking-[-0.04em] text-[#101522]">
               {gig.title}
             </h2>
             <p className="mt-3 max-w-[430px] text-[14px] leading-6 text-[#526173]">{gig.subtitle}</p>
@@ -343,7 +344,7 @@ function MarketplaceGigDrawer({
           <div className="relative aspect-[16/10]">
             <Image src={gig.cover} alt={gig.title} fill sizes="560px" className="object-cover" />
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(15,23,42,0)_20%,rgba(15,23,42,0.32)_100%)]" />
-            <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-white/88 px-3 py-1.5 text-[11px] font-semibold text-[#101522]">
+            <div className="type-button absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-white/88 px-3 py-1.5 text-[#101522]">
               <Sparkles className="h-3.5 w-3.5 text-[#2b6fff]" />
               Trust TimeLike {gig.timelikeTrust}%
             </div>
@@ -352,7 +353,7 @@ function MarketplaceGigDrawer({
                 <Image src={gig.avatar} alt={gig.seller} fill sizes="36px" className="object-cover" />
               </div>
               <div>
-                <p className="text-[12px] font-semibold">{gig.seller}</p>
+                <p className="type-title-card text-white">{gig.seller}</p>
                 <p className="text-[11px] text-white/70">{gig.handle}</p>
               </div>
             </div>
@@ -362,21 +363,21 @@ function MarketplaceGigDrawer({
         <div className="mt-6 grid grid-cols-3 gap-3">
           <div className="rounded-[10px] border border-black/7 bg-[#f7f9fc] p-4">
             <p className="text-[11px] uppercase tracking-[0.18em] text-[#8a97aa]">A partir de</p>
-            <p className="mt-2 text-[24px] font-semibold text-[#101522]">{formatCurrency(gig.priceFrom)}</p>
+            <p className="mt-2 text-[24px] font-medium tracking-[-0.02em] text-[#101522]">{formatCurrency(gig.priceFrom)}</p>
           </div>
           <div className="rounded-[10px] border border-black/7 bg-[#f7f9fc] p-4">
             <p className="text-[11px] uppercase tracking-[0.18em] text-[#8a97aa]">Livraison</p>
-            <p className="mt-2 text-[24px] font-semibold text-[#101522]">{gig.deliveryLabel}</p>
+            <p className="mt-2 text-[24px] font-medium tracking-[-0.02em] text-[#101522]">{gig.deliveryLabel}</p>
           </div>
           <div className="rounded-[10px] border border-black/7 bg-[#f7f9fc] p-4">
             <p className="text-[11px] uppercase tracking-[0.18em] text-[#8a97aa]">Commandes</p>
-            <p className="mt-2 text-[24px] font-semibold text-[#101522]">{gig.completedOrders}</p>
+            <p className="mt-2 text-[24px] font-medium tracking-[-0.02em] text-[#101522]">{gig.completedOrders}</p>
           </div>
         </div>
 
         <section className="mt-7">
           <div className="flex items-center justify-between">
-            <h3 className="text-[18px] font-semibold text-[#101522]">Packages</h3>
+            <h3 className="text-[18px] font-medium tracking-[-0.02em] text-[#101522]">Packages</h3>
             <p className="text-[12px] text-[#708095]">Choisis ton niveau de livraison</p>
           </div>
           <div className="mt-4 space-y-3">
@@ -392,7 +393,7 @@ function MarketplaceGigDrawer({
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-[16px] font-semibold text-[#101522]">{pkg.name}</p>
+                      <p className="text-[16px] font-medium tracking-[-0.01em] text-[#101522]">{pkg.name}</p>
                       {pkg.recommended ? (
                         <span className="rounded-full bg-[#2b6fff] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white">
                           Recommande
@@ -402,7 +403,7 @@ function MarketplaceGigDrawer({
                     <p className="mt-1 text-[13px] leading-5 text-[#607085]">{pkg.description}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[22px] font-semibold text-[#101522]">{formatCurrency(pkg.price)}</p>
+                    <p className="text-[22px] font-medium tracking-[-0.02em] text-[#101522]">{formatCurrency(pkg.price)}</p>
                     <p className="text-[12px] text-[#7b8797]">{pkg.deliveryDays} jours</p>
                   </div>
                 </div>
@@ -433,7 +434,7 @@ function MarketplaceGigDrawer({
         </section>
 
         <section className="mt-7">
-          <h3 className="text-[18px] font-semibold text-[#101522]">Ce qui est livre</h3>
+            <h3 className="text-[18px] font-medium tracking-[-0.02em] text-[#101522]">Ce qui est livre</h3>
           <div className="mt-3 grid gap-3">
             {gig.deliverables.map((item) => (
               <div key={item} className="flex items-center gap-3 rounded-[10px] border border-black/7 bg-[#f8fafc] px-4 py-3">
@@ -486,8 +487,8 @@ function CheckoutModal({
       <div className="absolute left-1/2 top-1/2 w-[760px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[10px] border border-white/12 bg-white shadow-[0_36px_90px_rgba(4,8,19,0.3)]">
         <div className="flex items-center justify-between border-b border-black/6 px-7 py-5">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7b8797]">Paiement securise</p>
-            <h3 className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">Confirmer la commande</h3>
+            <p className="type-kicker text-[#7b8797]">Paiement securise</p>
+            <h3 className="mt-2 text-[24px] font-medium tracking-[-0.03em] text-[#101522]">Confirmer la commande</h3>
           </div>
           <button
             type="button"
@@ -503,7 +504,7 @@ function CheckoutModal({
             <div className="rounded-[10px] border border-black/7 bg-[#f8fafc] p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[16px] font-semibold text-[#101522]">{gig.title}</p>
+                  <p className="text-[16px] font-medium tracking-[-0.01em] text-[#101522]">{gig.title}</p>
                   <p className="mt-1 text-[13px] text-[#6b788a]">
                     {selectedPackage.name} · {selectedPackage.deliveryDays} jours
                   </p>
@@ -516,7 +517,7 @@ function CheckoutModal({
             </div>
 
             <div className="mt-5">
-              <p className="text-[14px] font-semibold text-[#101522]">Choisir le moyen de paiement</p>
+              <p className="text-[14px] font-medium tracking-[-0.01em] text-[#101522]">Choisir le moyen de paiement</p>
               <div className="mt-3 grid grid-cols-3 gap-3">
                 {[
                   { id: "card", label: "Carte", icon: CreditCard },
@@ -538,7 +539,7 @@ function CheckoutModal({
                       }`}
                     >
                       <Icon className={`h-5 w-5 ${isActive ? "text-[#2b6fff]" : "text-[#101522]"}`} />
-                      <p className="mt-3 text-[13px] font-semibold text-[#101522]">{method.label}</p>
+                      <p className="mt-3 text-[13px] font-medium tracking-[-0.01em] text-[#101522]">{method.label}</p>
                     </button>
                   );
                 })}
@@ -547,7 +548,7 @@ function CheckoutModal({
 
             <div className="mt-5">
               <div className="flex items-center justify-between">
-                <p className="text-[14px] font-semibold text-[#101522]">Brief du projet</p>
+              <p className="type-title-card text-[#101522]">Brief du projet</p>
                 <span className="text-[12px] text-[#7b8797]">Plus il est clair, plus le tracker sera utile.</span>
               </div>
               <textarea
@@ -561,7 +562,7 @@ function CheckoutModal({
 
           <div className="bg-[#0f172a] px-7 py-6 text-white">
             <div className="rounded-[10px] border border-white/10 bg-white/6 p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/62">Recap</p>
+              <p className="type-kicker text-white/62">Recap</p>
               <div className="mt-4 space-y-3 text-[14px]">
                 <div className="flex items-center justify-between">
                   <span className="text-white/72">Package</span>
@@ -571,7 +572,7 @@ function CheckoutModal({
                   <span className="text-white/72">Protection plateforme</span>
                   <span>{formatCurrency(serviceFee)}</span>
                 </div>
-                <div className="border-t border-white/10 pt-3 text-[18px] font-semibold">
+                <div className="border-t border-white/10 pt-3 text-[18px] font-medium tracking-[-0.02em]">
                   <div className="flex items-center justify-between">
                     <span>Total</span>
                     <span>{formatCurrency(total)}</span>
@@ -584,7 +585,7 @@ function CheckoutModal({
               <div className="flex items-start gap-3">
                 <ShieldCheck className="mt-0.5 h-5 w-5 text-[#76b3ff]" />
                 <div>
-                  <p className="text-[14px] font-semibold">Paiement sous escrow</p>
+                  <p className="type-title-card text-white">Paiement sous escrow</p>
                   <p className="mt-2 text-[13px] leading-6 text-white/72">
                     L&apos;acompte reste protege jusqu&apos;a validation des etapes du projet dans le tracker.
                   </p>
@@ -595,7 +596,7 @@ function CheckoutModal({
             <button
               type="button"
               onClick={onConfirm}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-[14px] font-semibold text-[#0f172a] transition hover:-translate-y-[1px] hover:bg-[#edf2ff]"
+              className="type-button mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-[#0f172a] transition hover:-translate-y-[1px] hover:bg-[#edf2ff]"
             >
               Confirmer et ouvrir le tracker
               <ArrowRight className="h-4 w-4" />
@@ -1286,8 +1287,11 @@ export function MarketplacePage({
 
   return (
     <div className="min-h-screen bg-white text-[#101522]">
-      <div className="mx-auto min-h-screen w-[1440px] bg-white">
-        <header className="fixed left-1/2 top-0 z-[120] h-[73px] w-[1440px] -translate-x-1/2">
+      <div className="min-h-screen w-full bg-white">
+        <header
+          className="fixed left-1/2 top-0 z-[120] h-[73px] w-[1440px] -translate-x-1/2"
+          data-legacy-site-header="true"
+        >
           <div className="absolute left-0 top-0 h-[61px] w-[1440px] bg-[rgba(255,255,255,0.87)] backdrop-blur-[13px]" />
           <div className="relative h-full">
             <Image
@@ -1326,22 +1330,14 @@ export function MarketplacePage({
 
             <div className="absolute left-[1303px] top-[19px] h-9 w-px bg-black/12" />
 
-            <div className="absolute left-[1318px] top-5 flex h-8 w-[69px] items-center gap-[13px]">
-              <button
-                type="button"
-                onClick={() => handleHeaderPanelAction("menu")}
-                aria-label="Menu"
-                className="h-6 w-6 transition hover:-translate-y-[1px]"
-              >
-                <Image src="/figma-assets/top-menu.svg" alt="" width={24} height={24} unoptimized className="h-6 w-6" />
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push("/profile")}
-                className="relative h-8 w-8 overflow-hidden rounded-full transition hover:-translate-y-[1px]"
-              >
-                <Image src="/figma-assets/avatar-user.png" alt="Current user" fill sizes="32px" className="object-cover" />
-              </button>
+            <div className="absolute left-[1318px] top-5">
+              <SiteAccountMenu
+                className="flex h-8 w-[69px] items-center gap-[13px]"
+                menuButtonClassName="h-6 w-6 transition hover:-translate-y-[1px]"
+                avatarButtonClassName="relative h-8 w-8 overflow-hidden rounded-full transition hover:-translate-y-[1px]"
+                avatarImageClassName="object-cover"
+                avatarSize="32px"
+              />
             </div>
 
             {renderHeaderPanel()}
@@ -1437,8 +1433,8 @@ export function MarketplacePage({
             <>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7b8797]">Pictomag marketplace</p>
-                  <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.05em] text-[#101522]">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7b8797]">Pictomag marketplace</p>
+                  <h1 className="mt-2 text-[28px] font-medium tracking-[-0.04em] text-[#101522]">
                     Trouve un gig solide, vite, et suis le projet proprement.
                   </h1>
                 </div>
@@ -1456,7 +1452,7 @@ export function MarketplacePage({
                         key={tab.id}
                         type="button"
                         onClick={() => setActiveView(tab.id as MarketplaceView)}
-                        className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-[13px] font-semibold transition ${
+                        className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-[13px] font-medium tracking-[-0.01em] transition ${
                           active ? "bg-[#101522] text-white shadow-[0_10px_20px_rgba(15,23,42,0.18)]" : "text-[#465569]"
                         }`}
                       >
@@ -1494,7 +1490,7 @@ export function MarketplacePage({
                             className="h-[31px] w-[31px] object-contain"
                           />
                         </span>
-                        <span className={`mt-2 whitespace-nowrap text-[13px] font-medium text-[#111111] ${active ? "font-semibold" : ""}`}>
+                        <span className={`mt-2 whitespace-nowrap text-[13px] font-medium tracking-[-0.01em] text-[#111111] ${active ? "font-semibold" : ""}`}>
                           {track.label}
                         </span>
                         <span className={`mt-4 h-[2px] w-14 rounded-full bg-[#0094ff] transition ${active ? "opacity-100" : "opacity-0"}`} />
@@ -1601,7 +1597,7 @@ export function MarketplacePage({
             <section className="pt-3">
               <div className="flex items-start justify-between gap-8">
                 <div>
-                  <h1 className="text-[58px] font-light leading-none tracking-[-0.06em] text-[#101522]">Gigs</h1>
+                  <h1 className="text-[56px] font-medium leading-none tracking-[-0.05em] text-[#101522]">Gigs</h1>
                 </div>
                 <div className="flex items-center gap-5">
                   <button
@@ -1666,7 +1662,7 @@ export function MarketplacePage({
 
               <div className="mt-5 rounded-[10px] border border-black/7 bg-white">
                 <div className="flex items-center justify-between border-b border-black/6 px-5 py-4">
-                  <p className="text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">
+                  <p className="text-[24px] font-medium tracking-[-0.03em] text-[#101522]">
                     {sellerGigStatusTabs.find((tab) => tab.id === sellerGigFilter)?.label} gigs
                   </p>
                   <div className="relative">
@@ -1777,7 +1773,7 @@ export function MarketplacePage({
                   ))
                 ) : (
                   <div className="px-5 py-14 text-center">
-                    <p className="text-[18px] font-semibold text-[#101522]">Aucun gig dans cet etat pour le moment.</p>
+                  <p className="text-[18px] font-medium tracking-[-0.02em] text-[#101522]">Aucun gig dans cet etat pour le moment.</p>
                     <p className="mt-2 text-[14px] text-[#667487]">
                       Cree un nouveau gig ou change d&apos;onglet pour retrouver tes autres services.
                     </p>
@@ -1789,10 +1785,10 @@ export function MarketplacePage({
             <>
               <section className="grid grid-cols-[minmax(0,1.55fr)_360px] gap-6">
                 <div className="rounded-[10px] border border-black/6 bg-white px-8 py-8 shadow-[0_28px_60px_rgba(15,23,42,0.08)]">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#7b8797]">
-                    {isCreateView ? "Creation vendeur" : "Service marketplace"}
-                  </p>
-                  <h1 className="mt-3 max-w-[760px] text-[46px] font-semibold leading-[0.98] tracking-[-0.06em] text-[#101522]">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7b8797]">
+                        {isCreateView ? "Creation vendeur" : "Service marketplace"}
+                      </p>
+                      <h1 className="mt-3 max-w-[760px] text-[46px] font-medium leading-[1] tracking-[-0.045em] text-[#101522]">
                     {isCreateView
                       ? "Monte un gig net, flexible et facile a acheter."
                       : "Un marche de gigs concu pour vendre du travail solide, pas juste des vignettes."}
@@ -1850,10 +1846,10 @@ export function MarketplacePage({
                       <Sparkles className="h-5 w-5 text-[#7cb6ff]" />
                     </div>
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/58">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/58">
                         {isCreateView ? "Parcours publieur" : "Signal vendeur"}
                       </p>
-                      <p className="mt-2 text-[28px] font-semibold tracking-[-0.05em]">
+                      <p className="mt-2 text-[28px] font-medium tracking-[-0.04em]">
                         {isCreateView ? "5 etapes tres lisibles" : "94% trust TimeLike"}
                       </p>
                       <p className="mt-2 text-[13px] leading-6 text-white/70">
@@ -1868,19 +1864,19 @@ export function MarketplacePage({
                       <p className="text-[11px] uppercase tracking-[0.18em] text-white/58">
                         {isCreateView ? "Lecture client" : "Panier moyen"}
                       </p>
-                      <p className="mt-2 text-[24px] font-semibold">{isCreateView ? "Titre + cover + prix" : "648 EUR"}</p>
+                      <p className="mt-2 text-[24px] font-medium tracking-[-0.02em]">{isCreateView ? "Titre + cover + prix" : "648 EUR"}</p>
                     </div>
                     <div className="rounded-[10px] border border-white/10 bg-white/6 p-4">
                       <p className="text-[11px] uppercase tracking-[0.18em] text-white/58">
                         {isCreateView ? "Packages" : "Cycle de vente"}
                       </p>
-                      <p className="mt-2 text-[24px] font-semibold">{isCreateView ? "Starter / Growth / Signature" : "3.1 jours"}</p>
+                      <p className="mt-2 text-[24px] font-medium tracking-[-0.02em]">{isCreateView ? "Starter / Growth / Signature" : "3.1 jours"}</p>
                     </div>
                     <div className="rounded-[10px] border border-white/10 bg-white/6 p-4">
                       <p className="text-[11px] uppercase tracking-[0.18em] text-white/58">
                         {isCreateView ? "Resultat" : "Paiement"}
                       </p>
-                      <p className="mt-2 text-[24px] font-semibold">{isCreateView ? "Gig publiable" : "Escrow actif"}</p>
+                      <p className="mt-2 text-[24px] font-medium tracking-[-0.02em]">{isCreateView ? "Gig publiable" : "Escrow actif"}</p>
                     </div>
                   </div>
                 </aside>
@@ -1943,7 +1939,7 @@ export function MarketplacePage({
                       <button
                         type="button"
                         onClick={() => handleOpenGig(card.gigId)}
-                        className="line-clamp-2 text-left text-[17px] font-normal leading-[1.24] tracking-[-0.02em] text-[#111111]"
+                        className="line-clamp-2 text-left text-[17px] font-medium leading-[1.24] tracking-[-0.015em] text-[#111111]"
                       >
                         {card.title}
                       </button>
@@ -2002,7 +1998,7 @@ export function MarketplacePage({
                 {sellerPulse.map((card) => (
                   <div key={card.label} className="rounded-[10px] border border-black/6 bg-white p-5 shadow-[0_20px_48px_rgba(15,23,42,0.08)]">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7b8797]">{card.label}</p>
-                    <p className="mt-3 text-[30px] font-semibold tracking-[-0.05em] text-[#101522]">{card.value}</p>
+                    <p className="mt-3 text-[30px] font-medium tracking-[-0.04em] text-[#101522]">{card.value}</p>
                     <p className="mt-2 text-[12px] text-[#607085]">{card.helper}</p>
                   </div>
                 ))}
@@ -2012,7 +2008,7 @@ export function MarketplacePage({
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7b8797]">Vitrine vendeur</p>
-                      <h3 className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">Vos gigs actifs</h3>
+                      <h3 className="mt-2 text-[24px] font-medium tracking-[-0.03em] text-[#101522]">Vos gigs actifs</h3>
                     </div>
                     <button
                       type="button"
@@ -2074,7 +2070,7 @@ export function MarketplacePage({
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7b8797]">Pipeline</p>
-                      <h3 className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">Ordres etat par etat</h3>
+                      <h3 className="mt-2 text-[24px] font-medium tracking-[-0.03em] text-[#101522]">Ordres etat par etat</h3>
                     </div>
                     <div className="inline-flex items-center gap-2 rounded-full border border-black/7 bg-[#f8fafc] px-3 py-2 text-[12px] font-medium text-[#5f6f82]">
                       <TrendingUp className="h-4 w-4 text-[#2b6fff]" />
@@ -2112,12 +2108,12 @@ export function MarketplacePage({
                   <div className="mt-6 grid grid-cols-2 gap-4">
                     <div className="rounded-[10px] border border-black/7 bg-[#0f172a] p-5 text-white">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/58">Payout</p>
-                      <p className="mt-2 text-[28px] font-semibold">{formatCurrency(totalRevenue - pendingRevenue)}</p>
+                      <p className="mt-2 text-[28px] font-medium tracking-[-0.03em]">{formatCurrency(totalRevenue - pendingRevenue)}</p>
                       <p className="mt-2 text-[12px] text-white/68">Deja libere au vendeur</p>
                     </div>
                     <div className="rounded-[10px] border border-black/7 bg-white p-5">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7b8797]">Acompte protege</p>
-                      <p className="mt-2 text-[28px] font-semibold text-[#101522]">{formatCurrency(pendingRevenue)}</p>
+                      <p className="mt-2 text-[28px] font-medium tracking-[-0.03em] text-[#101522]">{formatCurrency(pendingRevenue)}</p>
                       <p className="mt-2 text-[12px] text-[#667487]">Encore retenu dans le tracker avant validation.</p>
                     </div>
                   </div>
@@ -2132,7 +2128,7 @@ export function MarketplacePage({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7b8797]">Projets</p>
-                    <h3 className="mt-2 text-[22px] font-semibold tracking-[-0.04em] text-[#101522]">Tracker</h3>
+                    <h3 className="mt-2 text-[22px] font-medium tracking-[-0.03em] text-[#101522]">Tracker</h3>
                   </div>
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eef5ff] text-[#2b6fff]">
                     <FolderKanban className="h-5 w-5" />
@@ -2168,7 +2164,7 @@ export function MarketplacePage({
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7b8797]">Projet en cours</p>
-                      <h2 className="mt-2 text-[34px] font-semibold leading-[1.02] tracking-[-0.05em] text-[#101522]">
+                      <h2 className="mt-2 text-[34px] font-medium leading-[1.02] tracking-[-0.04em] text-[#101522]">
                         {selectedOrder.title}
                       </h2>
                       <p className="mt-3 max-w-[760px] text-[14px] leading-6 text-[#536173]">{selectedOrder.brief}</p>
@@ -2184,19 +2180,19 @@ export function MarketplacePage({
                   <div className="mt-6 grid grid-cols-4 gap-4">
                     <div className="rounded-[10px] border border-black/7 bg-[#f8fafc] p-4">
                       <p className="text-[11px] uppercase tracking-[0.18em] text-[#7b8797]">Client</p>
-                      <p className="mt-2 text-[18px] font-semibold text-[#101522]">{selectedOrder.client}</p>
+                      <p className="mt-2 text-[18px] font-medium tracking-[-0.02em] text-[#101522]">{selectedOrder.client}</p>
                     </div>
                     <div className="rounded-[10px] border border-black/7 bg-[#f8fafc] p-4">
                       <p className="text-[11px] uppercase tracking-[0.18em] text-[#7b8797]">Budget</p>
-                      <p className="mt-2 text-[18px] font-semibold text-[#101522]">{formatCurrency(selectedOrder.budget)}</p>
+                      <p className="mt-2 text-[18px] font-medium tracking-[-0.02em] text-[#101522]">{formatCurrency(selectedOrder.budget)}</p>
                     </div>
                     <div className="rounded-[10px] border border-black/7 bg-[#f8fafc] p-4">
                       <p className="text-[11px] uppercase tracking-[0.18em] text-[#7b8797]">Deadline</p>
-                      <p className="mt-2 text-[18px] font-semibold text-[#101522]">{selectedOrder.dueDate}</p>
+                      <p className="mt-2 text-[18px] font-medium tracking-[-0.02em] text-[#101522]">{selectedOrder.dueDate}</p>
                     </div>
                     <div className="rounded-[10px] border border-black/7 bg-[#f8fafc] p-4">
                       <p className="text-[11px] uppercase tracking-[0.18em] text-[#7b8797]">Trust</p>
-                      <p className="mt-2 text-[18px] font-semibold text-[#101522]">{selectedOrder.timelikeTrust}%</p>
+                      <p className="mt-2 text-[18px] font-medium tracking-[-0.02em] text-[#101522]">{selectedOrder.timelikeTrust}%</p>
                     </div>
                   </div>
 
@@ -2238,7 +2234,7 @@ export function MarketplacePage({
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7b8797]">Etat du projet</p>
-                        <h3 className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-[#101522]">Milestones et decisions</h3>
+                        <h3 className="mt-2 text-[24px] font-medium tracking-[-0.03em] text-[#101522]">Milestones et decisions</h3>
                       </div>
                       <button
                         type="button"
@@ -2277,7 +2273,7 @@ export function MarketplacePage({
                         </div>
                         <div>
                           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7b8797]">Paiement</p>
-                          <h3 className="mt-1 text-[22px] font-semibold tracking-[-0.04em] text-[#101522]">
+                          <h3 className="mt-1 text-[22px] font-medium tracking-[-0.03em] text-[#101522]">
                             {selectedOrder.paymentReleased ? "Paiement libere" : "Escrow protege"}
                           </h3>
                         </div>
@@ -2335,7 +2331,7 @@ export function MarketplacePage({
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#eef5ff] text-[#2b6fff]">
                 <FolderKanban className="h-6 w-6" />
               </div>
-              <h3 className="mt-4 text-[22px] font-semibold tracking-[-0.04em] text-[#101522]">
+              <h3 className="mt-4 text-[22px] font-medium tracking-[-0.03em] text-[#101522]">
                 Aucun projet a suivre pour le moment
               </h3>
               <p className="mx-auto mt-2 max-w-[520px] text-[14px] leading-6 text-[#607085]">

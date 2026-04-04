@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     (scope === "feed"
       ? (["video", "photo"] as StoredPostKind[])
       : scope === "classic"
-        ? (["letter", "gallery", "video", "note"] as StoredPostKind[])
+        ? (["letter", "gallery", "video", "note", "photo"] as StoredPostKind[])
         : undefined);
 
   const posts = listPublicPosts({
@@ -92,6 +92,8 @@ export async function POST(request: NextRequest) {
     ? payload.kind
     : null;
   const title = typeof payload?.title === "string" ? payload.title.trim() : "";
+  const albumName =
+    typeof payload?.albumName === "string" && payload.albumName.trim().length > 0 ? payload.albumName.trim().slice(0, 80) : null;
   const body = typeof payload?.body === "string" ? payload.body.trim() : "";
   const trackName = typeof payload?.trackName === "string" ? payload.trackName.trim() : "";
   const durationLabel = typeof payload?.durationLabel === "string" ? payload.durationLabel.trim() : "0:00";
@@ -135,6 +137,7 @@ export async function POST(request: NextRequest) {
     userId: authenticatedUser.user.id,
     surface: surface as StoredPostSurface,
     kind,
+    albumName,
     title,
     body,
     trackName,

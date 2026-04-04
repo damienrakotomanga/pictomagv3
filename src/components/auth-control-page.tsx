@@ -104,11 +104,11 @@ export function AuthControlPage() {
   };
 
   return (
-    <main className="min-h-screen bg-white px-6 py-10 text-[#101522]">
+    <main className="min-h-screen bg-white px-6 pb-10 pt-[96px] text-[#101522]">
       <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-6">
         <header className="rounded-[10px] border border-[#edf1f7] bg-white p-6">
           <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#8aa0bd]">Phase 1 auth control</p>
-          <h1 className="mt-2 text-[36px] font-semibold tracking-[-0.05em]">Controle de l’authentification</h1>
+      <h1 className="mt-2 text-[36px] font-medium tracking-[-0.04em]">Controle de l’authentification</h1>
           <p className="mt-3 max-w-[820px] text-[15px] leading-7 text-[#66768c]">
             Cette page est uniquement la pour tester le nouveau flux minimal sans toucher au design des autres surfaces.
             Tu peux creer un compte, te connecter, te deconnecter, verifier <code>/api/profile/me</code> et activer le mode admin demo.
@@ -131,7 +131,7 @@ export function AuthControlPage() {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8aa0bd]">Session courante</p>
-                <h2 className="mt-2 text-[24px] font-semibold tracking-[-0.04em]">Etat navigateur</h2>
+        <h2 className="mt-2 text-[24px] font-medium tracking-[-0.03em]">Etat navigateur</h2>
               </div>
               <button
                 type="button"
@@ -216,7 +216,7 @@ export function AuthControlPage() {
           <div className="flex flex-col gap-6">
             <section className="rounded-[10px] border border-[#edf1f7] bg-white p-6">
               <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8aa0bd]">Register</p>
-              <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.04em]">Creer un compte local</h2>
+        <h2 className="mt-2 text-[22px] font-medium tracking-[-0.03em]">Creer un compte local</h2>
               <div className="mt-5 grid gap-3">
                 <input
                   value={registerForm.email}
@@ -274,7 +274,7 @@ export function AuthControlPage() {
 
             <section className="rounded-[10px] border border-[#edf1f7] bg-white p-6">
               <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8aa0bd]">Login</p>
-              <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.04em]">Connexion locale</h2>
+        <h2 className="mt-2 text-[22px] font-medium tracking-[-0.03em]">Connexion locale</h2>
               <div className="mt-5 grid gap-3">
                 <input
                   value={loginForm.email}

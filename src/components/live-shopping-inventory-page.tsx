@@ -87,21 +87,19 @@ export function LiveShoppingInventoryPage() {
   }, [products, search, status]);
 
   return (
-    <div className="min-h-screen bg-white">
-      <LiveHeader
-        onNavClick={handleNav}
-        onProfileClick={() => router.push("/profile")}
-        onCreateClick={() => router.push("/live-shopping/schedule")}
-        onNotificationsClick={() => setToast("Notifications live ouvertes.")}
-        onMessagesClick={() => setToast("Messagerie live ouverte.")}
-        onMenuClick={() => setToast("Menu du compte ouvert.")}
-      />
+      <div className="min-h-screen bg-white">
+        <LiveHeader
+          onNavClick={handleNav}
+          onCreateClick={() => router.push("/live-shopping/schedule")}
+          onNotificationsClick={() => setToast("Notifications live ouvertes.")}
+          onMessagesClick={() => setToast("Messagerie live ouverte.")}
+        />
 
       <section className="pt-[120px]">
-        <div className="mx-auto w-[1440px] px-8 pb-20">
+        <div className="w-full px-8 pb-20">
           <div className="mb-12 flex items-start justify-between gap-6">
             <div>
-              <h1 className="text-[38px] font-semibold tracking-[-0.05em] text-[#101522]">Inventaire</h1>
+              <h1 className="text-[38px] font-medium tracking-[-0.04em] text-[#101522]">Inventaire</h1>
               <p className="mt-3 max-w-[620px] text-[15px] leading-7 text-[#66768c]">
                 Gere les produits que tu mets en avant pendant les lives, garde tes brouillons au propre et reserve certains lots pour les ventes live.
               </p>
@@ -117,7 +115,7 @@ export function LiveShoppingInventoryPage() {
               <button
                 type="button"
                 onClick={() => router.push("/live-shopping/inventory/new")}
-                className="inline-flex h-11 items-center justify-center rounded-[10px] bg-[#2b6fff] px-5 text-[14px] font-semibold text-white"
+                className="inline-flex h-11 items-center justify-center rounded-[10px] bg-[#2b6fff] px-5 text-[14px] font-medium tracking-[-0.01em] text-white"
               >
                 Creer un produit
               </button>
@@ -193,14 +191,14 @@ export function LiveShoppingInventoryPage() {
                         <Image src={product.cover} alt={product.title} fill sizes="56px" className="object-cover" />
                       </div>
                       <div>
-                        <p className="font-semibold text-[#101522]">{product.title}</p>
+                        <p className="font-medium tracking-[-0.01em] text-[#101522]">{product.title}</p>
                         <p className="mt-1 text-[13px] text-[#7a889b]">{product.sku}</p>
                       </div>
                     </div>
                     <div className="flex items-center">{product.categoryLabel}</div>
                     <div className="flex items-center">{count(product.quantity)}</div>
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold">{euros(product.price)}</span>
+                      <span className="font-medium tracking-[-0.01em]">{euros(product.price)}</span>
                       <span className="text-[#7a889b]">{product.mode === "auction" ? "Enchere" : "Direct"}</span>
                     </div>
                     <div className="flex items-center">
@@ -232,14 +230,14 @@ export function LiveShoppingInventoryPage() {
                 <div className="flex h-14 w-14 items-center justify-center rounded-[10px] bg-[#101522] text-white">
                   <Package2 className="h-7 w-7" />
                 </div>
-                <p className="mt-5 text-[20px] font-semibold text-[#101522]">Il n&apos;y a rien ici pour le moment.</p>
+                <p className="mt-5 text-[20px] font-medium tracking-[-0.02em] text-[#101522]">Il n&apos;y a rien ici pour le moment.</p>
                 <p className="mt-2 max-w-[420px] text-[14px] leading-6 text-[#7a889b]">
                   Cree ton premier produit pour le reserver ensuite a un live ou l&apos;ajouter a ta boutique en direct.
                 </p>
                 <button
                   type="button"
                   onClick={() => router.push("/live-shopping/inventory/new")}
-                  className="mt-6 inline-flex h-11 items-center justify-center rounded-[10px] bg-[#2b6fff] px-5 text-[14px] font-semibold text-white"
+                  className="mt-6 inline-flex h-11 items-center justify-center rounded-[10px] bg-[#2b6fff] px-5 text-[14px] font-medium tracking-[-0.01em] text-white"
                 >
                   Creer un produit
                 </button>

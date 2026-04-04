@@ -227,21 +227,19 @@ export function AdminAuditPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      <LiveHeader
-        onNavClick={handleNav}
-        onProfileClick={() => router.push("/profile")}
-        onCreateClick={() => router.push("/live-shopping/schedule")}
-        onNotificationsClick={() => setErrorMessage("Centre de notifications en cours de construction.")}
-        onMessagesClick={() => setErrorMessage("Messagerie admin en cours de construction.")}
-        onMenuClick={() => router.push("/admin/audit")}
-      />
+      <div className="min-h-screen bg-white">
+        <LiveHeader
+          onNavClick={handleNav}
+          onCreateClick={() => router.push("/live-shopping/schedule")}
+          onNotificationsClick={() => setErrorMessage("Centre de notifications en cours de construction.")}
+          onMessagesClick={() => setErrorMessage("Messagerie admin en cours de construction.")}
+        />
 
-      <section className="mx-auto w-[1440px] px-8 pb-16 pt-[116px]">
+      <section className="w-full px-8 pb-16 pt-[116px]">
         <div className="flex items-end justify-between gap-6">
           <div>
-            <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-[#8aa0bd]">Pictomag admin</p>
-            <h1 className="mt-2 text-[42px] font-semibold tracking-[-0.06em] text-[#101522]">Audit monitor</h1>
+            <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#8aa0bd]">Pictomag admin</p>
+            <h1 className="mt-2 text-[42px] font-medium tracking-[-0.045em] text-[#101522]">Audit monitor</h1>
             <p className="mt-2 max-w-[760px] text-[15px] leading-7 text-[#66768c]">
               Journal temps reel des actions sensibles live shopping (encheres, checkout) avec filtres ops et export.
             </p>
@@ -249,8 +247,16 @@ export function AdminAuditPage() {
           <div className="flex items-center gap-3">
             <button
               type="button"
+              onClick={() => router.push("/admin/live-shopping-cards")}
+              className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#d8e2f1] px-4 text-[14px] font-medium tracking-[-0.01em] text-[#101522] transition hover:bg-[#f7fbff]"
+            >
+              <UserCog className="h-4 w-4" />
+              Studio live cards
+            </button>
+            <button
+              type="button"
               onClick={() => void loadLogs({ quiet: true })}
-              className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#d8e2f1] px-4 text-[14px] font-semibold text-[#101522] transition hover:bg-[#f7fbff]"
+              className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#d8e2f1] px-4 text-[14px] font-medium tracking-[-0.01em] text-[#101522] transition hover:bg-[#f7fbff]"
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
               Rafraichir
@@ -258,7 +264,7 @@ export function AdminAuditPage() {
             <button
               type="button"
               onClick={exportJson}
-              className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#d8e2f1] px-4 text-[14px] font-semibold text-[#101522] transition hover:bg-[#f7fbff]"
+              className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#d8e2f1] px-4 text-[14px] font-medium tracking-[-0.01em] text-[#101522] transition hover:bg-[#f7fbff]"
             >
               <ArrowDownToLine className="h-4 w-4" />
               Export JSON
@@ -268,16 +274,16 @@ export function AdminAuditPage() {
 
         <div className="mt-8 grid grid-cols-3 gap-4">
           <div className="rounded-[10px] border border-[#edf1f7] bg-white p-5">
-            <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8aa0bd]">Events filtres</p>
-            <p className="mt-3 text-[34px] font-semibold tracking-[-0.05em] text-[#101522]">{metrics.total}</p>
+            <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#8aa0bd]">Events filtres</p>
+            <p className="mt-3 text-[34px] font-medium tracking-[-0.04em] text-[#101522]">{metrics.total}</p>
           </div>
           <div className="rounded-[10px] border border-[#edf1f7] bg-white p-5">
-            <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8aa0bd]">Encheres</p>
-            <p className="mt-3 text-[34px] font-semibold tracking-[-0.05em] text-[#101522]">{metrics.bids}</p>
+            <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#8aa0bd]">Encheres</p>
+            <p className="mt-3 text-[34px] font-medium tracking-[-0.04em] text-[#101522]">{metrics.bids}</p>
           </div>
           <div className="rounded-[10px] border border-[#edf1f7] bg-white p-5">
-            <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8aa0bd]">Checkouts</p>
-            <p className="mt-3 text-[34px] font-semibold tracking-[-0.05em] text-[#101522]">{metrics.checkouts}</p>
+            <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#8aa0bd]">Checkouts</p>
+            <p className="mt-3 text-[34px] font-medium tracking-[-0.04em] text-[#101522]">{metrics.checkouts}</p>
           </div>
         </div>
 
@@ -353,7 +359,7 @@ export function AdminAuditPage() {
                 <ShieldCheck className="h-6 w-6" />
               </span>
               <div>
-                <h2 className="text-[26px] font-semibold tracking-[-0.04em] text-[#101522]">Acces audit restreint</h2>
+                <h2 className="text-[26px] font-medium tracking-[-0.03em] text-[#101522]">Acces audit restreint</h2>
                 <p className="mt-2 max-w-[720px] text-[15px] leading-7 text-[#66768c]">
                   Cette page demande un role admin, moderator ou finance_admin. Pour la demo, on peut activer un role admin local.
                 </p>
@@ -361,7 +367,7 @@ export function AdminAuditPage() {
                   type="button"
                   onClick={() => void enableAdminRole()}
                   disabled={elevatingRole}
-                  className="mt-4 inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#2b6fff] px-4 text-[14px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
+                  className="mt-4 inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#2b6fff] px-4 text-[14px] font-medium tracking-[-0.01em] text-white disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   <UserCog className="h-4 w-4" />
                   {elevatingRole ? "Activation..." : "Activer mode admin (demo)"}
@@ -416,4 +422,3 @@ export function AdminAuditPage() {
     </div>
   );
 }
-

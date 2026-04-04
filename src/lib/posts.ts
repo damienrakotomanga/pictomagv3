@@ -1,3 +1,6 @@
+import { DEFAULT_AVATAR, resolveProfileAvatarSrc } from "@/lib/profile-avatar";
+import { formatDisplayName } from "@/lib/display-name";
+
 export type PublicPostSurface = "reel" | "classic";
 export type PublicPostKind = "video" | "photo" | "letter" | "gallery" | "note";
 export type PublicPostMediaType = "image" | "video";
@@ -26,6 +29,7 @@ export type PublicPost = {
   userId: string;
   surface: PublicPostSurface;
   kind: PublicPostKind;
+  albumName: string | null;
   title: string;
   body: string;
   trackName: string;
@@ -73,6 +77,7 @@ export type ClassicFeedCardItem = {
   videoId: number;
   variant: "letter" | "gallery" | "video" | "note";
   author: string;
+  authorUsername?: string;
   handle: string;
   avatar: string;
   timestamp: string;
@@ -92,9 +97,12 @@ export type ClassicFeedCardItem = {
 };
 
 export type ProfileAlbumItem = {
-  id: number;
+  id: string;
+  title: string;
   src: string;
   alt: string;
+  images: string[];
+  photoCount: number;
 };
 
 export type ProfileVideoItem = {
@@ -157,10 +165,18 @@ export function toClassicFeedCardItem(post: PublicPost): ClassicFeedCardItem | n
   const baseItem: ClassicFeedCardItem = {
     id: post.id,
     videoId: post.id,
-    variant: post.kind === "gallery" ? "gallery" : post.kind === "video" ? "video" : post.kind === "note" ? "note" : "letter",
-    author: post.author.displayName,
+    variant:
+      post.kind === "gallery"
+        ? "gallery"
+        : post.kind === "video"
+          ? "video"
+          : post.kind === "note" || post.kind === "photo"
+            ? "note"
+            : "letter",
+    author: formatDisplayName(post.author.displayName, post.author.username),
+    authorUsername: post.author.username,
     handle: `@${post.author.username}`,
-    avatar: post.author.avatarUrl ?? "/figma-assets/avatar-user.png",
+    avatar: resolveProfileAvatarSrc(post.author.avatarUrl, DEFAULT_AVATAR),
     timestamp: formatRelativeTimestamp(post.publishedAt),
     eyebrow:
       post.kind === "gallery"
@@ -179,14 +195,26 @@ export function toClassicFeedCardItem(post: PublicPost): ClassicFeedCardItem | n
   };
 
   if (post.kind === "gallery") {
+    const gallerySources = post.media
+      .filter((media) => media.mediaType === "image")
+      .sort((left, right) => left.position - right.position)
+      .map((media) => media.src);
+
+    if (gallerySources.length === 1) {
+      return {
+        ...baseItem,
+        media: {
+          kind: "image",
+          src: gallerySources[0],
+        },
+      };
+    }
+
     return {
       ...baseItem,
       media: {
         kind: "gallery",
-        gallery: post.media
-          .filter((media) => media.mediaType === "image")
-          .sort((left, right) => left.position - right.position)
-          .map((media) => media.src),
+        gallery: gallerySources,
       },
     };
   }
@@ -222,19 +250,46 @@ export function toClassicFeedCardItem(post: PublicPost): ClassicFeedCardItem | n
 }
 
 export function toProfileAlbumItems(posts: PublicPost[]) {
-  const images = posts
-    .flatMap((post) =>
-      post.media
-        .filter((media) => media.mediaType === "image")
-        .sort((left, right) => left.position - right.position)
-        .map((media) => ({
-          id: media.id,
-          src: media.src,
-          alt: media.altText || post.title,
-        })),
-    );
+  const albums = new Map<string, ProfileAlbumItem>();
 
-  return images;
+  for (const post of posts) {
+    const albumName = post.albumName?.trim();
+    if (!albumName) {
+      continue;
+    }
+
+    const albumImages = post.media
+      .filter((media) => media.mediaType === "image")
+      .sort((left, right) => left.position - right.position)
+      .map((media) => ({
+        src: media.src,
+        alt: media.altText || post.title || albumName,
+      }));
+
+    if (albumImages.length === 0) {
+      continue;
+    }
+
+    const albumKey = albumName.toLowerCase();
+    const current = albums.get(albumKey);
+
+    if (!current) {
+      albums.set(albumKey, {
+        id: `${albumKey}-${post.id}`,
+        title: albumName,
+        src: albumImages[0].src,
+        alt: albumImages[0].alt,
+        images: albumImages.map((image) => image.src),
+        photoCount: albumImages.length,
+      });
+      continue;
+    }
+
+    current.images.push(...albumImages.map((image) => image.src));
+    current.photoCount += albumImages.length;
+  }
+
+  return Array.from(albums.values());
 }
 
 export function toProfileVideoItems(posts: PublicPost[]) {

@@ -22,6 +22,7 @@ import {
   ensureCompatibilityUserWithProfile,
   getProfileByUserId,
   getUserById,
+  updateUserRoleById,
 } from "@/lib/server/sqlite-store";
 
 export const runtime = "nodejs";
@@ -119,6 +120,39 @@ export async function POST(request: NextRequest) {
 
   const existingUser = getUserById(userId);
   if (existingUser?.auth_mode === "local") {
+    if (currentAuthenticatedUser?.user.id === existingUser.id) {
+      const refreshedLocalUser = updateUserRoleById({
+        userId: existingUser.id,
+        role,
+      });
+      const refreshedLocalProfile = getProfileByUserId(existingUser.id);
+
+      if (!refreshedLocalUser || !refreshedLocalProfile) {
+        return NextResponse.json(
+          { message: "Impossible de mettre a jour le role du compte local." },
+          { status: 500 },
+        );
+      }
+
+      const boundPreferenceUser = bindPreferenceUserToUserId(request, refreshedLocalUser.id, "auth-token");
+      const response = NextResponse.json({
+        authenticated: true,
+        compatibilityMode: false,
+        role: normalizeAuthRole(refreshedLocalUser.role),
+        sessionId: boundPreferenceUser.sessionId,
+        user: serializePublicAuthUser(refreshedLocalUser),
+        profile: serializePublicProfile(refreshedLocalProfile),
+      });
+
+      attachAuthCookies(response, {
+        userId: refreshedLocalUser.id,
+        role: normalizeAuthRole(refreshedLocalUser.role),
+      });
+      attachPreferenceUserCookie(response, boundPreferenceUser);
+
+      return response;
+    }
+
     const denied = NextResponse.json(
       {
         message: "Le mode de compatibilite ne peut pas prendre le controle d un compte local.",
