@@ -1,5 +1,7 @@
 # PLANS.md
 
+Roadmap de migration du repo, conservee par phases sans changer le fond produit.
+
 ## Objectif
 Stabiliser puis faire evoluer Pictomag v3 sans repartir de zero, en gardant l'UI et l'infrastructure utile deja en place, puis en remplacant progressivement les couches prototype par de vrais flux metier.
 

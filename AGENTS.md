@@ -5,31 +5,31 @@ Before changing architecture-sensitive code, check the relevant docs in `node_mo
 
 # AGENTS.md
 
-## Mission réelle du repo
-Transformer Pictomag v3 en application dynamique exploitable en gardant l’UI existante.
+## Mission reelle du repo
+Transformer Pictomag v3 en application dynamique exploitable en gardant l'UI existante.
 
-Surfaces déjà présentes :
+Surfaces deja presentes :
 - home / feed
 - marketplace gigs
 - live shopping
 - profile
 
-Le repo n’est pas à reconstruire de zéro.
-Il faut conserver ce qui est solide et remplacer progressivement ce qui est encore mocké ou prototype.
+Le repo n'est pas a reconstruire de zero.
+Il faut conserver ce qui est solide et remplacer progressivement ce qui est encore mocke ou prototype.
 
-## Ce qu’il faut préserver
+## Ce qu'il faut preserver
 - la structure App Router actuelle
 - le design et les composants visuels existants
-- l’infrastructure live shopping realtime déjà en place
+- l'infrastructure live shopping realtime deja en place
 - la couche `src/lib/server/*`
 - la persistance SQLite existante comme base de reprise court terme
 - les tests E2E live existants
 
-## Ce qu’il faut remplacer progressivement
-- l’auth prototype basée sur `userId` + `role`
-- les identités invitées comme flux principal produit
-- les données mockées du feed
-- les données seedées métier de la marketplace
+## Ce qu'il faut remplacer progressivement
+- l'auth prototype basee sur `userId` + `role`
+- les identites invitees comme flux principal produit
+- les donnees mockees du feed
+- les donnees seedees metier de la marketplace
 - les placeholders du profil
 - les domaines absents ou incomplets:
   - User
@@ -42,16 +42,16 @@ Il faut conserver ce qui est solide et remplacer progressivement ce qui est enco
   - Message
   - LiveSession
 
-## Règles absolues
-- Toujours travailler sur une seule phase à la fois.
-- Toujours analyser l’existant avant de modifier du code.
-- Ne jamais mélanger auth, posts, marketplace, messaging et live shopping dans une seule tâche.
-- Ne pas refaire le design si le besoin est purement métier.
+## Regles absolues
+- Toujours travailler sur une seule phase a la fois.
+- Toujours analyser l'existant avant de modifier du code.
+- Ne jamais melanger auth, posts, marketplace, messaging et live shopping dans une seule tache.
+- Ne pas refaire le design si le besoin est purement metier.
 - Ne pas introduire une nouvelle stack backend tant que SQLite suffit pour stabiliser le MVP.
 - Ne pas remplacer brutalement une couche existante sans plan de migration.
-- Toute donnée critique doit être persistée.
-- Toute permission sensible doit être vérifiée côté serveur.
-- Toute fonctionnalité nouvelle doit être testée manuellement, et testée automatiquement si elle touche un flux critique.
+- Toute donnee critique doit etre persistee.
+- Toute permission sensible doit etre verifiee cote serveur.
+- Toute fonctionnalite nouvelle doit etre testee manuellement, et testee automatiquement si elle touche un flux critique.
 
 ## Architecture de reprise
 ### Court terme
@@ -65,10 +65,10 @@ Conserver SQLite et `src/lib/server/sqlite-store.ts` comme stockage principal po
 - conversations
 - messages
 - live_sessions
-- live bids / cart / checkout si nécessaire
+- live bids / cart / checkout si necessaire
 
 ### Moyen terme
-Unifier les routes API autour de domaines métier cohérents :
+Unifier les routes API autour de domaines metier coherents :
 - `/api/auth/*`
 - `/api/profile/*`
 - `/api/posts/*`
@@ -78,52 +78,52 @@ Unifier les routes API autour de domaines métier cohérents :
 - `/api/messages/*`
 - `/api/live-shopping/*`
 
-## Priorités produit
+## Priorites produit
 Ordre obligatoire :
 1. vraie auth + users + profiles
-2. feed + posts + profil réel
-3. marketplace réelle + messagerie minimale
-4. live shopping relié au vrai produit + durcissement tests
+2. feed + posts + profil reel
+3. marketplace reelle + messagerie minimale
+4. live shopping relie au vrai produit + durcissement tests
 
-## Définition de terminé
-Une phase est terminée seulement si :
+## Definition de termine
+Une phase est terminee seulement si :
 - le code compile
-- les routes répondent
-- les données sont réellement persistées
-- l’UI existante est branchée à de vraies données
-- les placeholders critiques de la phase sont retirés
-- les erreurs principales sont gérées
-- les tests manuels sont documentés
+- les routes repondent
+- les donnees sont reellement persistees
+- l'UI existante est branchee a de vraies donnees
+- les placeholders critiques de la phase sont retires
+- les erreurs principales sont gerees
+- les tests manuels sont documentes
 - les tests automatiques critiques passent
 
-## Format de réponse obligatoire pour chaque tâche
+## Format de reponse obligatoire pour chaque tache
 ### Avant de coder
-1. État actuel
-2. Ce qui est mocké ou incomplet
+1. Etat actuel
+2. Ce qui est mocke ou incomplet
 3. Plan court
-4. Fichiers exacts à modifier
-5. Risques de régression
+4. Fichiers exacts a modifier
+5. Risques de regression
 
-### Après avoir codé
-1. Résumé de ce qui a été implémenté
-2. Liste des fichiers modifiés
-3. Commandes à lancer
+### Apres avoir code
+1. Resume de ce qui a ete implemente
+2. Liste des fichiers modifies
+3. Commandes a lancer
 4. Tests manuels
 5. Tests automatiques
 6. Ce qui reste provisoire
-7. Dette technique éventuelle
+7. Dette technique eventuelle
 
 ## Interdictions
-- Ne pas laisser une feature “fonctionnelle en apparence” si elle repose encore sur des mocks.
-- Ne pas créer une nouvelle base de données ou un ORM juste pour faire moderne.
-- Ne pas casser le live shopping existant pendant les phases 1 à 3.
-- Ne pas supprimer les chemins de compatibilité tant que le front existant dépend encore d’eux.
-- Ne pas faire de refonte générale quand une migration locale suffit.
+- Ne pas laisser une feature "fonctionnelle en apparence" si elle repose encore sur des mocks.
+- Ne pas creer une nouvelle base de donnees ou un ORM juste pour faire moderne.
+- Ne pas casser le live shopping existant pendant les phases 1 a 3.
+- Ne pas supprimer les chemins de compatibilite tant que le front existant depend encore d'eux.
+- Ne pas faire de refonte generale quand une migration locale suffit.
 
-## Stratégie de migration
+## Strategie de migration
 - Garder les composants visuels
-- Remplacer d’abord les sources de données
+- Remplacer d'abord les sources de donnees
 - Introduire les nouvelles tables
-- Créer les routes API
-- Brancher l’UI
-- Supprimer ensuite les mocks et compatibilités devenus inutiles
+- Creer les routes API
+- Brancher l'UI
+- Supprimer ensuite les mocks et compatibilites devenus inutiles

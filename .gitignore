@@ -31,6 +31,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
+.codex-temp/
 
 # env files (can opt-in for committing if needed)
 .env*
@@ -41,3 +43,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local runtime sqlite sidecars
+/data/*.db-wal
+/data/*.db-shm
+
+# legacy local runtime json
+/data/user-preferences.json
+/data/user-runtime-state.json
