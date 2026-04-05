@@ -1,28 +1,28 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import type { ChangeEvent, CSSProperties, DragEvent, FormEvent, PointerEvent as ReactPointerEvent } from "react";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
-import type { LucideIcon } from "lucide-react";
 import {
-  ArrowLeft,
-  ArrowRight,
   Check,
   ChevronDown,
   Crop,
-  ImagePlus,
-  Images,
-  LoaderCircle,
-  Plus,
-  Trash2,
-  Type,
-  Video,
-  X,
 } from "lucide-react";
+import {
+  PostComposerEmptyPhotoSelection,
+  PostComposerHeader,
+  PostComposerIdentityBadge,
+  PostComposerModeSwitcher,
+  PostComposerPhotoFilmstrip,
+  PostComposerPhotoPreviewToolbar,
+  PostComposerStatusView,
+  PostComposerTextPreviewCard,
+  PostComposerVideoPreviewCard,
+} from "@/components/post-composer-shell";
 import { formatDisplayName } from "@/lib/display-name";
 import { DEFAULT_AVATAR, resolveProfileAvatarSrc } from "@/lib/profile-avatar";
+import { useCreatorSession } from "@/lib/use-creator-session";
 
 type ComposerMode = "text" | "photo" | "video";
 type PhotoStep = "select" | "crop" | "edit" | "details" | "sharing" | "success";
@@ -41,16 +41,6 @@ type FilterPresetId =
   | "moon"
   | "reyes"
   | "slumber";
-
-type ProfileMePayload = {
-  authenticated?: boolean;
-  profile?: {
-    displayName?: string;
-    username?: string;
-    avatarUrl?: string | null;
-    onboardingCompletedAt?: number | null;
-  };
-};
 
 type PhotoAdjustments = {
   brightness: number;
@@ -347,32 +337,6 @@ async function renderProcessedPhoto(draft: PhotoDraft) {
   return canvas.toDataURL("image/jpeg", 0.92);
 }
 
-function ModeChip({
-  active,
-  label,
-  icon: Icon,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  icon: LucideIcon;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cx(
-        "inline-flex h-11 items-center gap-2 rounded-full px-4 text-[14px] font-medium transition",
-        active ? "bg-[#101522] text-white shadow-[0_12px_30px_rgba(16,21,34,0.18)]" : "bg-[#f4f6fb] text-[#637488] hover:bg-[#eef2f8]",
-      )}
-    >
-      <Icon className="h-4 w-4" strokeWidth={2.1} />
-      <span>{label}</span>
-    </button>
-  );
-}
-
 function SettingSlider({
   label,
   value,
@@ -438,8 +402,13 @@ export function PostComposerPage() {
     startOffsetX: number;
     startOffsetY: number;
   } | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
-  const [profile, setProfile] = useState<ProfileMePayload["profile"] | null>(null);
+  const session = useCreatorSession();
+  const loadingProfile = session.status === "loading";
+  const [profile, setProfile] = useState<{
+    displayName?: string;
+    username?: string;
+    avatarUrl?: string | null;
+  } | null>(null);
   const [mode, setMode] = useState<ComposerMode>("photo");
   const [photoStep, setPhotoStep] = useState<PhotoStep>("select");
   const [editorTab, setEditorTab] = useState<EditorTab>("filters");
@@ -470,50 +439,27 @@ export function PostComposerPage() {
   const captionCounter = `${body.length}/${CAPTION_MAX_LENGTH}`;
 
   useEffect(() => {
-    let cancelled = false;
+    if (session.status === "loading") {
+      return;
+    }
 
-    const loadProfile = async () => {
-      try {
-        const response = await fetch("/api/profile/me", {
-          credentials: "same-origin",
-          cache: "no-store",
-        });
+    if (session.status === "anonymous") {
+      router.replace("/login");
+      return;
+    }
 
-        if (response.status === 401) {
-          router.replace("/login");
-          return;
-        }
+    if (session.status === "authenticated_not_onboarded") {
+      router.replace("/onboarding");
+      return;
+    }
 
-        if (!response.ok) {
-          throw new Error("Impossible de charger votre session.");
-        }
+    if (session.status === "error") {
+      setErrorMessage(session.errorMessage ?? "Impossible de charger votre session.");
+      return;
+    }
 
-        const payload = (await response.json()) as ProfileMePayload;
-        if (!payload.profile?.onboardingCompletedAt) {
-          router.replace("/onboarding");
-          return;
-        }
-
-        if (!cancelled) {
-          setProfile(payload.profile);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setErrorMessage(error instanceof Error ? error.message : "Impossible de charger votre session.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingProfile(false);
-        }
-      }
-    };
-
-    void loadProfile();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [router]);
+    setProfile(session.payload?.profile ?? null);
+  }, [router, session]);
 
   useEffect(() => {
     if (mode === "photo") {
@@ -877,112 +823,31 @@ export function PostComposerPage() {
 
       <div className="relative mx-auto max-w-[1200px]">
         <div className="overflow-hidden rounded-[30px] bg-white shadow-[0_36px_120px_rgba(3,7,18,0.38)]">
-          <header className="flex h-16 items-center justify-between border-b border-black/6 px-6">
-            <div className="flex min-w-[120px] items-center gap-3">
-              {photoStep === "sharing" || photoStep === "success" ? null : (
-                <button
-                  type="button"
-                  onClick={moveToPreviousStep}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#101522] transition hover:bg-[#f3f5f9]"
-                  aria-label={mode === "photo" && photoStep !== "select" ? "Revenir" : "Fermer"}
-                >
-                  {mode === "photo" && photoStep !== "select" ? <ArrowLeft className="h-5 w-5" /> : <X className="h-5 w-5" />}
-                </button>
-              )}
-            </div>
-            <div className="text-center">
-              <p className="text-[15px] font-semibold text-[#101522]">{headerTitle}</p>
-            </div>
-            <div className="flex min-w-[120px] justify-end">
-              {photoStep === "sharing" || photoStep === "success" ? null : headerActionLabel ? (
-                <button
-                  type={photoStep === "details" || mode !== "photo" ? "submit" : "button"}
-                  form={photoStep === "details" || mode !== "photo" ? "post-composer-form" : undefined}
-                  onClick={photoStep !== "details" && mode === "photo" ? moveToNextStep : undefined}
-                  disabled={photoStep === "select" ? !canGoNext : photoStep === "details" ? !canSubmit : false}
-                  className="inline-flex h-10 items-center rounded-full px-4 text-[14px] font-semibold text-[#4f46ff] transition hover:bg-[#f3f5ff] disabled:cursor-not-allowed disabled:text-[#9ba6c7] disabled:hover:bg-transparent"
-                >
-                  {headerActionLabel}
-                </button>
-              ) : null}
-            </div>
-          </header>
+          <PostComposerHeader
+            title={headerTitle}
+            backAriaLabel={mode === "photo" && photoStep !== "select" ? "Revenir" : "Fermer"}
+            onBack={moveToPreviousStep}
+            showBackButton={photoStep !== "sharing" && photoStep !== "success"}
+            actionLabel={headerActionLabel}
+            actionDisabled={photoStep === "select" ? !canGoNext : photoStep === "details" ? !canSubmit : false}
+            actionForm={photoStep === "details" || mode !== "photo" ? "post-composer-form" : undefined}
+            actionType={photoStep === "details" || mode !== "photo" ? "submit" : "button"}
+            onAction={photoStep !== "details" && mode === "photo" ? moveToNextStep : undefined}
+            showAction={photoStep !== "sharing" && photoStep !== "success" && Boolean(headerActionLabel)}
+          />
 
           {photoStep === "sharing" || photoStep === "success" ? (
-            <div className="flex min-h-[760px] flex-col items-center justify-center gap-8 bg-[#fbfcff] px-8 py-12 text-center">
-              <div
-                className={cx(
-                  "relative flex h-24 w-24 items-center justify-center rounded-full",
-                  photoStep === "sharing" ? "animate-spin" : "",
-                )}
-                style={{
-                  background:
-                    "conic-gradient(from 0deg, rgba(255,191,0,1), rgba(255,76,120,1), rgba(167,75,255,1), rgba(255,191,0,1))",
-                }}
-              >
-                <div className="absolute inset-[3px] rounded-full bg-[#fbfcff]" />
-                <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-[#fbfcff]">
-                  {photoStep === "sharing" ? (
-                    <LoaderCircle className="h-8 w-8 text-[#101522]" />
-                  ) : (
-                    <Check className="h-10 w-10 text-[#ff3d6c]" strokeWidth={2.25} />
-                  )}
-                </div>
-              </div>
-              <div className="space-y-3">
-                <p className="text-[16px] font-semibold text-[#101522]">
-                  {photoStep === "sharing" ? "Nous preparons ta publication..." : "Votre publication a ete partagee."}
-                </p>
-                <p className="text-[14px] text-[#637488]">
-                  {photoStep === "sharing"
-                    ? "On applique tes reglages et on envoie le post dans ton profil sans recharger l'interface."
-                    : "Retour automatique vers ton profil dans un instant."}
-                </p>
-              </div>
-            </div>
+            <PostComposerStatusView sharing={photoStep === "sharing"} />
           ) : showPhotoFlow && photoStep === "select" && photoDrafts.length === 0 ? (
-            <div className="flex min-h-[760px] flex-col items-center justify-center bg-[#fbfcff] px-8 py-12">
-              <div className="mb-8 flex flex-wrap items-center justify-center gap-3">
-                <ModeChip active={false} label="Texte" icon={Type} onClick={() => setMode("text")} />
-                <ModeChip active label="Photo" icon={Images} onClick={() => setMode("photo")} />
-                <ModeChip active={false} label="Video" icon={Video} onClick={() => setMode("video")} />
-              </div>
-
-              <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={cx(
-                  "flex w-full max-w-[560px] flex-col items-center justify-center rounded-[28px] px-8 py-20 text-center transition",
-                  dragActive ? "bg-[#eef3ff] shadow-[0_20px_60px_rgba(79,70,255,0.18)]" : "bg-white shadow-[0_24px_70px_rgba(16,21,34,0.08)]",
-                )}
-              >
-                <div className="mb-8 flex h-20 w-20 items-center justify-center rounded-full bg-[#f4f6fb]">
-                  <ImagePlus className="h-10 w-10 text-[#101522]" strokeWidth={1.9} />
-                </div>
-                <h1 className="text-[32px] font-semibold leading-[1.08] text-[#101522]">Faites glisser les photos ici</h1>
-                <p className="mt-4 max-w-[380px] text-[15px] leading-7 text-[#637488]">
-                  Selection locale, parcours en plusieurs etapes, ajustements non destructifs, puis partage sans recharger le site.
-                </p>
-                <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => imageInputRef.current?.click()}
-                    className="inline-flex h-12 items-center rounded-full bg-[#4f46ff] px-6 text-[14px] font-semibold text-white shadow-[0_16px_34px_rgba(79,70,255,0.22)] transition hover:bg-[#4138f5]"
-                  >
-                    Selectionner sur l&apos;ordinateur
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode("text")}
-                    className="inline-flex h-12 items-center rounded-full bg-[#f4f6fb] px-6 text-[14px] font-medium text-[#101522] transition hover:bg-[#eef2f8]"
-                  >
-                    Ecrire un post texte
-                  </button>
-                </div>
-                <p className="mt-6 text-[13px] text-[#8ea2bc]">Jusqu&apos;a {PHOTO_MAX_SELECTION} photos, sans bordures inutiles.</p>
-              </div>
-            </div>
+            <PostComposerEmptyPhotoSelection
+              dragActive={dragActive}
+              maxSelection={PHOTO_MAX_SELECTION}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onSelectMode={setMode}
+              onOpenFilePicker={() => imageInputRef.current?.click()}
+            />
           ) : (
             <form id="post-composer-form" onSubmit={handleSubmit}>
               <div
@@ -999,10 +864,8 @@ export function PostComposerPage() {
 
                   <div className="relative flex h-full flex-col">
                     <div className="px-8 pt-8">
-                      <div className="mb-4 flex flex-wrap items-center gap-3">
-                        <ModeChip active={mode === "text"} label="Texte" icon={Type} onClick={() => setMode("text")} />
-                        <ModeChip active={mode === "photo"} label="Photo" icon={Images} onClick={() => setMode("photo")} />
-                        <ModeChip active={mode === "video"} label="Video" icon={Video} onClick={() => setMode("video")} />
+                      <div className="mb-4">
+                        <PostComposerModeSwitcher mode={mode} onSelectMode={setMode} />
                       </div>
                     </div>
 
@@ -1042,46 +905,16 @@ export function PostComposerPage() {
                                 ) : null}
                               </div>
 
-                              <div className="mt-5 flex flex-wrap items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => addMoreInputRef.current?.click()}
-                                  className="inline-flex h-10 items-center gap-2 rounded-full bg-white/12 px-4 text-[13px] font-medium text-white backdrop-blur-md transition hover:bg-white/20"
-                                >
-                                  <Plus className="h-4 w-4" />
-                                  Ajouter des medias
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => moveActiveDraft(-1)}
-                                  disabled={!canMoveDraftBackward}
-                                  className="inline-flex h-10 items-center gap-2 rounded-full bg-white/12 px-4 text-[13px] font-medium text-white backdrop-blur-md transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-45"
-                                >
-                                  <ArrowLeft className="h-4 w-4" />
-                                  Avant
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => moveActiveDraft(1)}
-                                  disabled={!canMoveDraftForward}
-                                  className="inline-flex h-10 items-center gap-2 rounded-full bg-white/12 px-4 text-[13px] font-medium text-white backdrop-blur-md transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-45"
-                                >
-                                  Apres
-                                  <ArrowRight className="h-4 w-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => activeDraft && removeDraft(activeDraft.id)}
-                                  disabled={photoDrafts.length === 0}
-                                  className="inline-flex h-10 items-center gap-2 rounded-full bg-white/12 px-4 text-[13px] font-medium text-white backdrop-blur-md transition hover:bg-[rgba(255,102,132,0.28)] disabled:cursor-not-allowed disabled:opacity-45"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  Retirer
-                                </button>
-                                <div className="inline-flex h-10 items-center rounded-full bg-white/12 px-4 text-[13px] font-medium text-white/88 backdrop-blur-md">
-                                  {activeDraftIndex + 1}/{photoDrafts.length} media{photoDrafts.length > 1 ? "s" : ""}
-                                </div>
-                              </div>
+                              <PostComposerPhotoPreviewToolbar
+                                currentIndex={activeDraftIndex + 1}
+                                totalCount={photoDrafts.length}
+                                canMoveBackward={canMoveDraftBackward}
+                                canMoveForward={canMoveDraftForward}
+                                onAddMedia={() => addMoreInputRef.current?.click()}
+                                onMoveBackward={() => moveActiveDraft(-1)}
+                                onMoveForward={() => moveActiveDraft(1)}
+                                onRemove={() => activeDraft && removeDraft(activeDraft.id)}
+                              />
                             </>
                           ) : (
                             <div className="flex min-h-[520px] w-full items-center justify-center rounded-[28px] bg-white/7 text-white">
@@ -1090,75 +923,25 @@ export function PostComposerPage() {
                           )}
                         </div>
                       ) : mode === "text" ? (
-                        <div className="flex w-full max-w-[560px] flex-col justify-between rounded-[28px] bg-white px-8 py-8 shadow-[0_30px_70px_rgba(0,0,0,0.22)]">
-                          <div>
-                            <p className="text-[12px] font-medium uppercase tracking-[0.22em] text-[#8ea2bc]">Apercu texte</p>
-                            <h1 className="mt-6 text-[42px] font-semibold leading-[0.96] text-[#101522]">
-                              {title.trim() || "Ecris une note qui merite de rester dans le feed."}
-                            </h1>
-                          </div>
-                          <p className="mt-10 text-[16px] leading-8 text-[#637488]">
-                            {body.trim() || "Ton texte apparaitra ici, dans une version plus editoriale et plus calme que l'ancien composeur."}
-                          </p>
-                        </div>
+                        <PostComposerTextPreviewCard title={title} body={body} />
                       ) : (
-                        <div className="flex w-full max-w-[560px] flex-col items-center rounded-[28px] bg-white px-8 py-8 text-center shadow-[0_30px_70px_rgba(0,0,0,0.22)]">
-                          <div className="mb-8 flex h-20 w-20 items-center justify-center rounded-full bg-[#f4f6fb]">
-                            <Video className="h-10 w-10 text-[#101522]" strokeWidth={1.9} />
-                          </div>
-                          {posterUrl.trim() ? (
-                            <img src={posterUrl} alt="Poster video" className="h-[340px] w-full rounded-[24px] object-cover" />
-                          ) : (
-                            <div className="flex h-[340px] w-full items-center justify-center rounded-[24px] bg-[#f4f6fb]">
-                              <p className="max-w-[240px] text-[15px] leading-7 text-[#637488]">
-                                Ajoute l&apos;URL de la video et, si tu veux, un poster pour retrouver un rendu plus propre dans le feed.
-                              </p>
-                            </div>
-                          )}
-                          <p className="mt-6 text-[15px] font-medium text-[#101522]">{title.trim() || "Post video"}</p>
-                          <p className="mt-2 text-[13px] text-[#637488]">
-                            {durationLabel.trim() || "0:00"}
-                            {trackName.trim() ? ` - ${trackName.trim()}` : ""}
-                          </p>
-                        </div>
+                        <PostComposerVideoPreviewCard
+                          posterUrl={posterUrl}
+                          title={title}
+                          durationLabel={durationLabel}
+                          trackName={trackName}
+                        />
                       )}
                     </div>
 
                     {mode === "photo" && photoDrafts.length > 0 ? (
-                      <div className="absolute bottom-6 left-6 right-6">
-                        <div className="mx-auto flex max-w-[720px] items-center gap-3 overflow-x-auto rounded-full bg-white/12 px-4 py-3 backdrop-blur-md">
-                          {photoDrafts.map((draft) => (
-                            <div key={draft.id} className="relative h-16 w-16 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => setActiveDraftId(draft.id)}
-                                className={cx(
-                                  "relative h-16 w-16 overflow-hidden rounded-[18px] transition",
-                                  draft.id === activeDraft?.id ? "ring-2 ring-white" : "opacity-72 hover:opacity-100",
-                                )}
-                              >
-                                <img src={draft.src} alt={draft.altText || draft.fileName} className="h-full w-full object-cover" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => removeDraft(draft.id)}
-                                className="absolute -right-1 -top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#101522] text-white shadow-[0_10px_24px_rgba(0,0,0,0.24)] transition hover:bg-[#ff4c78]"
-                                aria-label={`Retirer ${draft.fileName}`}
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          ))}
-                          <button
-                            type="button"
-                            onClick={() => addMoreInputRef.current?.click()}
-                            className="inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-[18px] bg-white/16 text-white transition hover:bg-white/22"
-                            aria-label="Ajouter une photo"
-                          >
-                            <Plus className="h-5 w-5" />
-                          </button>
-                        </div>
-                      </div>
+                      <PostComposerPhotoFilmstrip
+                        drafts={photoDrafts}
+                        activeDraftId={activeDraft?.id ?? null}
+                        onSelectDraft={setActiveDraftId}
+                        onRemoveDraft={removeDraft}
+                        onAddPhoto={() => addMoreInputRef.current?.click()}
+                      />
                     ) : null}
                   </div>
                 </section>
@@ -1312,21 +1095,11 @@ export function PostComposerPage() {
                         </div>
                       ) : (
                         <div className="space-y-6">
-                          <div className="flex items-center gap-3">
-                            <div className="relative h-11 w-11 overflow-hidden rounded-full bg-[#eef3f8]">
-                              <Image
-                                src={resolveProfileAvatarSrc(profile?.avatarUrl, DEFAULT_AVATAR)}
-                                alt={profileDisplayName}
-                                fill
-                                sizes="44px"
-                                className="object-cover"
-                              />
-                            </div>
-                            <div>
-                              <p className="text-[15px] font-semibold text-[#101522]">{profileDisplayName}</p>
-                              <p className="text-[12px] text-[#8ea2bc]">@{profile?.username ?? "..."}</p>
-                            </div>
-                          </div>
+                          <PostComposerIdentityBadge
+                            avatarUrl={resolveProfileAvatarSrc(profile?.avatarUrl, DEFAULT_AVATAR)}
+                            displayName={profileDisplayName}
+                            username={profile?.username ?? "..."}
+                          />
 
                           <div className="space-y-5">
                             <div className="space-y-2">

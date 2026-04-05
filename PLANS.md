@@ -336,3 +336,31 @@ A la fin de chaque phase, ajouter :
 - fichiers principaux touches
 - regressions eventuelles
 - elements encore provisoires
+
+### 2026-04-05 - Phase 2
+- statut : validee pour le MVP sur le noyau `feed + posts + profil reel`
+- fichiers principaux touches :
+  - `src/app/api/posts/*`
+  - `src/app/api/profile/[userId]/route.ts`
+  - `src/app/posts/[postId]/page.tsx`
+  - `src/components/feed-page.tsx`
+  - `src/components/feed-video-cluster.tsx`
+  - `src/components/classic-feed-view.tsx`
+  - `src/components/post-detail-page.tsx`
+  - `src/components/profile-page.tsx`
+  - `src/components/public-profile-page.tsx`
+  - `src/lib/posts.ts`
+  - `src/lib/server/post-records.ts`
+  - `src/lib/server/sqlite-store.ts`
+  - `tests/e2e/sprint1-happy-path.spec.ts`
+  - `tests/e2e/public-auth-portal.spec.ts`
+  - `tests/e2e/timelike-real-flow.spec.ts`
+  - `tests/e2e/post-detail.spec.ts`
+  - `tests/e2e/comments-persisted.spec.ts`
+  - `tests/e2e/profile-tabs.spec.ts`
+  - `tests/e2e/feed-video.spec.ts`
+- regressions eventuelles : aucune regression ouverte sur le noyau phase 2 apres validation `lint`, `build` et E2E critiques
+- elements encore provisoires :
+  - les seeds SQLite posts/comments restent un bootstrap court terme
+  - `ShareDrawer` reste une couche legere, pas encore un vrai graphe social persistant
+  - marketplace, messagerie et live shopping restent hors du scope de cette validation de phase

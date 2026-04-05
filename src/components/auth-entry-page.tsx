@@ -3,7 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { useCreatorSession, type CreatorSessionPayload } from "@/lib/use-creator-session";
 
 type AuthPageMode = "login" | "signup" | "forgot-password";
 
@@ -11,15 +12,44 @@ type AuthEntryPageProps = {
   mode: AuthPageMode;
 };
 
-type AuthPayload = {
-  message?: string;
-  authenticated?: boolean;
-  user?: {
-    id?: string;
-  };
-  profile?: {
-    onboardingCompletedAt?: number | null;
-  };
+type AuthModeCopy = {
+  eyebrow: string;
+  title: string;
+  submit: string;
+  secondaryPrompt: string;
+  secondaryCta: string;
+  validationMessage: string;
+  submitTone: "accent" | "dark";
+};
+
+const copyByMode: Record<AuthPageMode, AuthModeCopy> = {
+  login: {
+    eyebrow: "Connexion",
+    title: "Se connecter a Pictomag",
+    submit: "Se connecter",
+    secondaryPrompt: "Pas encore de compte ?",
+    secondaryCta: "Creer un nouveau compte",
+    validationMessage: "Ajoute ton email et ton mot de passe pour continuer.",
+    submitTone: "accent",
+  },
+  signup: {
+    eyebrow: "Inscription",
+    title: "Creer ton compte",
+    submit: "Creer mon compte",
+    secondaryPrompt: "Tu as deja un compte ?",
+    secondaryCta: "Se connecter",
+    validationMessage: "Complete ton email, ton mot de passe, sa confirmation, ton nom visible et ton identifiant.",
+    submitTone: "dark",
+  },
+  "forgot-password": {
+    eyebrow: "Recuperation",
+    title: "Mot de passe oublie",
+    submit: "Recevoir les instructions",
+    secondaryPrompt: "Retour a la connexion",
+    secondaryCta: "Se connecter",
+    validationMessage: "Ajoute une adresse email valide pour continuer.",
+    submitTone: "accent",
+  },
 };
 
 function resolveSafeNextPath(value: string | null) {
@@ -44,43 +74,9 @@ function resolveSafeNextPath(value: string | null) {
   return value;
 }
 
-const copyByMode: Record<
-  AuthPageMode,
-  {
-    heroTitle: string;
-    heroBody: string;
-    primaryTitle: string;
-    secondaryTitle: string;
-    submit: string;
-  }
-> = {
-  login: {
-    heroTitle: "Ca se passe\nmaintenant",
-    heroBody: "",
-    primaryTitle: "Inscrivez-vous.",
-    secondaryTitle: "Vous avez deja un compte ?",
-    submit: "Se connecter",
-  },
-  signup: {
-    heroTitle: "Ca se passe\nmaintenant",
-    heroBody: "",
-    primaryTitle: "Creer un compte",
-    secondaryTitle: "Tu as deja un compte ?",
-    submit: "Creer mon compte",
-  },
-  "forgot-password": {
-    heroTitle: "Recupere ton compte",
-    heroBody: "",
-    primaryTitle: "Mot de passe oublie",
-    secondaryTitle: "Retour a la connexion",
-    submit: "Recevoir les instructions",
-  },
-};
-// Legacy auth scene kept temporarily while the new motion showcase is rolled out everywhere.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function AuthPortalShowcase() {
   return (
-    <section className="hidden flex-1 border-r border-black/[0.06] lg:flex lg:items-center lg:justify-center lg:px-12 lg:py-12 xl:px-16">
+    <section className="hidden min-h-screen border-r border-black/[0.06] px-12 py-12 lg:flex lg:items-center lg:justify-center xl:px-16">
       <div className="w-full max-w-[760px]">
         <Image
           src="/figma-assets/pictomag-logo.svg"
@@ -88,75 +84,15 @@ function AuthPortalShowcase() {
           width={626}
           height={167}
           priority
-          className="h-[56px] w-auto"
-        />
-
-        <div className="mt-14 max-w-[620px]">
-          <h1 className="whitespace-pre-line text-[72px] font-semibold leading-[0.92] tracking-[-0.08em] text-[#101522]">
-            {"Publiez,\nvendez,\npassez en live."}
-          </h1>
-          <p className="mt-6 max-w-[470px] text-[20px] leading-8 text-[#6a778b]">
-            Pictomag relie le feed, le profil, la marketplace et le live shopping dans un seul endroit.
-          </p>
-        </div>
-
-        <div className="relative mt-14 h-[470px] max-w-[640px]">
-          <div className="absolute left-0 top-[90px] h-[250px] w-[190px] overflow-hidden rounded-[34px] bg-[#eef4ff] shadow-[0_24px_80px_rgba(16,21,34,0.08)]">
-            <Image src="/figma-assets/hero-feed.jpg" alt="" fill className="object-cover" />
-            <div className="absolute bottom-5 left-5 right-5 h-[8px] rounded-full bg-white/80" />
-          </div>
-
-          <div className="absolute left-[150px] top-0 h-[390px] w-[290px] overflow-hidden rounded-[40px] bg-[#f4f7fb] shadow-[0_32px_110px_rgba(16,21,34,0.12)]">
-            <Image src="/figma-assets/hero-feed.jpg" alt="" fill className="object-cover" />
-            <div className="absolute left-8 right-8 top-8 h-[6px] rounded-full bg-white/75" />
-            <div className="absolute bottom-8 left-8 right-8 h-[16px] rounded-full border border-white/90 bg-white/10" />
-          </div>
-
-          <div className="absolute left-[330px] top-[150px] h-[230px] w-[180px] overflow-hidden rounded-[34px] bg-[#f6f8fc] shadow-[0_24px_80px_rgba(16,21,34,0.1)]">
-            <Image src="/figma-assets/avatar-post.png" alt="" fill className="object-cover" />
-            <div className="absolute bottom-5 left-5 right-5 h-[8px] rounded-full bg-white/80" />
-          </div>
-
-          <div className="absolute left-[40px] top-[250px] h-[70px] w-[70px] overflow-hidden rounded-full border-[5px] border-white bg-white shadow-[0_20px_50px_rgba(16,21,34,0.12)]">
-            <Image src="/figma-assets/avatar-story.png" alt="" fill className="object-cover" />
-          </div>
-
-          <div className="absolute left-[410px] top-[210px] h-[64px] w-[64px] overflow-hidden rounded-full border-[4px] border-white bg-white shadow-[0_18px_40px_rgba(16,21,34,0.12)]">
-            <Image src="/figma-assets/avatar-story.png" alt="" fill className="object-cover" />
-          </div>
-
-          <div className="absolute left-[88px] top-[130px] rounded-full bg-white px-4 py-2 text-[28px] shadow-[0_18px_36px_rgba(16,21,34,0.08)]">
-            ✨
-          </div>
-
-          <div className="absolute left-[455px] top-[112px] rounded-full bg-[#32d56d] px-4 py-2 text-[16px] font-semibold text-white shadow-[0_18px_36px_rgba(50,213,109,0.22)]">
-            + live
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function AuthPortalShowcaseHype() {
-  return (
-    <section className="hidden flex-1 border-r border-black/[0.06] lg:flex lg:items-center lg:justify-center lg:px-12 lg:py-12 xl:px-16">
-      <div className="w-full max-w-[760px]">
-        <Image
-          src="/figma-assets/pictomag-logo.svg"
-          alt="Pictomag"
-          width={626}
-          height={167}
-          priority
-          className="h-[56px] w-auto"
+          className="h-[54px] w-auto"
         />
 
         <div className="mt-14 max-w-[640px]">
           <h1 className="whitespace-pre-line text-[72px] font-semibold leading-[0.9] tracking-[-0.08em] text-[#101522]">
             {"Publie.\nVends.\nPasse en live."}
           </h1>
-          <p className="mt-5 max-w-[460px] text-[19px] leading-8 text-[#667085]">
-            Découvrez une nouvelle façon de vendre avec vos proches.
+          <p className="mt-5 max-w-[470px] text-[19px] leading-8 text-[#667085]">
+            Decouvre une nouvelle facon de vendre avec tes proches.
           </p>
         </div>
 
@@ -202,27 +138,18 @@ function AuthPortalShowcaseHype() {
             <span className="h-[22px] w-[22px] rounded-full bg-white/88" />
           </div>
 
-          <div className="portal-badge absolute left-[86px] top-[156px] flex h-[76px] w-[76px] items-center justify-center rounded-full bg-white shadow-[0_24px_60px_rgba(16,21,34,0.1)]">
-            <div className="flex items-center gap-1">
-              <span className="h-2.5 w-2.5 rounded-full bg-[#ff9f43]" />
-              <span className="h-3.5 w-3.5 rounded-full bg-[#ff7a00]" />
-              <span className="h-2.5 w-2.5 rounded-full bg-[#ff4f7b]" />
+          <div className="portal-badge absolute left-[92px] top-[108px] rounded-full bg-white px-5 py-3 shadow-[0_18px_48px_rgba(16,21,34,0.12)]">
+            <div className="flex items-center gap-2">
+              <span className="h-4 w-4 rounded-full bg-[radial-gradient(circle_at_35%_35%,#c38dff,#7f47ff_70%,#5a31df_100%)]" />
+              <span className="h-4 w-4 rounded-full bg-[radial-gradient(circle_at_35%_35%,#ffffff,#dce6ff_44%,#7aa9ff_100%)]" />
+              <span className="h-4 w-4 rounded-full bg-[radial-gradient(circle_at_35%_35%,#ffcd86,#ff8e2b_70%,#ff5c00_100%)]" />
             </div>
           </div>
 
-          <div className="portal-heart absolute left-[6px] top-[342px] h-[96px] w-[96px] rotate-[-14deg] bg-[radial-gradient(circle_at_30%_30%,#ff7a00,#ff2a78_58%,#ff0d9c_100%)] [clip-path:path('M48,86 C18,68 0,50 0,28 C0,12 12,0 28,0 C38,0 46,6 48,14 C50,6 58,0 68,0 C84,0 96,12 96,28 C96,50 78,68 48,86 Z')] shadow-[0_24px_54px_rgba(255,42,120,0.22)]" />
-
-          <div className="portal-chip absolute left-[106px] top-[104px] flex items-center gap-2 rounded-full bg-white px-4 py-3 shadow-[0_16px_44px_rgba(16,21,34,0.1)]">
-            <span className="h-6 w-6 rounded-full bg-[radial-gradient(circle_at_35%_35%,#c38dff,#7f47ff_70%,#5a31df_100%)]" />
-            <span className="h-6 w-6 rounded-full bg-[radial-gradient(circle_at_35%_35%,#ffffff,#dce6ff_44%,#7aa9ff_100%)]" />
-            <span className="h-6 w-6 rounded-full bg-[radial-gradient(circle_at_35%_35%,#ffcd86,#ff8e2b_70%,#ff5c00_100%)]" />
-          </div>
+          <div className="portal-heart absolute left-[4px] top-[342px] h-[96px] w-[96px] rotate-[-14deg] bg-[radial-gradient(circle_at_30%_30%,#ff7a00,#ff2a78_58%,#ff0d9c_100%)] [clip-path:path('M48,86 C18,68 0,50 0,28 C0,12 12,0 28,0 C38,0 46,6 48,14 C50,6 58,0 68,0 C84,0 96,12 96,28 C96,50 78,68 48,86 Z')] shadow-[0_24px_54px_rgba(255,42,120,0.22)]" />
 
           <div className="portal-live-pill absolute left-[494px] top-[126px] rounded-full bg-[#2fd76c] px-5 py-3 text-[16px] font-semibold text-white shadow-[0_20px_44px_rgba(47,215,108,0.26)]">
-            <span className="inline-flex items-center gap-2">
-              <span className="text-[18px] leading-none">★</span>
-              <span>+ live</span>
-            </span>
+            + live
           </div>
         </div>
 
@@ -255,10 +182,6 @@ function AuthPortalShowcaseHype() {
             animation: portalBadge 4.8s ease-in-out infinite;
           }
 
-          .portal-chip {
-            animation: portalChip 5.1s ease-in-out infinite;
-          }
-
           .portal-live-pill {
             animation: portalLive 3.2s ease-in-out infinite;
           }
@@ -279,14 +202,6 @@ function AuthPortalShowcaseHype() {
             background: linear-gradient(90deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.68) 50%, rgba(255, 255, 255, 0.12) 100%);
             transform: translateX(-100%);
             animation: portalShimmer 4.4s ease-in-out infinite;
-          }
-
-          .portal-line-delayed::after {
-            animation-delay: 0.7s;
-          }
-
-          .portal-line-soft::after {
-            animation-delay: 1.1s;
           }
 
           @keyframes portalFloatMain {
@@ -349,16 +264,6 @@ function AuthPortalShowcaseHype() {
             }
           }
 
-          @keyframes portalChip {
-            0%,
-            100% {
-              transform: translate3d(0, 0, 0) rotate(-2deg);
-            }
-            50% {
-              transform: translate3d(6px, -7px, 0) rotate(2deg);
-            }
-          }
-
           @keyframes portalLive {
             0%,
             100% {
@@ -396,10 +301,41 @@ function AuthPortalShowcaseHype() {
   );
 }
 
+function AuthField({
+  value,
+  onChange,
+  type,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  type: string;
+  placeholder: string;
+}) {
+  return (
+    <input
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      type={type}
+      placeholder={placeholder}
+      className="h-14 w-full rounded-[20px] border border-black/[0.08] bg-white px-5 text-[16px] text-[#101522] outline-none transition placeholder:text-[#8b97aa] focus:border-[#2563eb] focus:ring-4 focus:ring-[#2563eb]/[0.08]"
+    />
+  );
+}
+
+function getAuthRedirectPath(mode: AuthPageMode, nextPath: string | null, payload: CreatorSessionPayload | null) {
+  if (mode === "signup") {
+    return "/onboarding";
+  }
+
+  return payload?.profile?.onboardingCompletedAt ? nextPath ?? "/profile" : "/onboarding";
+}
+
 export function AuthEntryPage({ mode }: AuthEntryPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const copy = copyByMode[mode];
+  const session = useCreatorSession({ enabled: mode !== "forgot-password" });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -414,53 +350,28 @@ export function AuthEntryPage({ mode }: AuthEntryPageProps) {
   const isLogin = mode === "login";
   const isSignup = mode === "signup";
   const isForgotPassword = mode === "forgot-password";
+  const secondaryHref = isForgotPassword ? loginHref : isLogin ? signupHref : loginHref;
+  const secondaryClassName = isLogin
+    ? "border-[#2563eb] bg-white text-[#2563eb] hover:bg-[#f5f9ff]"
+    : "border-black/[0.1] bg-white text-[#101522] hover:bg-[#f7f9fc]";
+  const secondaryStyle = isLogin
+    ? { borderColor: "#2563eb", color: "#2563eb", backgroundColor: "#ffffff" }
+    : { borderColor: "rgba(16,21,34,0.1)", color: "#101522", backgroundColor: "#ffffff" };
 
   useEffect(() => {
-    if (mode === "forgot-password") {
+    if (isForgotPassword || session.status === "loading" || session.status === "anonymous" || session.status === "error") {
       return;
     }
 
-    let cancelled = false;
-
-    const loadSession = async () => {
-      try {
-        const response = await fetch("/api/profile/me", {
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-
-        if (response.status === 401) {
-          return;
-        }
-
-        if (!response.ok) {
-          return;
-        }
-
-        const payload = (await response.json()) as AuthPayload;
-        if (cancelled || payload.authenticated !== true || !payload.user?.id) {
-          return;
-        }
-
-        router.replace(payload.profile?.onboardingCompletedAt ? nextPath ?? "/profile" : "/onboarding");
-      } catch {
-        // Ignore session preload errors and let the user use the form normally.
-      }
-    };
-
-    void loadSession();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, nextPath, router]);
+    router.replace(session.status === "authenticated_ready" ? nextPath ?? "/profile" : "/onboarding");
+  }, [isForgotPassword, nextPath, router, session.status]);
 
   const canSubmit = useMemo(() => {
-    if (mode === "forgot-password") {
+    if (isForgotPassword) {
       return email.trim().length > 3;
     }
 
-    if (mode === "login") {
+    if (isLogin) {
       return email.trim().length > 3 && password.trim().length >= 8;
     }
 
@@ -471,58 +382,47 @@ export function AuthEntryPage({ mode }: AuthEntryPageProps) {
       displayName.trim().length > 1 &&
       username.trim().length > 1
     );
-  }, [confirmPassword, displayName, email, mode, password, username]);
-
-  const validationMessage = useMemo(() => {
-    if (mode === "forgot-password") {
-      return "Ajoute une adresse email valide pour continuer.";
-    }
-
-    if (mode === "login") {
-      return "Ajoute ton email et un mot de passe de 8 caracteres minimum.";
-    }
-
-    return "Complete ton email, ton mot de passe, sa confirmation, ton nom visible et ton identifiant.";
-  }, [mode]);
+  }, [confirmPassword, displayName, email, isForgotPassword, isLogin, password, username]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setMessage(null);
+    setErrorMessage(null);
+
     if (!canSubmit) {
-      setErrorMessage(validationMessage);
-      setMessage(null);
+      setErrorMessage(copy.validationMessage);
+      return;
+    }
+
+    if (isSignup && password.trim() !== confirmPassword.trim()) {
+      setErrorMessage("Les mots de passe ne correspondent pas.");
       return;
     }
 
     setBusy(true);
-    setErrorMessage(null);
-    setMessage(null);
 
     try {
-      if (mode === "signup" && password.trim() !== confirmPassword.trim()) {
-        setErrorMessage("Les mots de passe ne correspondent pas.");
-        return;
-      }
-
       const endpoint =
         mode === "signup"
           ? "/api/auth/register"
           : mode === "login"
             ? "/api/auth/login"
             : "/api/auth/forgot-password";
+
       const payload =
         mode === "signup"
           ? {
-              email,
+              email: email.trim(),
               password,
-              displayName,
-              username,
+              displayName: displayName.trim(),
+              username: username.trim(),
             }
           : mode === "login"
             ? {
-                email,
+                email: email.trim(),
                 password,
               }
-            : { email };
+            : { email: email.trim() };
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -533,25 +433,17 @@ export function AuthEntryPage({ mode }: AuthEntryPageProps) {
         body: JSON.stringify(payload),
       });
 
-      const responsePayload = (await response.json().catch(() => null)) as AuthPayload | null;
+      const responsePayload = (await response.json().catch(() => null)) as CreatorSessionPayload | null;
       if (!response.ok) {
         throw new Error(responsePayload?.message ?? "Action impossible pour le moment.");
       }
 
-      if (mode === "forgot-password") {
-        setMessage(
-          responsePayload?.message ?? "Si un compte existe, les instructions seront envoyees a cette adresse.",
-        );
+      if (isForgotPassword) {
+        setMessage(responsePayload?.message ?? "Si un compte existe, les instructions seront envoyees a cette adresse.");
         return;
       }
 
-      router.push(
-        mode === "signup"
-          ? "/onboarding"
-          : responsePayload?.profile?.onboardingCompletedAt
-            ? nextPath ?? "/profile"
-            : "/onboarding",
-      );
+      router.push(getAuthRedirectPath(mode, nextPath, responsePayload));
       router.refresh();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Action impossible pour le moment.");
@@ -560,315 +452,111 @@ export function AuthEntryPage({ mode }: AuthEntryPageProps) {
     }
   };
 
-  if (isLogin || isSignup) {
-    return (
-      <main className="min-h-screen bg-white text-[#101522]">
-        <div className="mx-auto flex min-h-screen w-full max-w-[1540px] flex-col lg:flex-row">
-          <AuthPortalShowcaseHype />
-
-          <section className="flex w-full items-center justify-center px-6 py-10 sm:px-10 lg:w-[560px] lg:px-14 xl:w-[600px]">
-            <div className="w-full max-w-[560px]">
-              <div className="flex justify-center lg:hidden">
-                <Image
-                  src="/figma-assets/pictomag-logo.svg"
-                  alt="Pictomag"
-                  width={626}
-                  height={167}
-                  priority
-                  className="h-[52px] w-auto"
-                />
-              </div>
-
-              <section className="mx-auto mt-12 w-full max-w-[560px] lg:mt-0">
-                <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[#101522] sm:text-[31px]">
-                  {isLogin ? "Se connecter a Pictomag" : "Creer ton compte"}
-                </h1>
-                {nextPath ? (
-                  <p className="mt-3 text-[13px] font-medium text-[#2563eb]">Connexion requise pour continuer.</p>
-                ) : null}
-
-                <form className="mt-10 space-y-4" onSubmit={handleSubmit}>
-                  <input
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    type="email"
-                    placeholder="toi@pictomag.com"
-                    className="h-14 w-full rounded-[18px] border border-black/[0.14] bg-white px-5 text-[17px] text-[#101522] outline-none transition placeholder:text-[#8b97aa] focus:border-[#101522]"
-                  />
-
-                  <input
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    type="password"
-                    placeholder="8 caracteres minimum"
-                    className="h-14 w-full rounded-[18px] border border-black/[0.08] bg-white px-5 text-[17px] text-[#101522] outline-none transition placeholder:text-[#8b97aa] focus:border-[#101522]"
-                  />
-
-                  {isSignup ? (
-                    <>
-                      <input
-                        value={confirmPassword}
-                        onChange={(event) => setConfirmPassword(event.target.value)}
-                        type="password"
-                        placeholder="Repete le mot de passe"
-                        className="h-14 w-full rounded-[18px] border border-black/[0.08] bg-white px-5 text-[17px] text-[#101522] outline-none transition placeholder:text-[#8b97aa] focus:border-[#101522]"
-                      />
-
-                      <input
-                        value={displayName}
-                        onChange={(event) => setDisplayName(event.target.value)}
-                        type="text"
-                        placeholder="Axel Belujon"
-                        className="h-14 w-full rounded-[18px] border border-black/[0.08] bg-white px-5 text-[17px] text-[#101522] outline-none transition placeholder:text-[#8b97aa] focus:border-[#101522]"
-                      />
-
-                      <input
-                        value={username}
-                        onChange={(event) => setUsername(event.target.value)}
-                        type="text"
-                        placeholder="axelbelujon"
-                        className="h-14 w-full rounded-[18px] border border-black/[0.08] bg-white px-5 text-[17px] text-[#101522] outline-none transition placeholder:text-[#8b97aa] focus:border-[#101522]"
-                      />
-                    </>
-                  ) : null}
-
-                  {errorMessage ? (
-                    <p className="rounded-[18px] bg-[#fff2f5] px-4 py-3 text-[13px] font-medium text-[#d21d49]">{errorMessage}</p>
-                  ) : null}
-
-                  <button
-                    type="submit"
-                    disabled={busy}
-                    aria-disabled={!canSubmit || busy}
-                    className="h-14 w-full rounded-full text-[16px] font-semibold text-white transition disabled:cursor-not-allowed"
-                    style={{
-                      backgroundColor: canSubmit && !busy ? "#8fc2ff" : "#b8d7ff",
-                      color: "#ffffff",
-                    }}
-                  >
-                    {busy ? "Chargement..." : copy.submit}
-                  </button>
-
-                  {!canSubmit ? (
-                    <p className="text-[13px] leading-6 text-[#8b97aa]">{validationMessage}</p>
-                  ) : null}
-                </form>
-
-                {isLogin ? (
-                  <div className="mt-6 text-center">
-                    <Link href="/forgot-password" className="text-[16px] font-medium text-[#101522] transition hover:text-[#2563eb]">
-                      Mot de passe oublie ?
-                    </Link>
-                  </div>
-                ) : null}
-
-                <div className="mt-10">
-                  {isSignup ? (
-                    <>
-                      <p className="mb-4 text-center text-[16px] font-semibold text-[#101522]">Tu as deja un compte ?</p>
-                      <Link
-                        href={loginHref}
-                        className="inline-flex h-14 w-full items-center justify-center rounded-full border border-black/[0.1] bg-white px-6 text-[17px] font-semibold text-[#101522] transition hover:bg-[#f7f9fc]"
-                        style={{ borderColor: "rgba(16,21,34,0.1)", color: "#101522", backgroundColor: "#ffffff" }}
-                      >
-                        Se connecter
-                      </Link>
-                    </>
-                  ) : (
-                    <Link
-                      href={signupHref}
-                      className="inline-flex h-14 w-full items-center justify-center rounded-full border border-[#2563eb] bg-white px-6 text-[17px] font-semibold text-[#2563eb] transition hover:bg-[#f5f9ff]"
-                      style={{ borderColor: "#2563eb", color: "#2563eb", backgroundColor: "#ffffff" }}
-                    >
-                      Creer un nouveau compte
-                    </Link>
-                  )}
-                </div>
-              </section>
-            </div>
-          </section>
-        </div>
-      </main>
-    );
-  }
+  const submitClassName =
+    copy.submitTone === "accent"
+      ? "bg-[#8fc2ff] text-white hover:bg-[#7ab6ff]"
+      : "bg-[#101522] text-white hover:bg-[#1b2433]";
+  const submitStyle =
+    copy.submitTone === "accent"
+      ? {
+          backgroundColor: canSubmit && !busy ? "#8fc2ff" : "#b8d7ff",
+          color: "#ffffff",
+        }
+      : {
+          backgroundColor: canSubmit && !busy ? "#101522" : "#7e8896",
+          color: "#ffffff",
+        };
 
   return (
     <main className="min-h-screen bg-white text-[#101522]">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1540px] flex-col lg:flex-row">
-        <AuthPortalShowcaseHype />
+      <div className="mx-auto min-h-screen max-w-[1540px] lg:grid lg:grid-cols-[minmax(0,1fr)_560px] xl:grid-cols-[minmax(0,1fr)_600px]">
+        <AuthPortalShowcase />
 
-        <section className="relative flex w-full shrink-0 items-center px-6 py-10 sm:px-10 lg:w-[520px] lg:px-14">
-          <div className="w-full max-w-[390px]">
-            <div className="lg:hidden">
+        <section className="flex min-h-screen items-center justify-center px-6 py-10 sm:px-10 lg:px-14">
+          <div className="w-full max-w-[440px]">
+            <div className="flex justify-center lg:hidden">
               <Image
                 src="/figma-assets/pictomag-logo.svg"
                 alt="Pictomag"
                 width={626}
                 height={167}
                 priority
-                className="h-[34px] w-auto"
+                className="h-[48px] w-auto"
               />
             </div>
 
-            <h1 className="mt-10 whitespace-pre-line text-[56px] font-semibold leading-[0.9] tracking-[-0.08em] text-[#101522] sm:text-[80px]">
-              {copy.heroTitle}
-            </h1>
-            {copy.heroBody ? <p className="mt-4 max-w-[320px] text-[15px] leading-7 text-[#637488]">{copy.heroBody}</p> : null}
+            <div className="mt-10 lg:mt-0">
+              <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-[#8ea2bc]">{copy.eyebrow}</p>
+              <h1 className="mt-4 text-[30px] font-semibold tracking-[-0.05em] text-[#101522] sm:text-[34px]">{copy.title}</h1>
+              {nextPath ? (
+                <p className="mt-3 text-[13px] font-medium text-[#2563eb]">Connecte-toi pour ouvrir ce contenu.</p>
+              ) : null}
+            </div>
 
-            {nextPath ? (
-              <p className="mt-5 text-[13px] font-semibold text-[#2563eb]">
-                Connexion requise pour ouvrir ce contenu. On te renvoie juste apres.
-              </p>
-            ) : null}
+            <form className="mt-10 space-y-4" onSubmit={handleSubmit}>
+              <AuthField value={email} onChange={setEmail} type="email" placeholder="toi@pictomag.com" />
+
+              {!isForgotPassword ? (
+                <AuthField value={password} onChange={setPassword} type="password" placeholder="8 caracteres minimum" />
+              ) : null}
+
+              {isSignup ? (
+                <>
+                  <AuthField value={confirmPassword} onChange={setConfirmPassword} type="password" placeholder="Repete le mot de passe" />
+                  <AuthField value={displayName} onChange={setDisplayName} type="text" placeholder="Axel Belujon" />
+                  <AuthField
+                    value={username}
+                    onChange={(value) => setUsername(value.replace(/\s+/g, "").toLowerCase())}
+                    type="text"
+                    placeholder="axelbelujon"
+                  />
+                </>
+              ) : null}
+
+              {errorMessage ? (
+                <p className="rounded-[18px] bg-[#fff2f5] px-4 py-3 text-[13px] font-medium text-[#d21d49]">{errorMessage}</p>
+              ) : null}
+
+              {message ? (
+                <p className="rounded-[18px] bg-[#eef4ff] px-4 py-3 text-[13px] font-medium text-[#305dff]">{message}</p>
+              ) : null}
+
+              <button
+                type="submit"
+                disabled={busy}
+                aria-disabled={!canSubmit || busy}
+                className={`h-14 w-full rounded-full text-[16px] font-semibold transition disabled:cursor-not-allowed ${submitClassName}`}
+                style={submitStyle}
+              >
+                {busy ? "Chargement..." : copy.submit}
+              </button>
+
+            </form>
 
             {isLogin ? (
-              <div className="mt-16">
-                <h2 className="text-[34px] font-semibold tracking-[-0.06em] text-[#101522]">{copy.primaryTitle}</h2>
-                <Link
-                  href={signupHref}
-                  className="mt-6 inline-flex h-14 w-full items-center justify-center rounded-full bg-[#101522] text-[17px] font-semibold text-white transition hover:bg-[#1b2433]"
-                  style={{ backgroundColor: "#101522", color: "#ffffff" }}
-                >
-                  Creer un compte
+              <div className="mt-6 text-center">
+                <Link href="/forgot-password" className="text-[16px] font-medium text-[#101522] transition hover:text-[#2563eb]">
+                  Mot de passe oublie ?
                 </Link>
-                <p className="mt-4 max-w-[320px] text-[12px] leading-6 text-[#97a3b6]">
-                  En creant un compte, tu acceptes nos conditions d&apos;utilisation et notre politique de confidentialite.
-                </p>
               </div>
             ) : null}
 
-            <div className={isLogin ? "mt-16" : "mt-16"}>
-              {isLogin ? (
-                <div className="flex items-center gap-4 text-[14px] text-[#8d99ab]">
-                  <div className="h-px flex-1 bg-black/[0.08]" />
-                  <span>ou</span>
-                  <div className="h-px flex-1 bg-black/[0.08]" />
-                </div>
-              ) : null}
-
-              <h2 className={`font-semibold tracking-[-0.05em] text-[#101522] ${isLogin ? "mt-10 text-[32px]" : "text-[36px]"}`}>
-                {isLogin ? copy.secondaryTitle : copy.primaryTitle}
-              </h2>
-
-              <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
-                <div className="space-y-2">
-                  <label className="block text-[13px] font-medium text-[#101522]">Email</label>
-                  <input
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    type="email"
-                    placeholder="toi@pictomag.com"
-                    className="h-14 w-full rounded-[18px] border border-black/[0.06] bg-white px-5 text-[15px] text-[#101522] outline-none transition placeholder:text-[#9ba8ba] focus:border-[#a9c5ff] focus:ring-4 focus:ring-[#2563eb]/[0.08]"
-                  />
-                </div>
-
-                {!isForgotPassword ? (
-                  <div className="space-y-2">
-                    <label className="block text-[13px] font-medium text-[#101522]">Mot de passe</label>
-                    <input
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      type="password"
-                      placeholder="8 caracteres minimum"
-                      className="h-14 w-full rounded-[18px] border border-black/[0.06] bg-white px-5 text-[15px] text-[#101522] outline-none transition placeholder:text-[#9ba8ba] focus:border-[#a9c5ff] focus:ring-4 focus:ring-[#2563eb]/[0.08]"
-                    />
-                  </div>
-                ) : null}
-
-                {isSignup ? (
-                  <>
-                    <div className="space-y-2">
-                      <label className="block text-[13px] font-medium text-[#101522]">Confirmer le mot de passe</label>
-                      <input
-                        value={confirmPassword}
-                        onChange={(event) => setConfirmPassword(event.target.value)}
-                        type="password"
-                        placeholder="Repete le mot de passe"
-                        className="h-14 w-full rounded-[18px] border border-black/[0.06] bg-white px-5 text-[15px] text-[#101522] outline-none transition placeholder:text-[#9ba8ba] focus:border-[#a9c5ff] focus:ring-4 focus:ring-[#2563eb]/[0.08]"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="block text-[13px] font-medium text-[#101522]">Nom affiche</label>
-                      <input
-                        value={displayName}
-                        onChange={(event) => setDisplayName(event.target.value)}
-                        type="text"
-                        placeholder="Axel Belujon"
-                        className="h-14 w-full rounded-[18px] border border-black/[0.06] bg-white px-5 text-[15px] text-[#101522] outline-none transition placeholder:text-[#9ba8ba] focus:border-[#a9c5ff] focus:ring-4 focus:ring-[#2563eb]/[0.08]"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="block text-[13px] font-medium text-[#101522]">Nom utilisateur</label>
-                      <input
-                        value={username}
-                        onChange={(event) => setUsername(event.target.value)}
-                        type="text"
-                        placeholder="axelbelujon"
-                        className="h-14 w-full rounded-[18px] border border-black/[0.06] bg-white px-5 text-[15px] text-[#101522] outline-none transition placeholder:text-[#9ba8ba] focus:border-[#a9c5ff] focus:ring-4 focus:ring-[#2563eb]/[0.08]"
-                      />
-                    </div>
-                  </>
-                ) : null}
-
-                {isLogin ? (
-                  <div className="flex justify-end pt-1">
-                    <Link href="/forgot-password" className="text-[13px] font-medium text-[#2563eb] transition hover:text-[#1d4fd8]">
-                      Mot de passe oublie ?
-                    </Link>
-                  </div>
-                ) : null}
-
-                {errorMessage ? (
-                  <p className="rounded-[18px] bg-[#fff2f5] px-4 py-3 text-[13px] font-medium text-[#d21d49]">{errorMessage}</p>
-                ) : null}
-                {message ? (
-                  <p className="rounded-[18px] bg-[#eef4ff] px-4 py-3 text-[13px] font-medium text-[#305dff]">{message}</p>
-                ) : null}
-
-                <button
-                  type="submit"
-                  disabled={!canSubmit || busy}
-                  className={`h-14 w-full rounded-full text-[16px] font-semibold transition ${
-                    isLogin
-                      ? "border border-black/[0.08] bg-white text-[#101522] hover:bg-[#f7f9fc] disabled:bg-[#f4f6f9] disabled:text-[#98a5b7]"
-                      : "bg-[#101522] hover:bg-[#1b2433] disabled:bg-[#7e8896]"
-                  } disabled:cursor-not-allowed`}
-                  style={
-                    isLogin
-                      ? {
-                          backgroundColor: "#ffffff",
-                          color: canSubmit && !busy ? "#101522" : "#98a5b7",
-                          borderColor: "rgba(16,21,34,0.08)",
-                        }
-                      : {
-                          backgroundColor: canSubmit && !busy ? "#101522" : "#7e8896",
-                          color: "#ffffff",
-                        }
-                  }
-                >
-                  {busy ? "Chargement..." : copy.submit}
-                </button>
-              </form>
-
-              {!isLogin ? (
-                <div className="mt-8">
-                  <p className="text-[15px] font-medium text-[#101522]">{copy.secondaryTitle}</p>
-                  <Link
-                    href={loginHref}
-                    className="mt-4 inline-flex h-14 w-full items-center justify-center rounded-full border border-black/[0.08] bg-white text-[16px] font-semibold text-[#101522] transition hover:bg-[#f7f9fc]"
-                    style={{ backgroundColor: "#ffffff", color: "#101522", borderColor: "rgba(16,21,34,0.08)" }}
-                  >
-                    Se connecter
-                  </Link>
-                </div>
-              ) : null}
-
-              {!isLogin ? (
-                <p className="mt-8 text-[12px] leading-6 text-[#97a3b6]">
-                  En continuant, tu acceptes nos conditions d&apos;utilisation et notre politique de confidentialite.
-                </p>
-              ) : null}
+            <div className="mt-10">
+              <p className="mb-4 text-center text-[16px] font-semibold text-[#101522]">{copy.secondaryPrompt}</p>
+              <Link
+                href={secondaryHref}
+                className={`inline-flex h-14 w-full items-center justify-center rounded-full border px-6 text-[17px] font-semibold transition ${secondaryClassName}`}
+                style={secondaryStyle}
+              >
+                {copy.secondaryCta}
+              </Link>
             </div>
+
+            {isSignup ? (
+              <p className="mt-8 text-[12px] leading-6 text-[#97a3b6]">
+                En continuant, tu acceptes nos conditions d&apos;utilisation et notre politique de confidentialite.
+              </p>
+            ) : null}
           </div>
         </section>
       </div>

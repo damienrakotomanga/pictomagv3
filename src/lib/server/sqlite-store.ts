@@ -81,6 +81,24 @@ export type StoredPostMediaRow = {
   created_at: number;
 };
 
+export type StoredPostCommentRow = {
+  id: number;
+  post_id: number;
+  user_id: string;
+  body: string;
+  created_at: number;
+  updated_at: number;
+};
+
+export type StoredPostTimeLikeRow = {
+  post_id: number;
+  user_id: string;
+  active_ms: number;
+  max_progress: number;
+  created_at: number;
+  updated_at: number;
+};
+
 export type StoredGigStatus = "active" | "pending" | "modification" | "draft" | "denied" | "paused";
 
 export type StoredGigRow = {
@@ -545,6 +563,25 @@ function ensureDatabase() {
       created_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS post_comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      post_id INTEGER NOT NULL,
+      user_id TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS post_timelikes (
+      post_id INTEGER NOT NULL,
+      user_id TEXT NOT NULL,
+      active_ms INTEGER NOT NULL DEFAULT 0,
+      max_progress REAL NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (post_id, user_id)
+    );
+
     CREATE TABLE IF NOT EXISTS gigs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       seller_user_id TEXT NOT NULL,
@@ -652,6 +689,8 @@ function ensureDatabase() {
       created_at INTEGER NOT NULL
     );
 
+    CREATE INDEX IF NOT EXISTS idx_post_comments_post_id ON post_comments (post_id, created_at DESC, id DESC);
+
     CREATE TABLE IF NOT EXISTS user_sessions (
       session_id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -745,10 +784,16 @@ function ensureDatabase() {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_orders_source ON orders (source, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_orders_live_session_event_id ON orders (live_session_event_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_post_timelikes_user_updated ON post_timelikes (user_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_post_timelikes_post_updated ON post_timelikes (post_id, updated_at DESC);
   `);
 
   database = db;
+  // Phase 2 keeps a small bootstrap dataset for posts and comments so the UI never boots on an empty shell.
+  // These seeds are provisional only and do not replace real user-generated data or a future migration off bootstrap content.
   ensureSeedPosts();
+  ensureSeedPostComments();
+  normalizeSeedPostCommentCounts();
   ensureSeedMarketplace();
   ensureSeedLiveShopping();
   return db;
@@ -1009,6 +1054,60 @@ function asStoredPostMediaRow(value: unknown): StoredPostMediaRow | null {
     alt_text: row.alt_text,
     position: row.position,
     created_at: row.created_at,
+  };
+}
+
+function asStoredPostCommentRow(value: unknown): StoredPostCommentRow | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.id !== "number" ||
+    typeof row.post_id !== "number" ||
+    typeof row.user_id !== "string" ||
+    typeof row.body !== "string" ||
+    typeof row.created_at !== "number" ||
+    typeof row.updated_at !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    post_id: row.post_id,
+    user_id: row.user_id,
+    body: row.body,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function asStoredPostTimeLikeRow(value: unknown): StoredPostTimeLikeRow | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.post_id !== "number" ||
+    typeof row.user_id !== "string" ||
+    typeof row.active_ms !== "number" ||
+    typeof row.max_progress !== "number" ||
+    typeof row.created_at !== "number" ||
+    typeof row.updated_at !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    post_id: row.post_id,
+    user_id: row.user_id,
+    active_ms: row.active_ms,
+    max_progress: row.max_progress,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
   };
 }
 
@@ -1996,6 +2095,302 @@ function ensureSeedPosts() {
   }
 }
 
+function ensureSeedPostComments() {
+  const db = ensureDatabase();
+  const minute = 60 * 1000;
+  const seedComments = [
+    {
+      postId: 1,
+      userId: "pictomag.news",
+      body: "Le riff d'ouverture accroche tout de suite. On comprend direct pourquoi la foule reste jusqu'au solo.",
+      offsetMinutes: 2,
+    },
+    {
+      postId: 1,
+      userId: "studio.heat",
+      body: "Le cadre reste propre meme quand la scene sature. Belle tenue du plan vertical.",
+      offsetMinutes: 5,
+    },
+    {
+      postId: 2,
+      userId: "world.of.tcgp",
+      body: "Le passage bleu nuit vers les lumieres de ville donne un vrai sentiment de mouvement.",
+      offsetMinutes: 3,
+    },
+    {
+      postId: 2,
+      userId: "neondriver",
+      body: "Le son et la vitesse du cut marchent ensemble, sans surcharger le reel.",
+      offsetMinutes: 7,
+    },
+    {
+      postId: 3,
+      userId: "northlight",
+      body: "La photo tient bien parce que la perspective reste tres lisible des le premier regard.",
+      offsetMinutes: 4,
+    },
+    {
+      postId: 3,
+      userId: "studio.heat",
+      body: "Le cadrage est simple mais il donne une vraie respiration au reel photo.",
+      offsetMinutes: 8,
+    },
+    {
+      postId: 4,
+      userId: "pictomag.news",
+      body: "Le framing produit est tres propre. On comprend l'intention sans perdre le rythme.",
+      offsetMinutes: 3,
+    },
+    {
+      postId: 4,
+      userId: "chrome-lab",
+      body: "Le contraste texte plus motion marche bien ici, surtout dans un contexte feed.",
+      offsetMinutes: 9,
+    },
+    {
+      postId: 5,
+      userId: "world.of.tcgp",
+      body: "Les noirs restent elegants sans ecraser les details. C'est un bon niveau de finition.",
+      offsetMinutes: 4,
+    },
+    {
+      postId: 5,
+      userId: "aurora-labs",
+      body: "Le cut garde une vraie profondeur. On sent une intention editoriale, pas juste une boucle video.",
+      offsetMinutes: 10,
+    },
+    {
+      postId: 6,
+      userId: "northlight",
+      body: "Le mouvement brillant reste lisible, sans tomber dans l'effet gratuit.",
+      offsetMinutes: 4,
+    },
+    {
+      postId: 6,
+      userId: "neondriver",
+      body: "Le rythme est fort, surtout quand on le regarde dans une sequence de shorts.",
+      offsetMinutes: 11,
+    },
+    {
+      postId: 101,
+      userId: "pictomag.news",
+      body: "Le format lettre tient enfin debout. On peut lire une idee sans la noyer dans un faux bruit social.",
+      offsetMinutes: 4,
+    },
+    {
+      postId: 101,
+      userId: "studio.heat",
+      body: "Le TimeLike devient lisible ici parce que le texte respire vraiment.",
+      offsetMinutes: 9,
+    },
+    {
+      postId: 102,
+      userId: "aurora-labs",
+      body: "Le hero visuel plus les details rapproches rendent la galerie beaucoup plus premium.",
+      offsetMinutes: 6,
+    },
+    {
+      postId: 102,
+      userId: "chrome-lab",
+      body: "Le carrousel est simple, mais il garde une vraie intention editoriale.",
+      offsetMinutes: 11,
+    },
+    {
+      postId: 103,
+      userId: "northlight",
+      body: "Bonne preuve qu'une video peut marcher dans le feed classique si le contexte est clair.",
+      offsetMinutes: 8,
+    },
+    {
+      postId: 103,
+      userId: "pictomag.news",
+      body: "Le texte au-dessus du player donne une vraie raison de rester, pas juste de lancer la lecture.",
+      offsetMinutes: 13,
+    },
+    {
+      postId: 104,
+      userId: "aurora-labs",
+      body: "Le point sur le signal d'attention est clair, sans surjouer la theorie.",
+      offsetMinutes: 5,
+    },
+    {
+      postId: 104,
+      userId: "northlight",
+      body: "Le format note marche bien quand il va droit au but comme ici.",
+      offsetMinutes: 11,
+    },
+    {
+      postId: 105,
+      userId: "studio.heat",
+      body: "L'album garde une bonne respiration. On sent la selection, pas juste un dump d'images.",
+      offsetMinutes: 5,
+    },
+    {
+      postId: 105,
+      userId: "aurora-labs",
+      body: "Le rythme visuel est propre, surtout avec la premiere image plus forte.",
+      offsetMinutes: 12,
+    },
+    {
+      postId: 106,
+      userId: "chrome-lab",
+      body: "La selection couleur reste coherente du debut a la fin. Bon niveau de tenue visuelle.",
+      offsetMinutes: 6,
+    },
+    {
+      postId: 106,
+      userId: "pictomag.news",
+      body: "L'onglet album commence vraiment a ressembler a une vraie destination produit.",
+      offsetMinutes: 14,
+    },
+    {
+      postId: 107,
+      userId: "world.of.tcgp",
+      body: "Le plan route fonctionne bien en version courte. Ca reste lisible sans perdre l'energie.",
+      offsetMinutes: 4,
+    },
+    {
+      postId: 107,
+      userId: "neondriver",
+      body: "La boucle son colle bien au montage, ca aide vraiment a retenir l'attention.",
+      offsetMinutes: 10,
+    },
+    {
+      postId: 108,
+      userId: "studio.heat",
+      body: "Le propos est simple et juste. C'est exactement le type de note qu'on veut retrouver plus tard.",
+      offsetMinutes: 5,
+    },
+    {
+      postId: 108,
+      userId: "northlight",
+      body: "Le profil lit deja mieux avec ce genre de note courte mais utile.",
+      offsetMinutes: 12,
+    },
+  ] as const;
+
+  const targetPostIds = Array.from(new Set(seedComments.map((comment) => comment.postId))).sort((a, b) => a - b);
+  const targetPostList = targetPostIds.join(", ");
+
+  const posts = db
+    .prepare(`
+      SELECT id, published_at
+      FROM posts
+      WHERE id IN (${targetPostList})
+    `)
+    .all() as Array<{ id?: unknown; published_at?: unknown }>;
+
+  const publishedAtByPostId = new Map<number, number>();
+
+  for (const row of posts) {
+    if (typeof row.id === "number" && typeof row.published_at === "number") {
+      publishedAtByPostId.set(row.id, row.published_at);
+    }
+  }
+
+  const existingCounts = db
+    .prepare(`
+      SELECT post_id, COUNT(*) AS count
+      FROM post_comments
+      WHERE post_id IN (${targetPostList})
+      GROUP BY post_id
+    `)
+    .all() as Array<{ post_id?: unknown; count?: unknown }>;
+
+  const existingCountByPostId = new Map<number, number>();
+
+  for (const row of existingCounts) {
+    if (typeof row.post_id === "number" && typeof row.count === "number") {
+      existingCountByPostId.set(row.post_id, row.count);
+    }
+  }
+
+  const insertCommentStatement = db.prepare(`
+    INSERT INTO post_comments (
+      post_id,
+      user_id,
+      body,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?)
+  `);
+
+  db.exec("BEGIN IMMEDIATE");
+
+  try {
+    db.prepare(`UPDATE post_comments SET user_id = 'aurora-labs' WHERE user_id = 'aurora.labs'`).run();
+    db.prepare(`UPDATE post_comments SET user_id = 'chrome-lab' WHERE user_id = 'chrome.lab'`).run();
+    db.prepare(`UPDATE post_comments SET user_id = 'northlight' WHERE user_id = 'clip.archive'`).run();
+    db.prepare(`UPDATE post_comments SET user_id = 'neondriver' WHERE user_id = 'motionpilot'`).run();
+
+    for (const postId of targetPostIds) {
+      if ((existingCountByPostId.get(postId) ?? 0) > 0) {
+        continue;
+      }
+
+      const publishedAt = publishedAtByPostId.get(postId);
+      if (!publishedAt) {
+        continue;
+      }
+
+      for (const comment of seedComments.filter((entry) => entry.postId === postId)) {
+        const createdAt = publishedAt + comment.offsetMinutes * minute;
+        insertCommentStatement.run(
+          comment.postId,
+          comment.userId,
+          comment.body,
+          createdAt,
+          createdAt,
+        );
+      }
+    }
+
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function normalizeSeedPostCommentCounts() {
+  const db = ensureDatabase();
+  const targetPostIds = [1, 2, 3, 4, 5, 6, 101, 102, 103, 104, 105, 106, 107, 108] as const;
+  const targetPostList = targetPostIds.join(", ");
+  const counts = db
+    .prepare(`
+      SELECT post_id, COUNT(*) AS count
+      FROM post_comments
+      WHERE post_id IN (${targetPostList})
+      GROUP BY post_id
+    `)
+    .all() as Array<{ post_id?: unknown; count?: unknown }>;
+
+  const countByPostId = new Map<number, number>();
+  for (const row of counts) {
+    if (typeof row.post_id === "number" && typeof row.count === "number") {
+      countByPostId.set(row.post_id, row.count);
+    }
+  }
+
+  const updateStatement = db.prepare(`
+    UPDATE posts
+    SET comment_count = ?
+    WHERE id = ?
+  `);
+
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    for (const postId of targetPostIds) {
+      updateStatement.run(countByPostId.get(postId) ?? 0, postId);
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
 function ensureSeedMarketplace() {
   const db = ensureDatabase();
   const existingGigCountRow = db.prepare("SELECT COUNT(*) as count FROM gigs").get() as { count?: unknown } | undefined;
@@ -2531,12 +2926,304 @@ export function listPostMediaRowsByPostIds(postIds: number[]) {
   return rows.map((row) => asStoredPostMediaRow(row)).filter((row): row is StoredPostMediaRow => row !== null);
 }
 
+export function listPostCommentRowsByPostId({
+  postId,
+  limit = 120,
+}: {
+  postId: number;
+  limit?: number;
+}) {
+  const db = ensureDatabase();
+  const normalizedLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
+  const rows = db
+    .prepare(`
+      SELECT
+        id,
+        post_id,
+        user_id,
+        body,
+        created_at,
+        updated_at
+      FROM post_comments
+      WHERE post_id = ?
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+    `)
+    .all(postId, normalizedLimit);
+
+  return rows.map((row) => asStoredPostCommentRow(row)).filter((row): row is StoredPostCommentRow => row !== null);
+}
+
 export function countPostsByUserId(userId: string) {
   const db = ensureDatabase();
   const row = db
     .prepare("SELECT COUNT(*) as count FROM posts WHERE user_id = ?")
     .get(userId) as { count?: unknown } | undefined;
   return typeof row?.count === "number" ? row.count : 0;
+}
+
+export function getPostTimeLikeRow({
+  postId,
+  userId,
+}: {
+  postId: number;
+  userId: string;
+}) {
+  const db = ensureDatabase();
+  const row = db
+    .prepare(`
+      SELECT
+        post_id,
+        user_id,
+        active_ms,
+        max_progress,
+        created_at,
+        updated_at
+      FROM post_timelikes
+      WHERE post_id = ? AND user_id = ?
+    `)
+    .get(postId, userId);
+
+  return asStoredPostTimeLikeRow(row);
+}
+
+export function listPostTimeLikeRowsByPostIdsForUser({
+  postIds,
+  userId,
+}: {
+  postIds: number[];
+  userId: string;
+}) {
+  if (postIds.length === 0) {
+    return [];
+  }
+
+  const db = ensureDatabase();
+  const placeholders = postIds.map(() => "?").join(", ");
+  const rows = db
+    .prepare(`
+      SELECT
+        post_id,
+        user_id,
+        active_ms,
+        max_progress,
+        created_at,
+        updated_at
+      FROM post_timelikes
+      WHERE user_id = ? AND post_id IN (${placeholders})
+    `)
+    .all(userId, ...postIds);
+
+  return rows.map((row) => asStoredPostTimeLikeRow(row)).filter((row): row is StoredPostTimeLikeRow => row !== null);
+}
+
+export function createOrUpdatePostTimeLikeRow({
+  postId,
+  userId,
+  activeMs,
+  maxProgress,
+}: {
+  postId: number;
+  userId: string;
+  activeMs: number;
+  maxProgress: number;
+}) {
+  const db = ensureDatabase();
+  const existingPost = getPostById(postId);
+
+  if (!existingPost) {
+    return null;
+  }
+
+  const normalizedActiveMs = Math.max(0, Math.trunc(activeMs));
+  const normalizedMaxProgress = Math.max(0, Math.min(1, maxProgress));
+  const now = Date.now();
+
+  db.exec("BEGIN IMMEDIATE");
+
+  try {
+    const existingRow = getPostTimeLikeRow({ postId, userId });
+
+    if (existingRow) {
+      const nextActiveMs = Math.max(existingRow.active_ms, normalizedActiveMs);
+      const nextMaxProgress = Math.max(existingRow.max_progress, normalizedMaxProgress);
+
+      db.prepare(`
+        UPDATE post_timelikes
+        SET active_ms = ?, max_progress = ?, updated_at = ?
+        WHERE post_id = ? AND user_id = ?
+      `).run(nextActiveMs, nextMaxProgress, now, postId, userId);
+
+      const row = getPostTimeLikeRow({ postId, userId });
+      const countRow = db
+        .prepare("SELECT timelike_count FROM posts WHERE id = ?")
+        .get(postId) as { timelike_count?: unknown } | undefined;
+
+      db.exec("COMMIT");
+      return {
+        row,
+        timelikeCount: typeof countRow?.timelike_count === "number" ? countRow.timelike_count : existingPost.timelike_count,
+        created: false,
+      };
+    }
+
+    db.prepare(`
+      INSERT INTO post_timelikes (
+        post_id,
+        user_id,
+        active_ms,
+        max_progress,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(postId, userId, normalizedActiveMs, normalizedMaxProgress, now, now);
+
+    db.prepare(`
+      UPDATE posts
+      SET timelike_count = timelike_count + 1, updated_at = ?
+      WHERE id = ?
+    `).run(now, postId);
+
+    const row = getPostTimeLikeRow({ postId, userId });
+    const countRow = db
+      .prepare("SELECT timelike_count FROM posts WHERE id = ?")
+      .get(postId) as { timelike_count?: unknown } | undefined;
+
+    db.exec("COMMIT");
+    return {
+      row,
+      timelikeCount: typeof countRow?.timelike_count === "number" ? countRow.timelike_count : existingPost.timelike_count + 1,
+      created: true,
+    };
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+export function removePostTimeLikeRow({
+  postId,
+  userId,
+}: {
+  postId: number;
+  userId: string;
+}) {
+  const db = ensureDatabase();
+  const existingPost = getPostById(postId);
+
+  if (!existingPost) {
+    return null;
+  }
+
+  db.exec("BEGIN IMMEDIATE");
+
+  try {
+    const existingRow = getPostTimeLikeRow({ postId, userId });
+
+    if (!existingRow) {
+      const countRow = db
+        .prepare("SELECT timelike_count FROM posts WHERE id = ?")
+        .get(postId) as { timelike_count?: unknown } | undefined;
+
+      db.exec("COMMIT");
+      return {
+        removed: false,
+        timelikeCount: typeof countRow?.timelike_count === "number" ? countRow.timelike_count : existingPost.timelike_count,
+      };
+    }
+
+    db.prepare(`
+      DELETE FROM post_timelikes
+      WHERE post_id = ? AND user_id = ?
+    `).run(postId, userId);
+
+    db.prepare(`
+      UPDATE posts
+      SET timelike_count = CASE
+        WHEN timelike_count > 0 THEN timelike_count - 1
+        ELSE 0
+      END,
+      updated_at = ?
+      WHERE id = ?
+    `).run(Date.now(), postId);
+
+    const countRow = db
+      .prepare("SELECT timelike_count FROM posts WHERE id = ?")
+      .get(postId) as { timelike_count?: unknown } | undefined;
+
+    db.exec("COMMIT");
+    return {
+      removed: true,
+      timelikeCount: typeof countRow?.timelike_count === "number" ? countRow.timelike_count : Math.max(0, existingPost.timelike_count - 1),
+    };
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+export function createPostCommentRow({
+  postId,
+  userId,
+  body,
+}: {
+  postId: number;
+  userId: string;
+  body: string;
+}) {
+  const db = ensureDatabase();
+  const existingPost = getPostById(postId);
+  const normalizedBody = body.trim().replace(/\s+/g, " ").slice(0, 500);
+
+  if (!existingPost || normalizedBody.length === 0) {
+    return null;
+  }
+
+  const now = Date.now();
+
+  db.exec("BEGIN IMMEDIATE");
+
+  try {
+    const result = db
+      .prepare(`
+        INSERT INTO post_comments (
+          post_id,
+          user_id,
+          body,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?)
+      `)
+      .run(postId, userId, normalizedBody, now, now) as { lastInsertRowid?: number | bigint };
+
+    db.prepare(`
+      UPDATE posts
+      SET comment_count = comment_count + 1, updated_at = ?
+      WHERE id = ?
+    `).run(now, postId);
+
+    const row = db
+      .prepare(`
+        SELECT
+          id,
+          post_id,
+          user_id,
+          body,
+          created_at,
+          updated_at
+        FROM post_comments
+        WHERE id = ?
+      `)
+      .get(Number(result.lastInsertRowid ?? 0));
+
+    db.exec("COMMIT");
+    return asStoredPostCommentRow(row);
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 export function createPostWithMedia({

@@ -41,7 +41,19 @@ export type PublicPost = {
   updatedAt: number;
   publishedAt: number;
   author: PublicPostAuthor;
+  viewerHasTimeLike: boolean;
+  viewerTimeLikeActiveMs: number | null;
+  viewerTimeLikeMaxProgress: number | null;
   media: PublicPostMedia[];
+};
+
+export type PublicPostComment = {
+  id: number;
+  postId: number;
+  body: string;
+  createdAt: number;
+  updatedAt: number;
+  author: PublicPostAuthor;
 };
 
 export type PublicProfileBundle = {
@@ -66,10 +78,18 @@ export type FeedMediaItem = {
   kind: "video" | "photo";
   src: string;
   author: string;
+  authorUsername: string;
+  authorDisplayName: string;
+  authorAvatar: string;
   title: string;
   music: string;
   duration: string;
   timeLikeCount: number;
+  commentCount: number;
+  shareCount: number;
+  viewerHasTimeLike: boolean;
+  viewerTimeLikeActiveMs: number | null;
+  viewerTimeLikeMaxProgress: number | null;
 };
 
 export type ClassicFeedCardItem = {
@@ -88,6 +108,9 @@ export type ClassicFeedCardItem = {
   timelikeCount: string;
   commentCount: string;
   shareCount: string;
+  viewerHasTimeLike: boolean;
+  viewerTimeLikeActiveMs: number | null;
+  viewerTimeLikeMaxProgress: number | null;
   media?: {
     kind: "image" | "video" | "gallery";
     src?: string;
@@ -98,6 +121,7 @@ export type ClassicFeedCardItem = {
 
 export type ProfileAlbumItem = {
   id: string;
+  postId: number;
   title: string;
   src: string;
   alt: string;
@@ -107,6 +131,7 @@ export type ProfileAlbumItem = {
 
 export type ProfileVideoItem = {
   id: number;
+  postId: number;
   title: string;
   caption: string;
   poster: string;
@@ -150,18 +175,22 @@ export function toFeedMediaItem(post: PublicPost): FeedMediaItem | null {
     kind: primaryMedia.mediaType === "video" ? "video" : "photo",
     src: primaryMedia.src,
     author: post.author.username,
+    authorUsername: post.author.username,
+    authorDisplayName: formatDisplayName(post.author.displayName, post.author.username),
+    authorAvatar: resolveProfileAvatarSrc(post.author.avatarUrl, DEFAULT_AVATAR),
     title: post.title,
     music: post.trackName,
     duration: post.durationLabel,
     timeLikeCount: post.timelikeCount,
+    commentCount: post.commentCount,
+    shareCount: post.shareCount,
+    viewerHasTimeLike: post.viewerHasTimeLike,
+    viewerTimeLikeActiveMs: post.viewerTimeLikeActiveMs,
+    viewerTimeLikeMaxProgress: post.viewerTimeLikeMaxProgress,
   };
 }
 
-export function toClassicFeedCardItem(post: PublicPost): ClassicFeedCardItem | null {
-  if (post.surface !== "classic") {
-    return null;
-  }
-
+export function toPostDisplayCardItem(post: PublicPost): ClassicFeedCardItem {
   const baseItem: ClassicFeedCardItem = {
     id: post.id,
     videoId: post.id,
@@ -192,6 +221,9 @@ export function toClassicFeedCardItem(post: PublicPost): ClassicFeedCardItem | n
     timelikeCount: formatCompactCount(post.timelikeCount),
     commentCount: formatCompactCount(post.commentCount),
     shareCount: formatCompactCount(post.shareCount),
+    viewerHasTimeLike: post.viewerHasTimeLike,
+    viewerTimeLikeActiveMs: post.viewerTimeLikeActiveMs,
+    viewerTimeLikeMaxProgress: post.viewerTimeLikeMaxProgress,
   };
 
   if (post.kind === "gallery") {
@@ -249,6 +281,14 @@ export function toClassicFeedCardItem(post: PublicPost): ClassicFeedCardItem | n
   return baseItem;
 }
 
+export function toClassicFeedCardItem(post: PublicPost): ClassicFeedCardItem | null {
+  if (post.surface !== "classic") {
+    return null;
+  }
+
+  return toPostDisplayCardItem(post);
+}
+
 export function toProfileAlbumItems(posts: PublicPost[]) {
   const albums = new Map<string, ProfileAlbumItem>();
 
@@ -276,6 +316,7 @@ export function toProfileAlbumItems(posts: PublicPost[]) {
     if (!current) {
       albums.set(albumKey, {
         id: `${albumKey}-${post.id}`,
+        postId: post.id,
         title: albumName,
         src: albumImages[0].src,
         alt: albumImages[0].alt,
@@ -300,6 +341,7 @@ export function toProfileVideoItems(posts: PublicPost[]) {
         .sort((left, right) => left.position - right.position)
         .map((media) => ({
           id: media.id,
+          postId: post.id,
           title: post.title,
           caption: post.body,
           poster: media.posterSrc ?? "/figma-assets/photo-feed/photo-grid-3.jpg",

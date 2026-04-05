@@ -5,7 +5,7 @@ import { SiteGlobalHeader } from "@/components/site-global-header";
 
 export const metadata: Metadata = {
   title: "Pictomag",
-  description: "Prototype frontend du feed social video Pictomag",
+  description: "Application sociale video Pictomag",
 };
 
 const poppins = Poppins({

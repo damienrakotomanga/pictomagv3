@@ -5,18 +5,16 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { BadgeCheck, ChevronLeft, Clapperboard, Image as ImageIcon, LayoutList, Link2 } from "lucide-react";
 import { AuthRequiredModal } from "@/components/auth-required-modal";
-import { AnimatedHeaderNav, type HeaderNavItemId } from "@/components/animated-header-nav";
 import { ClassicFeedStream } from "@/components/classic-feed-view";
 import {
   CommentsDrawer,
-  createSeedTimeLikeSnapshot,
-  type MockVideo,
   MoreActionsDrawer,
   ShareDrawer,
-  TimeLikeLeaderboardDrawer,
+  TimeLikeDrawer,
   type TimeLikeSnapshot,
-} from "@/components/feed-page";
-import { SiteAccountMenu } from "@/components/site-account-menu";
+} from "@/components/post-interaction-drawers";
+import { toPostInteractionVideo } from "@/components/post-interaction-video";
+import { usePostInteractionOverlays } from "@/components/use-post-interaction-overlays";
 import { formatDisplayName } from "@/lib/display-name";
 import { resolveProfileAvatarSrc } from "@/lib/profile-avatar";
 import {
@@ -50,43 +48,6 @@ type AuthPromptContent = {
   title: string;
   description: string;
 };
-
-function toDrawerVideo(item: ClassicFeedCardItem): MockVideo | null {
-  if (item.media?.kind === "video" && item.media.src) {
-    return {
-      id: item.videoId,
-      kind: "video",
-      src: item.media.src,
-      author: (item.authorUsername ?? item.handle.replace(/^@/, "")).trim(),
-      title: item.title,
-      music: item.eyebrow ?? "Video",
-      duration: item.duration,
-      timeLikeCount: Number(item.timelikeCount.replace(/\s+/g, "")) || 0,
-    };
-  }
-
-  const imageSrc =
-    item.media?.kind === "image"
-      ? item.media.src
-      : item.media?.kind === "gallery"
-        ? item.media.gallery?.[0] ?? null
-        : null;
-
-  if (!imageSrc) {
-    return null;
-  }
-
-  return {
-    id: item.videoId,
-    kind: "photo",
-    src: imageSrc,
-    author: (item.authorUsername ?? item.handle.replace(/^@/, "")).trim(),
-    title: item.title,
-    music: item.eyebrow ?? "Photo",
-    duration: item.duration,
-    timeLikeCount: Number(item.timelikeCount.replace(/\s+/g, "")) || 0,
-  };
-}
 
 function PublicProfileTabButton({
   active,
@@ -151,11 +112,21 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
   const [authPrompt, setAuthPrompt] = useState<AuthPromptContent | null>(null);
   const [profileView, setProfileView] = useState<PublicProfileView>("feed");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [commentsVideoId, setCommentsVideoId] = useState<number | null>(null);
-  const [shareVideoId, setShareVideoId] = useState<number | null>(null);
-  const [timeLikeVideoId, setTimeLikeVideoId] = useState<number | null>(null);
-  const [moreVideoId, setMoreVideoId] = useState<number | null>(null);
   const [timeLikeSnapshots, setTimeLikeSnapshots] = useState<Record<number, TimeLikeSnapshot>>({});
+  const {
+    closeComments,
+    closeMore,
+    closeShare,
+    closeTimeLike,
+    commentsVideoId,
+    moreVideoId,
+    openComments,
+    openMore,
+    openShare,
+    openTimeLike,
+    shareVideoId,
+    timeLikeVideoId,
+  } = usePostInteractionOverlays();
 
   useEffect(() => {
     let mounted = true;
@@ -256,27 +227,9 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
   const albumItems = useMemo<ProfileAlbumItem[]>(() => (bundle ? toProfileAlbumItems(profilePosts) : []), [bundle, profilePosts]);
   const videoItems = useMemo<ProfileVideoItem[]>(() => (bundle ? toProfileVideoItems(profilePosts) : []), [bundle, profilePosts]);
   const drawerVideos = useMemo(
-    () => classicItems.map((item) => toDrawerVideo(item)).filter((item): item is MockVideo => item !== null),
+    () => classicItems.map((item) => toPostInteractionVideo(item)).filter((item) => item !== null),
     [classicItems],
   );
-
-  useEffect(() => {
-    if (drawerVideos.length === 0) {
-      return;
-    }
-
-    setTimeLikeSnapshots((current) => {
-      const next = { ...current };
-
-      for (const video of drawerVideos) {
-        if (!next[video.id]) {
-          next[video.id] = createSeedTimeLikeSnapshot(video);
-        }
-      }
-
-      return next;
-    });
-  }, [drawerVideos]);
 
   useEffect(() => {
     if (!toastMessage) {
@@ -291,25 +244,6 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
       window.clearTimeout(timeoutId);
     };
   }, [toastMessage]);
-
-  const handleHeaderNav = (itemId: HeaderNavItemId) => {
-    if (itemId === "home") {
-      router.push("/");
-      return;
-    }
-
-    if (itemId === "watch") {
-      router.push("/live-shopping");
-      return;
-    }
-
-    if (itemId === "shop") {
-      router.push("/marketplace");
-      return;
-    }
-
-    router.push("/");
-  };
 
   const handleCopyProfile = async () => {
     if (
@@ -429,15 +363,6 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
     return drawerVideos.find((video) => video.id === videoId) ?? null;
   };
 
-  const handleOpenComments = (videoId: number) => setCommentsVideoId(videoId);
-  const handleOpenShare = (videoId: number) => setShareVideoId(videoId);
-  const handleOpenTimeLike = (videoId: number) => setTimeLikeVideoId(videoId);
-  const handleOpenMore = (videoId: number) => setMoreVideoId(videoId);
-  const handleCloseComments = () => setCommentsVideoId(null);
-  const handleCloseShare = () => setShareVideoId(null);
-  const handleCloseTimeLike = () => setTimeLikeVideoId(null);
-  const handleCloseMore = () => setMoreVideoId(null);
-
   const handleTimeLikeStateChange = useCallback((videoId: number, snapshot: TimeLikeSnapshot) => {
     setTimeLikeSnapshots((current) => {
       const previous = current[videoId];
@@ -462,50 +387,6 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
 
   return (
     <div className="min-h-screen bg-[#f3f5f6] text-[#101522]">
-      <header
-        className="fixed inset-x-0 top-0 z-[120] h-[76px] border-b border-black/6 bg-white/92 backdrop-blur"
-        data-legacy-site-header="true"
-      >
-        <div className="relative mx-auto h-full w-[1440px]">
-          <button
-            type="button"
-            onClick={() => router.push("/")}
-            className="absolute left-[48px] top-[19px] flex h-9 items-center gap-3"
-            aria-label="Retour a l'accueil"
-          >
-            <Image
-              src="/figma-assets/logo-mark.png"
-              alt="Pictomag"
-              width={30}
-              height={30}
-              style={{ width: "auto", height: "auto" }}
-              priority
-            />
-            <Image
-              src="/figma-assets/brand-wordmark.svg"
-              alt="Pictomag"
-              width={84}
-              height={32}
-              priority
-            />
-          </button>
-
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <AnimatedHeaderNav activeItemId={null} onItemClick={handleHeaderNav} />
-          </div>
-
-          <div className="absolute right-[48px] top-5">
-            <SiteAccountMenu
-              className="flex h-8 w-[69px] items-center gap-[13px]"
-              menuButtonClassName="hover-lift h-6 w-6"
-              avatarButtonClassName="hover-lift relative h-8 w-8 overflow-hidden rounded-full"
-              avatarImageClassName="object-cover"
-              avatarSize="32px"
-            />
-          </div>
-        </div>
-      </header>
-
       <main className="w-full px-6 pb-20 pt-[108px] lg:px-10">
         {loading ? (
           <section className="rounded-[10px] border border-black/7 bg-white px-8 py-10">
@@ -633,10 +514,10 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
                       trackingEnabled={Boolean(viewerSession?.authenticated)}
                       flatCards
                       items={classicItems}
-                      onOpenComments={handleOpenComments}
-                      onOpenShare={handleOpenShare}
-                      onOpenTimeLike={handleOpenTimeLike}
-                      onOpenMore={handleOpenMore}
+                      onOpenComments={openComments}
+                      onOpenShare={openShare}
+                      onOpenTimeLike={openTimeLike}
+                      onOpenMore={openMore}
                       onTimeLikeStateChange={handleTimeLikeStateChange}
                     />
                   </LockedPublicProfileSection>
@@ -733,24 +614,24 @@ export function PublicProfilePage({ username }: PublicProfilePageProps) {
       <CommentsDrawer
         video={findDrawerVideo(commentsVideoId)}
         open={commentsVideoId !== null}
-        onClose={handleCloseComments}
+        onClose={closeComments}
       />
       <ShareDrawer
         key={shareVideoId !== null ? `public-profile-share-${shareVideoId}` : "public-profile-share-closed"}
         video={findDrawerVideo(shareVideoId)}
         open={shareVideoId !== null}
-        onClose={handleCloseShare}
+        onClose={closeShare}
       />
       <MoreActionsDrawer
         video={findDrawerVideo(moreVideoId)}
         open={moreVideoId !== null}
-        onClose={handleCloseMore}
+        onClose={closeMore}
       />
-      <TimeLikeLeaderboardDrawer
+      <TimeLikeDrawer
         video={findDrawerVideo(timeLikeVideoId)}
         snapshot={timeLikeVideoId !== null ? timeLikeSnapshots[timeLikeVideoId] ?? null : null}
         open={timeLikeVideoId !== null}
-        onClose={handleCloseTimeLike}
+        onClose={closeTimeLike}
       />
 
       {toastMessage ? (

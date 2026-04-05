@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveAuthenticatedAppUser } from "@/lib/server/auth-user";
+import { resolveAuthenticatedAppUser, resolveAuthUserId } from "@/lib/server/auth-user";
 import { listPublicPosts } from "@/lib/server/post-records";
 import {
   createPostWithMedia,
@@ -42,6 +42,7 @@ function normalizeScope(value: string | null) {
 }
 
 export async function GET(request: NextRequest) {
+  const viewerUserId = resolveAuthUserId(request) ?? undefined;
   const scope = normalizeScope(request.nextUrl.searchParams.get("scope"));
   const userId = request.nextUrl.searchParams.get("userId")?.trim() ?? undefined;
   const limit = Number(request.nextUrl.searchParams.get("limit") ?? "24");
@@ -63,6 +64,7 @@ export async function GET(request: NextRequest) {
     surface,
     kinds,
     limit: Number.isFinite(limit) ? limit : 24,
+    viewerUserId,
   });
 
   return NextResponse.json({
@@ -145,6 +147,10 @@ export async function POST(request: NextRequest) {
     media,
   });
 
-  const [post] = listPublicPosts({ userId: authenticatedUser.user.id, limit: 1 }).filter((entry) => entry.id === postId);
+  const [post] = listPublicPosts({
+    userId: authenticatedUser.user.id,
+    limit: 1,
+    viewerUserId: authenticatedUser.user.id,
+  }).filter((entry) => entry.id === postId);
   return NextResponse.json({ post }, { status: 201 });
 }

@@ -16,16 +16,8 @@ import {
   X,
 } from "lucide-react";
 import { formatDisplayName } from "@/lib/display-name";
-import type { PublicProfileBundle } from "@/lib/posts";
 import { resolveProfileAvatarSrc } from "@/lib/profile-avatar";
-
-type ProfileMePayload = {
-  authenticated?: boolean;
-  user?: {
-    id?: string;
-  };
-  profile?: PublicProfileBundle["profile"];
-};
+import { useCreatorSession } from "@/lib/use-creator-session";
 
 function fileToDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -119,7 +111,6 @@ export function ProfileEditPage() {
 function ProfileEditorPage({ mode }: { mode: "onboarding" | "edit" }) {
   const router = useRouter();
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
   const [saving, setSaving] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
@@ -129,53 +120,36 @@ function ProfileEditorPage({ mode }: { mode: "onboarding" | "edit" }) {
   const [avatarFileName, setAvatarFileName] = useState("");
   const [avatarDragActive, setAvatarDragActive] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const session = useCreatorSession();
+  const loadingProfile = session.status === "loading";
+  const isEditMode = mode === "edit";
 
   useEffect(() => {
-    let cancelled = false;
+    if (session.status === "loading") {
+      return;
+    }
 
-    const loadProfile = async () => {
-      try {
-        const response = await fetch("/api/profile/me", {
-          credentials: "same-origin",
-          cache: "no-store",
-        });
+    if (session.status === "anonymous") {
+      router.replace("/login");
+      return;
+    }
 
-        if (response.status === 401) {
-          router.replace("/login");
-          return;
-        }
+    if (session.status === "error") {
+      setErrorMessage(session.errorMessage ?? "Impossible de charger votre profil.");
+      return;
+    }
 
-        if (!response.ok) {
-          throw new Error("Impossible de charger votre profil.");
-        }
+    if (!isEditMode && session.status === "authenticated_ready") {
+      router.replace("/profile");
+      return;
+    }
 
-        const payload = (await response.json()) as ProfileMePayload;
-        if (cancelled) {
-          return;
-        }
-
-        setDisplayName(payload.profile?.displayName ?? "");
-        setUsername(payload.profile?.username ?? "");
-        setBio(payload.profile?.bio ?? "");
-        setAvatarUrl(payload.profile?.avatarUrl ?? "");
-        setWebsiteUrl(payload.profile?.websiteUrl ?? "");
-      } catch (error) {
-        if (!cancelled) {
-          setErrorMessage(error instanceof Error ? error.message : "Impossible de charger votre profil.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingProfile(false);
-        }
-      }
-    };
-
-    void loadProfile();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [router]);
+    setDisplayName(session.payload?.profile?.displayName ?? "");
+    setUsername(session.payload?.profile?.username ?? "");
+    setBio(session.payload?.profile?.bio ?? "");
+    setAvatarUrl(session.payload?.profile?.avatarUrl ?? "");
+    setWebsiteUrl(session.payload?.profile?.websiteUrl ?? "");
+  }, [isEditMode, router, session]);
 
   const canSubmit = useMemo(
     () => displayName.trim().length > 1 && username.trim().length > 1 && !loadingProfile && !saving,
@@ -184,23 +158,20 @@ function ProfileEditorPage({ mode }: { mode: "onboarding" | "edit" }) {
 
   const safeAvatarSrc = resolveProfileAvatarSrc(avatarUrl, "") || null;
   const previewDisplayName = formatDisplayName(displayName, "Votre nom");
-  const onboardingProgress = Math.round(
-    ((displayName.trim().length > 1 ? 1 : 0) +
-      (username.trim().length > 1 ? 1 : 0) +
-      (bio.trim().length > 0 ? 1 : 0) +
-      (avatarUrl.trim().length > 0 ? 1 : 0)) /
-      4 *
-      100,
-  );
-  const isEditMode = mode === "edit";
+  const requiredFieldsCompleted = Number(displayName.trim().length > 1) + Number(username.trim().length > 1);
+  const progressLabel = isEditMode
+    ? "Profil public"
+    : requiredFieldsCompleted === 2
+      ? "Profil minimum pret"
+      : `${requiredFieldsCompleted}/2 requis`;
   const heroKicker = isEditMode ? "Edition" : "Onboarding";
   const heroTitle = isEditMode
     ? "Mets ton profil a jour dans une interface simple."
-    : "On prepare ton profil avant ton premier post.";
+    : "Complete ton profil public minimum.";
   const heroDescription = isEditMode
     ? "Change ta photo, ton nom affiche, ton identifiant, ta bio ou ton lien. Enregistre et ton profil est mis a jour tout de suite."
-    : "Ajoute une photo ou garde l'icone neutre, choisis ton nom visible, ton identifiant public et une bio courte.";
-  const footerTitle = isEditMode ? "Pret a enregistrer" : "Pret a continuer";
+    : "Nom affiche et identifiant sont requis. Photo, bio et site restent optionnels pour commencer.";
+  const footerTitle = isEditMode ? "Pret a enregistrer" : "Pret a publier";
   const footerCopy = isEditMode
     ? "Enregistre tes changements et reviens immediatement sur ton profil."
     : "Enregistre ton profil et continue vers ton espace personnel.";
@@ -271,6 +242,11 @@ function ProfileEditorPage({ mode }: { mode: "onboarding" | "edit" }) {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!canSubmit) {
+      setErrorMessage("Ajoute au moins ton nom affiche et ton identifiant public pour continuer.");
+      return;
+    }
+
     setSaving(true);
     setErrorMessage(null);
 
@@ -325,7 +301,7 @@ function ProfileEditorPage({ mode }: { mode: "onboarding" | "edit" }) {
 
             <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#f5f7fb] px-3 py-2 text-[12px] font-medium text-[#64748b]">
               <Sparkles className="h-3.5 w-3.5 text-[#4f46ff]" />
-              {onboardingProgress}% termine
+              {progressLabel}
             </div>
 
             <p className="mt-5 type-kicker-tight text-[#9aa8bc]">{heroKicker}</p>

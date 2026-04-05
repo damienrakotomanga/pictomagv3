@@ -6,21 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatDisplayName } from "@/lib/display-name";
 import { DEFAULT_AVATAR, resolveProfileAvatarSrc } from "@/lib/profile-avatar";
-
-type AccountSessionPayload = {
-  authenticated?: boolean;
-  compatibilityMode?: boolean;
-  role?: string;
-  user?: {
-    id?: string;
-    email?: string | null;
-  };
-  profile?: {
-    username?: string;
-    displayName?: string;
-    avatarUrl?: string | null;
-  };
-};
+import type { CreatorSessionPayload } from "@/lib/use-creator-session";
 
 type SiteAccountMenuProps = {
   className?: string;
@@ -44,7 +30,7 @@ export function SiteAccountMenu({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState<AccountSessionPayload | null>(null);
+  const [session, setSession] = useState<CreatorSessionPayload | null>(null);
   const [busy, setBusy] = useState<false | "logout">(false);
 
   useEffect(() => {
@@ -52,11 +38,19 @@ export function SiteAccountMenu({
 
     const loadSession = async () => {
       try {
-        const response = await fetch("/api/auth/session", {
+        const response = await fetch("/api/profile/me", {
           credentials: "same-origin",
           cache: "no-store",
         });
-        const payload = response.ok ? ((await response.json()) as AccountSessionPayload) : null;
+
+        if (response.status === 401) {
+          if (!cancelled) {
+            setSession(null);
+          }
+          return;
+        }
+
+        const payload = response.ok ? ((await response.json()) as CreatorSessionPayload) : null;
         if (!cancelled) {
           setSession(payload);
         }
@@ -95,7 +89,7 @@ export function SiteAccountMenu({
     };
   }, [menuOpen]);
 
-  const isAuthenticated = Boolean(session?.authenticated);
+  const isAuthenticated = Boolean(session?.authenticated && session?.user?.id && session?.profile);
   const displayName = formatDisplayName(session?.profile?.displayName, "Bienvenue");
   const username = session?.profile?.username?.trim() || "guest";
   const email = session?.user?.email?.trim() || null;
@@ -125,10 +119,7 @@ export function SiteAccountMenu({
         method: "POST",
         credentials: "same-origin",
       });
-      setSession({
-        authenticated: false,
-        compatibilityMode: true,
-      });
+      setSession(null);
       setMenuOpen(false);
       router.push("/");
       router.refresh();

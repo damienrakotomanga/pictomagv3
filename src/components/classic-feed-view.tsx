@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import type { AnimationItem } from "lottie-web";
 import {
+  useCallback,
   useEffect,
   useEffectEvent,
   useMemo,
@@ -14,20 +15,22 @@ import {
   type SVGProps,
 } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, MessageCircleMore, Play, Send, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Flag, MessageCircleMore, Play, Send, X } from "lucide-react";
 import timeAnimationData from "../../public/feed-rail-animations/feed-time-icon.json";
 import { DEFAULT_AVATAR, resolveProfileAvatarSrc } from "@/lib/profile-avatar";
 import type { ClassicFeedCardItem } from "@/lib/posts";
+import { persistTimeLike, removeTimeLike } from "@/lib/timelike-client";
 
 type ClassicFeedViewProps = {
   onOpenComments: (videoId: number) => void;
   onOpenShare: (videoId: number) => void;
   onOpenTimeLike: (videoId: number) => void;
   onOpenMore: (videoId: number) => void;
+  onOpenPost?: (postId: number) => void;
   trackingEnabled: boolean;
   onTimeLikeStateChange: (videoId: number, snapshot: ClassicTimeLikeSnapshot) => void;
   flatCards?: boolean;
-  items?: ClassicFeedCardItem[];
+  items: ClassicFeedCardItem[];
 };
 
 type ClassicMediaKind = "photo" | "video";
@@ -51,6 +54,15 @@ type ClassicTimeLikeSnapshot = {
   progressValue: number;
   rule: ClassicTimeLikeRule;
   durationSeconds: number;
+};
+
+type ClassicTimeLikeState = {
+  activeMs: number;
+  maxProgress: number;
+  triggered: boolean;
+  count: number;
+  dismissed: boolean;
+  persisting: boolean;
 };
 
 type ClassicBurstParticle = {
@@ -77,98 +89,6 @@ type ClassicCardLayout = {
   copyMaxWidthClassName: string;
   imageFrameMaxWidthClassName: string;
 };
-
-const legacyFallbackClassicFeedItems: ClassicFeedCardItem[] = [
-  {
-    id: 1,
-    videoId: 101,
-    variant: "letter",
-    author: "Axel Belujon",
-    authorUsername: "axelbelujon",
-    handle: "@axelbelujon",
-    avatar: "/figma-assets/avatar-post.png",
-    timestamp: "il y a 18 min",
-    eyebrow: "Lettre ouverte",
-    title: "Un feed classique qui donne envie de rester, pas juste de scroller.",
-    body:
-      "On veut un espace plus calme pour raconter des idees, poster une lettre, montrer un projet en photos, glisser une video et laisser le TimeLike lire l'attention reelle au lieu de compter les reflexes.",
-    duration: "0:12",
-    timelikeCount: "1 284",
-    commentCount: "126",
-    shareCount: "48",
-  },
-  {
-    id: 2,
-    videoId: 102,
-    variant: "gallery",
-    author: "Pictomag News",
-    authorUsername: "pictomag.news",
-    handle: "@pictomag.news",
-    avatar: "/figma-assets/avatar-user.png",
-    timestamp: "il y a 42 min",
-    eyebrow: "Serie photo",
-    title: "Moodboard editorial du jour",
-    body:
-      "Un carrousel plus premium qu'une simple mosaique: grand visuel, details rapproches et caption concise.",
-    duration: "0:12",
-    timelikeCount: "962",
-    commentCount: "84",
-    shareCount: "31",
-    media: {
-      kind: "gallery",
-      gallery: [
-        "/figma-assets/photo-feed/photo-grid-1.jpg",
-        "/figma-assets/photo-feed/photo-grid-2.jpg",
-        "/figma-assets/photo-feed/photo-grid-3.jpg",
-      ],
-    },
-  },
-  {
-    id: 3,
-    videoId: 103,
-    variant: "video",
-    author: "World of TCGP",
-    authorUsername: "world.of.tcgp",
-    handle: "@world.of.tcgp",
-    avatar: "/figma-assets/avatar-post.png",
-    timestamp: "il y a 1 h",
-    eyebrow: "Video",
-    title: "Chromecast motion cut",
-    body:
-      "Le format classique permet de contextualiser une video avec une intro, une note et un vrai espace de discussion juste dessous.",
-    duration: "1:18",
-    timelikeCount: "2 105",
-    commentCount: "214",
-    shareCount: "76",
-    media: {
-      kind: "video",
-      src: "https://pictomag-news-1.vercel.app/video/feed-video-3.mp4",
-      poster: "/figma-assets/photo-feed/photo-grid-4.jpg",
-    },
-  },
-  {
-    id: 4,
-    videoId: 104,
-    variant: "note",
-    author: "Studio Heat",
-    authorUsername: "studio.heat",
-    handle: "@studio.heat",
-    avatar: "/figma-assets/avatar-story.png",
-    timestamp: "il y a 2 h",
-    eyebrow: "Note rapide",
-    title: "Le TimeLike devient le vrai signal social.",
-    body:
-      "Un post peut vivre par le texte, une image seule, une galerie ou une video. Le classement vient du temps d'attention offert, pas d'un concours de taps.",
-    duration: "0:10",
-    timelikeCount: "845",
-    commentCount: "59",
-    shareCount: "19",
-    media: {
-      kind: "image",
-      src: "/figma-assets/photo-feed/photo-grid-7.jpg",
-    },
-  },
-];
 
 const classicTimeLikeBurstParticles: ClassicBurstParticle[] = [
   { id: 1, kind: "emoji", emoji: "\u2665", x: -22, y: -26, rotate: -16, delay: 0, size: 12 },
@@ -264,48 +184,6 @@ function shouldTriggerTimeLike(rule: ClassicTimeLikeRule, activeMs: number, prog
   return activeMs >= rule.minActiveMs && progress >= rule.minProgress;
 }
 
-function DislikeFlagIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden {...props}>
-      <path
-        d="M3 4.5396L8 22"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M3.26476 5.50389C7.49995 6.03106 11.2709 1.53105 17.5 2.03105C18.7709 4.03105 18.4999 6.03106 17.9999 8.03106C19.9999 9.03106 20.9999 10.0311 21.4999 12.0311C15.4999 12.5311 12.4999 17.0311 5.99995 15.0311"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M7.9165 7.33733L9.76022 8.38648M9.36294 6.94005L8.31379 8.78377"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M13.2201 5.88062L15.0638 6.92977M14.6665 5.48334L13.6174 7.32705"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M10.2051 11.8939L10.5611 11.5211C11.5813 10.4527 13.1073 10.0336 14.5301 10.431L15.0266 10.5696"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function TimeLikeIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden {...props}>
@@ -320,6 +198,29 @@ function TimeLikeIcon(props: SVGProps<SVGSVGElement>) {
       <path d="M9.25 3.9H14.75" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       <path d="M16.25 5.45L17.6 4.15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
+  );
+}
+
+function ClassicDislikeButton({
+  active,
+  pending,
+  onClick,
+}: {
+  active: boolean;
+  pending: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <ClassicMetricButton
+      icon={
+        <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#f7f8fb] text-[#0f172a] transition group-hover:bg-[#eef2f7]">
+          <Flag className="h-4 w-4" strokeWidth={2.1} />
+        </span>
+      }
+      value={pending ? "..." : active ? "Retirer" : "Masquer"}
+      label="Dislike"
+      onClick={onClick}
+    />
   );
 }
 
@@ -537,62 +438,6 @@ function ClassicTimeLikeButton({
   );
 }
 
-function ClassicDislikeButton({
-  open,
-  triggered,
-  activeMs,
-  onOpen,
-  onClose,
-  onConfirm,
-}: {
-  open: boolean;
-  triggered: boolean;
-  activeMs: number;
-  onOpen: () => void;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <div className="relative w-full">
-      <ClassicMetricButton value="Dislike" label="Annuler TimeLike" onClick={onOpen}>
-        <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#f7f8fb] text-[#0f172a] transition group-hover:bg-[#eef2f7]">
-          <DislikeFlagIcon className="h-4 w-4" />
-        </span>
-      </ClassicMetricButton>
-
-      {open ? (
-        <div className="timelike-cancel-popover" role="dialog" aria-label="Annuler TimeLike">
-          <p className="timelike-cancel-kicker">{triggered ? "TimeLike actif" : "TimeLike en cours"}</p>
-          <p className="timelike-cancel-title">
-            Ce contenu ne vous plait pas ? Souhaitez-vous annuler votre TimeLike ?
-          </p>
-          <p className="timelike-cancel-meta">
-            {triggered
-              ? "Le TimeLike est deja parti sur ce post. Vous pouvez le retirer ici."
-              : `${Math.floor(activeMs / 1000)}s d'attention detectees pour l'instant sur ce post.`}
-          </p>
-          <div className="timelike-cancel-actions">
-            <button
-              type="button"
-              className="timelike-cancel-btn timelike-cancel-btn-secondary"
-              onClick={onClose}
-            >
-              Non
-            </button>
-            <button
-              type="button"
-              className="timelike-cancel-btn timelike-cancel-btn-primary"
-              onClick={onConfirm}
-            >
-              Oui
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function ClassicMediaBlock({
   item,
   videoRef,
@@ -692,6 +537,7 @@ function ClassicFeedCard({
   onOpenShare,
   onOpenTimeLike,
   onOpenMore,
+  onOpenPost,
   onOpenImage,
   trackingEnabled,
   onTimeLikeStateChange,
@@ -703,6 +549,7 @@ function ClassicFeedCard({
   onOpenShare: (videoId: number) => void;
   onOpenTimeLike: (videoId: number) => void;
   onOpenMore: (videoId: number) => void;
+  onOpenPost?: (postId: number) => void;
   onOpenImage: (images: string[], index: number, title: string) => void;
   trackingEnabled: boolean;
   onTimeLikeStateChange: (videoId: number, snapshot: ClassicTimeLikeSnapshot) => void;
@@ -723,12 +570,13 @@ function ClassicFeedCard({
   const [resolvedDurationSeconds, setResolvedDurationSeconds] = useState(() => parseDurationLabel(item.duration));
   const baseTimeLikeCount = Number(item.timelikeCount.replace(/\s+/g, ""));
   const mediaKind: ClassicMediaKind = item.media?.kind === "video" ? "video" : "photo";
-  const [timeLikeState, setTimeLikeState] = useState(() => ({
-    activeMs: 0,
-    maxProgress: 0,
-    triggered: false,
+  const [timeLikeState, setTimeLikeState] = useState<ClassicTimeLikeState>(() => ({
+    activeMs: item.viewerTimeLikeActiveMs ?? 0,
+    maxProgress: item.viewerTimeLikeMaxProgress ?? 0,
+    triggered: item.viewerHasTimeLike,
     count: baseTimeLikeCount,
     dismissed: false,
+    persisting: false,
   }));
   const timeLikeRule = useMemo(
     () => getTimeLikeRule(mediaKind, resolvedDurationSeconds),
@@ -745,6 +593,7 @@ function ClassicFeedCard({
   const hasMedia = Boolean(item.media);
   const hasBody = item.body.trim().length > 0;
   const canExpandBody = hasMedia && item.body.trim().length > 10;
+  const canOpenPost = typeof onOpenPost === "function";
 
   useEffect(() => {
     return () => {
@@ -824,12 +673,59 @@ function ClassicFeedCard({
     timeLikeRule,
     timeLikeState.activeMs,
     timeLikeState.count,
+    timeLikeState.dismissed,
     timeLikeState.maxProgress,
+    timeLikeState.persisting,
     timeLikeState.triggered,
   ]);
 
+  const commitTimeLike = useCallback(
+    async (activeMs: number, maxProgress: number) => {
+      try {
+        const response = await persistTimeLike({
+          postId: item.videoId,
+          activeMs,
+          maxProgress,
+        });
+
+        setTimeLikeState((current) => ({
+          ...current,
+          activeMs: response.timelike?.activeMs ?? Math.max(current.activeMs, activeMs),
+          maxProgress: response.timelike?.maxProgress ?? Math.max(current.maxProgress, maxProgress),
+          triggered: true,
+          count: response.totalCount,
+          dismissed: false,
+          persisting: false,
+        }));
+
+        if (timeLikeBurstTimerRef.current) {
+          clearTimeout(timeLikeBurstTimerRef.current);
+        }
+
+        setTimeLikeBurstTick((current) => current + 1);
+        setTimeLikeBurstVisible(true);
+        timeLikeBurstTimerRef.current = setTimeout(() => {
+          setTimeLikeBurstVisible(false);
+        }, 980);
+      } catch {
+        setTimeLikeState((current) => ({
+          ...current,
+          persisting: false,
+        }));
+      }
+    },
+    [item.videoId],
+  );
+
   useEffect(() => {
-    if (!trackingEnabled || !isVisible || timeLikeState.triggered || timeLikeState.dismissed || isDislikePromptOpen) {
+    if (
+      !trackingEnabled ||
+      !isVisible ||
+      timeLikeState.triggered ||
+      timeLikeState.dismissed ||
+      timeLikeState.persisting ||
+      isDislikePromptOpen
+    ) {
       return;
     }
 
@@ -860,10 +756,11 @@ function ClassicFeedCard({
           ? Math.min(1, video.currentTime / durationSeconds)
           : 0;
 
-      let shouldBurst = false;
+      let nextPersistActiveMs: number | null = null;
+      let nextPersistMaxProgress: number | null = null;
 
       setTimeLikeState((current) => {
-        if (current.triggered) {
+        if (current.triggered || current.dismissed || current.persisting) {
           return current;
         }
 
@@ -879,27 +776,19 @@ function ClassicFeedCard({
           };
         }
 
-        shouldBurst = true;
+        nextPersistActiveMs = nextActiveMs;
+        nextPersistMaxProgress = nextMaxProgress;
 
         return {
           ...current,
           activeMs: nextActiveMs,
           maxProgress: nextMaxProgress,
-          triggered: true,
-          count: current.count + 1,
+          persisting: true,
         };
       });
 
-      if (shouldBurst) {
-        if (timeLikeBurstTimerRef.current) {
-          clearTimeout(timeLikeBurstTimerRef.current);
-        }
-
-        setTimeLikeBurstTick((current) => current + 1);
-        setTimeLikeBurstVisible(true);
-        timeLikeBurstTimerRef.current = setTimeout(() => {
-          setTimeLikeBurstVisible(false);
-        }, 980);
+      if (nextPersistActiveMs !== null && nextPersistMaxProgress !== null) {
+        void commitTimeLike(nextPersistActiveMs, nextPersistMaxProgress);
       }
     }, 200);
 
@@ -907,27 +796,63 @@ function ClassicFeedCard({
       window.clearInterval(intervalId);
     };
   }, [
-    isDislikePromptOpen,
     isVisible,
     mediaKind,
     resolvedDurationSeconds,
+    isDislikePromptOpen,
+    commitTimeLike,
     timeLikeState.dismissed,
+    timeLikeState.persisting,
     timeLikeState.triggered,
     trackingEnabled,
   ]);
 
-  const handleCancelTimeLike = () => {
+  const handleOpenDislikePrompt = useCallback(() => {
+    setIsDislikePromptOpen(true);
+  }, []);
+
+  const handleCloseDislikePrompt = useCallback(() => {
+    setIsDislikePromptOpen(false);
+  }, []);
+
+  const handleCancelTimeLike = useCallback(async () => {
+    setTimeLikeBurstVisible(false);
+
+    if (!timeLikeState.triggered) {
+      setTimeLikeState((current) => ({
+        ...current,
+        activeMs: 0,
+        maxProgress: 0,
+        dismissed: true,
+      }));
+      setIsDislikePromptOpen(false);
+      return;
+    }
+
     setTimeLikeState((current) => ({
       ...current,
-      activeMs: 0,
-      maxProgress: 0,
-      triggered: false,
-      dismissed: true,
-      count: current.triggered ? Math.max(baseTimeLikeCount, current.count - 1) : current.count,
+      persisting: true,
     }));
-    setTimeLikeBurstVisible(false);
-    setIsDislikePromptOpen(false);
-  };
+
+    try {
+      const response = await removeTimeLike(item.videoId);
+      setTimeLikeState({
+        activeMs: 0,
+        maxProgress: 0,
+        triggered: false,
+        count: response.totalCount,
+        dismissed: true,
+        persisting: false,
+      });
+    } catch {
+      setTimeLikeState((current) => ({
+        ...current,
+        persisting: false,
+      }));
+    } finally {
+      setIsDislikePromptOpen(false);
+    }
+  }, [item.videoId, timeLikeState.triggered]);
 
   const handleOpenAuthorProfile = () => {
     if (!canOpenAuthorProfile) {
@@ -935,6 +860,9 @@ function ClassicFeedCard({
     }
 
     router.push(`/u/${encodeURIComponent(authorUsername)}`);
+  };
+  const handleOpenPost = () => {
+    onOpenPost?.(item.id);
   };
 
   return (
@@ -978,17 +906,33 @@ function ClassicFeedCard({
 
       <div className="pb-3 pt-0">
         <div className={cardLayout.copyMaxWidthClassName}>
-          <h3
-            className={`mt-1.5 text-[#111827] ${
-              item.variant === "letter"
-                ? "text-[26px] font-medium leading-[1.04] tracking-[-0.04em]"
-                : hasMedia
-                  ? "text-[17px] font-medium leading-[1.14] tracking-[-0.03em]"
-                  : "text-[18px] font-medium leading-[1.18] tracking-[-0.02em]"
-            }`}
-          >
-            {item.title}
-          </h3>
+          {canOpenPost ? (
+            <button
+              type="button"
+              onClick={handleOpenPost}
+              className={`mt-1.5 text-left text-[#111827] transition hover:opacity-80 ${
+                item.variant === "letter"
+                  ? "text-[26px] font-medium leading-[1.04] tracking-[-0.04em]"
+                  : hasMedia
+                    ? "text-[17px] font-medium leading-[1.14] tracking-[-0.03em]"
+                    : "text-[18px] font-medium leading-[1.18] tracking-[-0.02em]"
+              }`}
+            >
+              {item.title}
+            </button>
+          ) : (
+            <h3
+              className={`mt-1.5 text-[#111827] ${
+                item.variant === "letter"
+                  ? "text-[26px] font-medium leading-[1.04] tracking-[-0.04em]"
+                  : hasMedia
+                    ? "text-[17px] font-medium leading-[1.14] tracking-[-0.03em]"
+                    : "text-[18px] font-medium leading-[1.18] tracking-[-0.02em]"
+              }`}
+            >
+              {item.title}
+            </h3>
+          )}
           {!hasMedia && hasBody ? <p className="mt-2 text-[14px] leading-7 text-[#111827]">{item.body}</p> : null}
         </div>
       </div>
@@ -1006,7 +950,7 @@ function ClassicFeedCard({
       <div className="pb-0 pt-4">
         <div className="grid w-full grid-cols-4 gap-2.5">
           <ClassicTimeLikeButton
-            value={String(timeLikeState.count)}
+            value={new Intl.NumberFormat("fr-FR").format(timeLikeState.count)}
             progress={timeLikeProgress}
             active={timeLikeState.triggered}
             burstVisible={timeLikeBurstVisible}
@@ -1033,14 +977,48 @@ function ClassicFeedCard({
             label="Partages"
             onClick={() => onOpenShare(item.videoId)}
           />
-          <ClassicDislikeButton
-            open={isDislikePromptOpen}
-            triggered={timeLikeState.triggered}
-            activeMs={timeLikeState.activeMs}
-            onOpen={() => setIsDislikePromptOpen(true)}
-            onClose={() => setIsDislikePromptOpen(false)}
-            onConfirm={handleCancelTimeLike}
-          />
+          <div className="relative">
+            <ClassicDislikeButton
+              active={timeLikeState.triggered || timeLikeState.activeMs > 0}
+              pending={timeLikeState.persisting}
+              onClick={handleOpenDislikePrompt}
+            />
+            {isDislikePromptOpen ? (
+              <div className="absolute right-0 top-[calc(100%+10px)] z-20 w-[250px] rounded-[18px] bg-white p-4 shadow-[0_18px_48px_rgba(15,23,42,0.16)] ring-1 ring-black/[0.08]">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8ea2bc]">
+                  {timeLikeState.triggered ? "TimeLike actif" : "Session en cours"}
+                </p>
+                <p className="mt-2 text-[14px] font-semibold leading-6 text-[#101522]">
+                  {timeLikeState.triggered
+                    ? "Retirer ce TimeLike et stopper le signal auto sur ce post ?"
+                    : "Ce post ne vous interesse pas ? On peut stopper le TimeLike automatique sur cette session."}
+                </p>
+                <p className="mt-2 text-[13px] leading-6 text-[#667085]">
+                  {timeLikeState.triggered
+                    ? "Le compteur sera remis a jour cote serveur."
+                    : `${Math.floor(timeLikeState.activeMs / 1000)}s d'attention detectees pour l'instant sur ce post.`}
+                </p>
+                <div className="mt-4 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCloseDislikePrompt}
+                    className="rounded-full bg-[#f4f6fa] px-4 py-2 text-[13px] font-semibold text-[#101522] transition hover:bg-[#e9eef7]"
+                  >
+                    Non
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleCancelTimeLike();
+                    }}
+                    className="rounded-full bg-[#101522] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#1b2433]"
+                  >
+                    Oui
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -1143,7 +1121,7 @@ function ClassicImageLightbox({
         <>
           <button
             type="button"
-            aria-label="Image précédente"
+                aria-label="Image precedente"
             onClick={onPrevious}
             className="absolute left-8 top-1/2 z-[244] flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/14 bg-white/8 text-white transition hover:bg-white/14"
           >
@@ -1182,6 +1160,7 @@ export function ClassicFeedView({
   onOpenShare,
   onOpenTimeLike,
   onOpenMore,
+  onOpenPost,
   trackingEnabled,
   onTimeLikeStateChange,
   flatCards = false,
@@ -1194,6 +1173,7 @@ export function ClassicFeedView({
         onOpenShare={onOpenShare}
         onOpenTimeLike={onOpenTimeLike}
         onOpenMore={onOpenMore}
+        onOpenPost={onOpenPost}
         trackingEnabled={trackingEnabled}
         onTimeLikeStateChange={onTimeLikeStateChange}
         flatCards={flatCards}
@@ -1209,6 +1189,7 @@ export function ClassicFeedStream({
   onOpenShare,
   onOpenTimeLike,
   onOpenMore,
+  onOpenPost,
   trackingEnabled,
   onTimeLikeStateChange,
   flatCards = false,
@@ -1216,7 +1197,7 @@ export function ClassicFeedStream({
   className = "space-y-6",
 }: ClassicFeedViewProps & { className?: string }) {
   const [lightboxState, setLightboxState] = useState<ClassicLightboxState | null>(null);
-  const resolvedItems = items ?? legacyFallbackClassicFeedItems;
+  const resolvedItems = items;
   const firstMediaIndex = resolvedItems.findIndex((item) => Boolean(item.media));
 
   const handleOpenImage = (images: string[], index: number, title: string) => {
@@ -1266,6 +1247,7 @@ export function ClassicFeedStream({
             onOpenShare={onOpenShare}
             onOpenTimeLike={onOpenTimeLike}
             onOpenMore={onOpenMore}
+            onOpenPost={onOpenPost}
             onOpenImage={handleOpenImage}
             trackingEnabled={trackingEnabled}
             onTimeLikeStateChange={onTimeLikeStateChange}

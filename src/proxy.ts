@@ -47,6 +47,7 @@ export const config = {
     "/messages/:path*",
     "/onboarding/:path*",
     "/photos/:path*",
+    "/posts/:path*",
     "/profile/:path*",
     "/sounds/:path*",
   ],

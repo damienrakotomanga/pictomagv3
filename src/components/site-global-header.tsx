@@ -8,7 +8,6 @@ import { SiteAccountMenu } from "@/components/site-account-menu";
 
 const headerTopActions = [
   { id: "create", src: "/figma-assets/top-plus.svg", label: "Create" },
-  { id: "notifications", src: "/figma-assets/top-notification.svg", label: "Notifications" },
   { id: "messages", src: "/figma-assets/top-message.svg", label: "Messages" },
 ] as const;
 
@@ -39,13 +38,6 @@ export function SiteGlobalHeader() {
     (actionId: HeaderTopActionId) => {
       if (actionId === "create") {
         router.push("/compose");
-        return;
-      }
-
-      if (actionId === "notifications") {
-        if (typeof window !== "undefined") {
-          window.alert("Centre de notifications: ouverture en cours d integration.");
-        }
         return;
       }
 
